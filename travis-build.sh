@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Building Peregrine CMS..."
-mvn clean install
+mvn clean install -q
 
 #disabled building the sling builder and instead pull sling builder and far from separate project
 #echo "Building Peregrine CMS Feature Launcer..."
@@ -16,7 +16,7 @@ echo "Building 'themeclean-flex'..."
 git clone https://github.com/headwirecom/themeclean-flex
 cd themeclean-flex
 git checkout develop-sling12
-mvn clean install
+mvn clean install -q
 cd ..
 
 echo "Copying packages to Docker working directory..."
