@@ -80,7 +80,7 @@
             @validated="onValidated()"
             @model-updated="onModelUpdate">
         </vue-form-generator>
-        <div v-if="!nodeType === NodeType.FILE" class="explorer-confirm-dialog">
+        <div v-if="nodeType !== NodeType.FILE" class="explorer-confirm-dialog">
           <template v-if="edit">
             <button
                 class="btn btn-raised waves-effect waves-light right"
@@ -841,7 +841,7 @@ export default {
     onCopySelect() {
       if (this.node.resourceType === 'nt:file') {
         let to = this.path.selected
-        
+
         if (!to) {
           const split = this.currentObject.split('/');
           split.pop();
@@ -849,7 +849,7 @@ export default {
         }
 
         $perAdminApp.stateAction('copyFile', {
-          from: this.currentObject, 
+          from: this.currentObject,
           to
         });
       } else {
