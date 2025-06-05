@@ -198,7 +198,7 @@
             <i class="material-icons">publish</i>
             Publish to Web ({{nodeType}})
           </div>
-          <div v-if="nodeFromPath.activated && !isReferencedInPublish" class="action" :title="`Deactivate ${nodeType}`">
+          <div v-if="nodeFromPath.activated" class="action" :title="`Deactivate ${nodeType}`">
             <admin-components-action :model="{
                     target: node.path,
                     command: 'unPublishResource',
@@ -750,7 +750,18 @@ export default {
       this.isPublishDialogOpen = true;
     },
     unPublishResource(me, path) {
-      $perAdminApp.stateAction('unreplicate', path)
+      if (me.isReferencedInPublish) {
+          $perAdminApp.askUser('Warning',
+              ("Unpublishing may break links. Would you like to continue ?"), {
+                  yesText: 'Yes',
+                  yes: function yes() {
+                      $perAdminApp.stateAction('unreplicate', path);
+                  },
+              });
+      }
+      else {
+          $perAdminApp.stateAction('unreplicate', path);
+      }
     },
     closePublishing(){
       console.log("Close Publishing Modal")
