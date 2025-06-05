@@ -118,7 +118,7 @@
                                :checked="isSelected(item.path)"/>
                         <label v-on:click.stop.prevent="selectItem(item)"></label>
                       </template>
-                      <i class="material-icons">{{ getFolderIcon() }}</i>
+                      <i class="material-icons">{{ getFolderIcon(item) }}</i>
                       <span>{{ item.name }}</span>
                     </li>
                     <li v-if="isFile(item) && isFileAllowed()"
@@ -265,7 +265,7 @@
                           <i
                               class="material-icons"
                               :style="`font-size: ${cardIconSize(cardSize)}px`">{{
-                              getFolderIcon()
+                              getFolderIcon(item)
                             }}</i>
                           <br/>
                           <span class="truncate">{{ item.name }}</span>
@@ -600,7 +600,10 @@ export default {
         return {icon: 'insert_drive_file', lib: IconLib.MATERIAL_ICONS}
       }
     },
-    getFolderIcon() {
+    getFolderIcon(item) {
+      if (item && item.resourceType === 'per:Page') {
+          return item.hasChildren ? 'folder_open' : 'description'
+      }
       return this.isType(PathBrowser.Type.ASSET) ? 'folder_open' : 'description'
     },
     getEmptyText() {
