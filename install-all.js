@@ -1,5 +1,6 @@
-// import { glob } from "glob";
-import { execSync } from "child_process";
+// const { glob, globSync } = require("glob");
+const fs = require("fs");
+const { execSync } = require("child_process");
 
 async function npmInstall(path) {
   try {
@@ -55,7 +56,30 @@ async function main() {
     npmInstall(path);
   }
 
-  // TODO: additionally fix build by creating /admin-base/ui.apps/target/etc/admin/dependencies/ dir
+  // create export paths
+  const dirs = [
+    "./admin-base/ui.apps/target/classes/etc/felibs",
+    "./admin-base/ui.apps/target/classes/etc/felibs/admin",
+    "./admin-base/ui.apps/target/classes/etc/felibs/admin/js",
+    "./admin-base/ui.apps/target/classes/etc/felibs/admin/dependencies",
+    "./admin-base/ui.apps/target/classes/etc/felibs/admin/css",
+    "./admin-base/ui.apps/target/classes/content/docs",
+    "./admin-base/ui.apps/target/classes/content/docs/pages",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/write",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/versioning",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/sitemaps",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/replication",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/renditions",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/hatch",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/docker",
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/distribution"
+  ];
+
+  for (let i = 0; i < dirs.length; i++) {
+    const dir = dirs[i];
+    await fs.promises.mkdir(dir, { recursive: true });
+  }
 }
 
 main();
