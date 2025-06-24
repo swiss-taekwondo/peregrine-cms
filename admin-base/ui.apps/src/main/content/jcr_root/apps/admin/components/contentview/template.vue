@@ -101,6 +101,35 @@ import {
   set
 } from '../../../../../../js/utils'
 
+
+const allowedStylesMap = {
+  // bold, italic, etc handled by html tags
+  'text-align':true,
+  'font-size':true,
+}
+function removeUnwantedStyles(htmlText) {
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = htmlText
+
+  tempDiv.querySelectorAll('[style]').forEach((span) => {
+    const propertiesToRemove = []
+    for (let i = 0; i < span.style.length; i++) {
+      const property = span.style.item(i);
+      if (!allowedStylesMap[property]) {
+        propertiesToRemove.push(property);
+      }
+    }
+    // must be done in later step, otherwise length changes
+    for (let i = 0; i < propertiesToRemove.length; i++) {
+      span.style.removeProperty(propertiesToRemove[i]);
+    }
+  })
+
+  return tempDiv.innerHTML
+}
+
+
+
 export default {
   props: ['model'],
   data() {
@@ -494,6 +523,7 @@ export default {
       let content = ''
       if (vm.isRich) {
         content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
+        content = removeUnwantedStyles(content);
       } else {
         content = vm.target.innerText
       }
