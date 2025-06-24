@@ -8,7 +8,7 @@ async function npmInstall(path) {
       cwd: path,
       // stdio: "inherit",
       stdio: ["pipe", "pipe", "pipe"],
-      encoding: "utf-8"
+      encoding: "utf-8",
     });
     console.log("Successfully installed (npm ci) packages for:", path);
   } catch {
@@ -17,7 +17,7 @@ async function npmInstall(path) {
         cwd: path,
         // stdio: "inherit",
         stdio: ["pipe", "pipe", "pipe"],
-        encoding: "utf-8"
+        encoding: "utf-8",
       });
       console.log("Successfully installed (npm i) packages for:", path);
     } catch {
@@ -48,7 +48,7 @@ async function main() {
     "./pagerenderer/vue/ui.apps/package.json",
     "./pagerenderer/server/ui.apps/package.json",
     "./pagerenderer/react/ui.apps/package.json",
-    "./tooling/maven/archetypes/project/src/main/resources/archetype-resources/ui.apps/package.json"
+    "./tooling/maven/archetypes/project/src/main/resources/archetype-resources/ui.apps/package.json",
   ];
 
   for (let i = 0; i < packageJsons.length; i++) {
@@ -73,7 +73,7 @@ async function main() {
     "./admin-base/ui.apps/target/classes/content/docs/pages/public/renditions",
     "./admin-base/ui.apps/target/classes/content/docs/pages/public/hatch",
     "./admin-base/ui.apps/target/classes/content/docs/pages/public/docker",
-    "./admin-base/ui.apps/target/classes/content/docs/pages/public/distribution"
+    "./admin-base/ui.apps/target/classes/content/docs/pages/public/distribution",
   ];
 
   for (let i = 0; i < dirs.length; i++) {
