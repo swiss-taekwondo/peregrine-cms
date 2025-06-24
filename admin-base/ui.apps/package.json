@@ -18,7 +18,10 @@
     "dev": "nodemon",
     "site": "node ./node_modules/jsdoc/jsdoc.js -c jsdoc.config.json -P package.json",
     "lint-vue": "node node_modules/eslint/bin/eslint.js src/main/content/jcr_root --ext vue",
-    "lint-js": "node node_modules/eslint/bin/eslint.js src/main/js"
+    "lint-js": "node node_modules/eslint/bin/eslint.js src/main/js",
+    "docker": "docker run -it -p 8080:8080 icaraps/peregrine-cms:stkd-nfs-amd64",
+    "patch": "node ./uploadPatches.js http://localhost:8080 admin:admin target/classes/etc/felibs/admin/js",
+    "build:patch": "npm run build && npm run patch"
   },
   "author": "",
   "license": "Apache-2.0",
