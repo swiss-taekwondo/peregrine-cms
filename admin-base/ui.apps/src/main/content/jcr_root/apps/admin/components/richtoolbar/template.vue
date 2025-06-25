@@ -1,5 +1,5 @@
 <template>
-  <div class="richtoolbar" :class="{disabled: !inlineRich || preview === 'preview'}">
+  <div class="richtoolbar" ref="richToolbar" :class="{disabled: !inlineRich || preview === 'preview'}">
     <richtoolbar-group
         v-if="groupAllowed(alwaysActiveGroup)"
         :icon="alwaysActiveGroup.icon"
@@ -97,7 +97,7 @@ export default {
     responsive: {
       type: Boolean,
       default: true
-    }
+    },
   },
   data() {
     return {
@@ -277,6 +277,9 @@ export default {
       if (!selection) throw 'no selection found'
       const range = selection.getRangeAt(0)
       if (!selection) throw 'no selection-range found'
+
+      console.log('insertlink selection:', selection)
+
       const len = range.endOffset - range.startOffset
       const start = range.startOffset
       const text = range.startContainer.textContent.substr(start, len)
@@ -480,7 +483,10 @@ export default {
         }
       })
     },
-    onLinkSelect() {
+
+    // This runs after link is chosen in modal
+    onLinkSelect(vm = this) {
+      console.log('onLinkSelect')
       if (this.param.cmd === 'insertLink') {
         if (this.browser.path.selected.startsWith('/')) {
           this.browser.path.selected += '.html'
@@ -494,7 +500,37 @@ export default {
         this.restoreSelection()
         this.$nextTick(() => {
           const range = this.getSelection(0)
+          const textEditor = this.$refs.richToolbar.nextElementSibling
+          console.log(range, textEditor)
+          debugger 
+          let rangeIsInListItem = false
+          if (!range.startContainer.isEqualNode(range.endContainer)){
+            const listItems = Array.from(textEditor.querySelectorAll('li'));
+            // reversing because we want to prioritize last item, genrally while selecting a list item selection will automatically include previous item
+            listItems .reverse();
+            for (let i = 0; i < listItems.length; i++) {
+              const li = listItems[i];
+              console.log(li)
+              if (range.intersectsNode(li)) {
+                console.log()
+                rangeIsInListItem = li
+                break
+              }
+            }
+          }
+
+          if (rangeIsInListItem) {
+            range.setStart(rangeIsInListItem, 0)
+            if (rangeIsInListItem.isEqualNode(range.endContainer)) {
+              range.setEnd(range.endContainer, range.endOffset)
+            } else {
+              range.setEnd(rangeIsInListItem, rangeIsInListItem.childNodes.length)
+            }
+          }
+          console.log(range)
+          debugger
           link.appendChild(range.extractContents())
+          console.log(link.innerHTML)
           range.insertNode(link)
           $perAdminApp.action(this, 'reWrapEditable')
           $perAdminApp.action(this, 'writeInlineToModel')
@@ -570,6 +606,7 @@ export default {
       this.browser.linkTitle = event.target.value
     },
     getSelection(index = null) {
+      if (window) return window.getSelection()
       const document = this.getInlineDoc()
       if (!document || !document.defaultView) return false
       const window = document.defaultView
