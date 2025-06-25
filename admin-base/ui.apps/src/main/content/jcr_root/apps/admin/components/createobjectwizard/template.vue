@@ -107,6 +107,14 @@
                 const node = $perAdminApp.findNodeFromPath($perAdminApp.getView().admin.nodes, path)
                 const objects = $perAdminApp.getNodeFromViewOrNull('/admin/objects/data')
                 const allowedObjects = this.findAllowedObjects(path)
+                const tenant = $perAdminApp.getView().state.tenant;
+                const filteredObjects = (objectsToFilter) => {
+                  return objectsToFilter.filter( object => { 
+                      return object.path.startsWith('/apps/admin/') 
+                          || (tenant && object.path.startsWith(`/apps/${tenant.name}/`)) 
+                          || (tenant && object.path.startsWith(`/content/${tenant.name}/object-definitions/`))
+                  })
+                }
                 if(allowedObjects) {
                     let ret = []
                     for(let i = 0; i < objects.length; i++) {
@@ -114,14 +122,9 @@
                             ret.push(objects[i])
                         }
                     }
-                    return ret
+                    return filteredObjects(ret)
                 }
-                const tenant = $perAdminApp.getView().state.tenant;
-                return objects.filter( object => { 
-                    return object.path.startsWith('/apps/admin/') 
-                        || (tenant && object.path.startsWith(`/apps/${tenant.name}/`)) 
-                        || (tenant && object.path.startsWith(`/content/${tenant.name}/object-definitions/`))
-                })
+                return filteredObjects(objects)
             }
         },
         created: function() {
