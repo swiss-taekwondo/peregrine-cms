@@ -226,7 +226,6 @@ export default {
         }
         $group.addClass('vfg-group')
       })
-      console.log($groups)
     },
 
     getFieldAndIndexByModel(schema, model) {
