@@ -30,7 +30,7 @@
              ref="pathbrowser"
              @click.stop.prevent="onPrevent">
           <!-- @mousedown.prevent="() => {}" -->
-          <div class="modal-header" v-if="">
+          <div class="modal-header">
             {{ header }}
           </div>
           <ul class="pathbrowser-tabs">

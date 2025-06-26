@@ -65,9 +65,6 @@ export default {
   updated: function () {
     let stateTools = $perAdminApp.getNodeFromViewWithDefault('/state/tools', {})
     stateTools._deleted = {} // reset to empty?
-    if (this.schema && this.schema.hasOwnProperty('groups')) {
-      this.hideGroups()
-    }
     setTimeout(() => {
       const node = $perAdminApp.getNodeFromViewOrNull('/state/editor') || {}
       this.path = node.path
@@ -224,7 +221,9 @@ export default {
         if (i !== 0) {
           $group.removeClass('active')
         }
-        if (i === 0) $group.addClass('active')
+        if (i === 0) {
+          $group.addClass('active')
+        }
         $group.addClass('vfg-group')
       })
     },
