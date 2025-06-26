@@ -173,7 +173,7 @@ import Icon from '../../admin/components/icon/template.vue'
       })
     },
     remove() {
-      this.value = null;
+      this.value = "";
     }
   }
 }
