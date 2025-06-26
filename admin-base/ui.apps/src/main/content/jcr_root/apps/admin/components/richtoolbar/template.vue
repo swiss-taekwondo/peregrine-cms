@@ -278,8 +278,6 @@ export default {
       const range = selection.getRangeAt(0)
       if (!selection) throw 'no selection-range found'
 
-      console.log('insertlink selection:', selection)
-
       const len = range.endOffset - range.startOffset
       const start = range.startOffset
       const text = range.startContainer.textContent.substr(start, len)
@@ -486,7 +484,6 @@ export default {
 
     // This runs after link is chosen in modal
     onLinkSelect(vm = this) {
-      console.log('onLinkSelect')
       if (this.param.cmd === 'insertLink') {
         if (this.browser.path.selected.startsWith('/')) {
           this.browser.path.selected += '.html'
@@ -501,8 +498,8 @@ export default {
         this.$nextTick(() => {
           const range = this.getSelection(0)
           const textEditor = this.$refs.richToolbar.nextElementSibling
-          console.log(range, textEditor)
-          debugger 
+
+          // check for list elements if start & end are not in same node.
           let rangeIsInListItem = false
           if (!range.startContainer.isEqualNode(range.endContainer)){
             const listItems = Array.from(textEditor.querySelectorAll('li'));
@@ -510,14 +507,14 @@ export default {
             listItems .reverse();
             for (let i = 0; i < listItems.length; i++) {
               const li = listItems[i];
-              console.log(li)
               if (range.intersectsNode(li)) {
-                console.log()
+                // found last intersecting li node, using that, will ignore test of range
                 rangeIsInListItem = li
                 break
               }
             }
           }
+
 
           if (rangeIsInListItem) {
             range.setStart(rangeIsInListItem, 0)
@@ -527,10 +524,12 @@ export default {
               range.setEnd(rangeIsInListItem, rangeIsInListItem.childNodes.length)
             }
           }
-          console.log(range)
-          debugger
+
           link.appendChild(range.extractContents())
-          console.log(link.innerHTML)
+          // check if link text would be empty, in this case insert link href as text
+          if (link.textContent.trim().length < 1) {
+            link.innerText = link.getAttribute('href')
+          }
           range.insertNode(link)
           $perAdminApp.action(this, 'reWrapEditable')
           $perAdminApp.action(this, 'writeInlineToModel')
