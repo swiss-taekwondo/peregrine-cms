@@ -38,6 +38,9 @@
         :items="responsiveMenuGroup.items"
         :class="responsiveMenuGroup.class"
         @click="exec($event.btn.cmd)"/>
+    <richtoolbar-font-size
+      :exec="exec"
+    />
 
     <pathbrowser
         v-if="browser.open"
@@ -79,16 +82,18 @@ import {
   responsiveMenuGroup,
   specialCharactersGroup,
   superSubScriptGroup,
-  textFormatGroup
+  textFormatGroup,
+  // fontSizeGroup,
 } from './groups'
 import {get, restoreSelection, saveSelection, set} from '../../../../../../js/utils'
 import {PathBrowser} from '../../../../../../js/constants'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
+import RichtoolbarFontSize from '../ricktoolbarfontsize/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
 
 export default {
   name: 'RichToolbar',
-  components: {RichtoolbarGroup, Pathbrowser},
+  components: {RichtoolbarGroup, Pathbrowser, RichtoolbarFontSize},
   props: {
     showAlwaysActive: {
       type: Boolean,
@@ -159,7 +164,8 @@ export default {
         listGroup(this),
         iconsGroup(this),
         specialCharactersGroup(this),
-        removeFormatGroup(this)
+        removeFormatGroup(this),
+        // fontSizeGroup(this),
       ]
     },
     filteredGroups() {
@@ -195,7 +201,8 @@ export default {
         insertImage: this.insertImage,
         editImage: this.editImage,
         preview: this.togglePreview,
-        previewInNewTab: this.previewInNewTab
+        previewInNewTab: this.previewInNewTab,
+        updateFontSize: this.updateFontSize,
       }
     },
     formattingItems() {
@@ -229,6 +236,9 @@ export default {
     window.removeEventListener('resize', this.updateDocElDimensions)
   },
   methods: {
+    updateFontSize(newSize) {
+      console.log(`set to: ${newSize}px`)
+    },
     pingRichToolbar(vm = this) {
       vm.key = vm.key === 1 ? 0 : 1
       vm.$emit('ping')

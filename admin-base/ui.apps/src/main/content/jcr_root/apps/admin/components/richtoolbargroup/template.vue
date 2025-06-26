@@ -96,6 +96,7 @@ export default {
       if (typeof icon === 'function') {
         icon = icon()
       }
+      console.log(icon)
       return icon
     },
     vItems() {
