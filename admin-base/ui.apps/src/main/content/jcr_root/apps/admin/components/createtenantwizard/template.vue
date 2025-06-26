@@ -31,8 +31,7 @@
       @on-change="changeTab"
       error-color="#d32f2f"
       color="#546e7a"
-      ref="wizard"
-      :key="reloadKey">
+      ref="wizard">
         <tab-content title="select theme" :before-change="leaveTabOne">
             <p>
                 This wizard allows you to create a website from an existing theme and color palette.
@@ -55,11 +54,15 @@
                 </div>
             </fieldset>
         </tab-content>
-        <tab-content v-if="colorPalettes && colorPalettes.length > 0" title="choose color palette">
+        <tab-content title="choose color palette">
             <admin-components-colorpaletteselector
+            v-if="colorPalettes && colorPalettes.length > 0"
                 :palettes="colorPalettes"
                 :template-path="formmodel.templatePath"
                 @select="onColorPaletteSelect"/>
+                <div v-else>
+                    No color palettes available for this template.
+                </div>
         </tab-content>
         <tab-content title="choose name" :before-change="leaveTabTwo">
             <vue-form-generator
@@ -80,8 +83,9 @@
             </p>
             <p>
             Click the <b>Back</b> button to change your choice.
-            Click <b>Create and Edit!</b> to create and start editing the home page of your website or
-            click <b>Create</b> to create the website and go to the dashboard.
+            <!-- Click <b>Create and Edit!</b> to create and start editing the home page of your website or
+            click <b>Create</b> to create the website and go to the dashboard. -->
+            Click <b>Create</b> to create the website and go to the dashboard.
             </p>
         </tab-content>
         <span v-if="isLastStep" slot="custom-buttons-right" role="button">
@@ -89,7 +93,9 @@
                 Create
            </button>
         </span>
-        <span slot="finish" role="button" tabindex="0">
+        <!-- Create and Edit does not properly work, Create works. So let's disable it for now. (v-show="false")
+             Also the commented out text above must be changed again -->
+        <span v-show="false" slot="finish" role="button" tabindex="0">
             <button tabindex="-1" type="button" class="wizard-btn finish">
             Create and Edit!
             </button>
@@ -107,7 +113,6 @@
             function() {
                 return {
                     isLastStep: false,
-                    reloadKey: 0,
                     colorPalettes: [],
                     formErrors: {
                         unselectedThemeError: false
@@ -204,7 +209,6 @@
                     if (data && data.children && data.children.length > 0) {
                         me.colorPalettes = data.children.reverse()
                     }
-                    me.reloadKey++
                 })
             },
             isSelected: function(target) {
@@ -230,10 +234,9 @@
                 return !me.formErrors.unselectedThemeError;
             },
             leaveTabOne: function() {
-                if('' !== ''+this.formmodel.templatePath) {
-//                    $perAdminApp.getApi().populateComponentDefinitionFromNode(this.formmodel.templatePath)
-                }
-
+                // if('' !== ''+this.formmodel.templatePath) {
+                //    $perAdminApp.getApi().populateComponentDefinitionFromNode(this.formmodel.templatePath)
+                // }
                 return this.validateTabOne(this);
             },
             nameAvailable(value) {
