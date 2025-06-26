@@ -19,7 +19,7 @@ export default (vm) => {
     link.collapse = true
     link.items = [
         editLink(vm),
-        // removeLink(vm)
+        removeLink(vm)
     ]
   }
 

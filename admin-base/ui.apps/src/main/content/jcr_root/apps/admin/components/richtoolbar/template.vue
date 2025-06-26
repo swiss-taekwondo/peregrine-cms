@@ -605,7 +605,6 @@ export default {
       this.browser.linkTitle = event.target.value
     },
     getSelection(index = null) {
-      if (window) return window.getSelection()
       const document = this.getInlineDoc()
       if (!document || !document.defaultView) return false
       const window = document.defaultView
