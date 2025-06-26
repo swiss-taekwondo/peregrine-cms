@@ -301,6 +301,7 @@ function processLoaders(loaders) {
  *
  */
 function loadContentImpl(initialPath, firstTime, fromPopState) {
+  exitWaitState();
   logger.fine('loading content for', initialPath);
   view.admin.consoleErrors = false;
 
