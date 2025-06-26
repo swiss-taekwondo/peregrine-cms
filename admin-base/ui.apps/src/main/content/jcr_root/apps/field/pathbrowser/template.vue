@@ -53,6 +53,10 @@
             :browserType="browserType"
             :currentPath="currentPath"
             :selectedPath="selectedPath"
+            :newWindow="newWindow"
+            @toggle-newWindow="toggleNewWindow"
+            :rel="rel"
+            @toggle-rel="toggleRel"
             :withLinkTab="withLinkTab"
             :setCurrentPath="setCurrentPath"
             :setSelectedPath="setSelectedPath"
@@ -82,6 +86,8 @@ import Icon from '../../admin/components/icon/template.vue'
                 browserRoot: '/assets',
                 browserType: PathBrowser.Type.ASSET,
                 currentPath: '/assets',
+                newWindow: false,
+                rel: false,
                 selectedPath: null,
                 withLinkTab: true,
                 editing: false
@@ -174,6 +180,12 @@ import Icon from '../../admin/components/icon/template.vue'
     },
     remove() {
       this.value = "";
+    },
+    toggleNewWindow() {
+      this.newWindow = !this.newWindow;
+    },
+    toggleRel() {
+      this.rel = !this.rel;
     }
   }
 }
