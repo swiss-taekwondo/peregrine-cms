@@ -104,6 +104,7 @@ export default {
       default: true
     }
   },
+
   data() {
     return {
       selection: {
@@ -148,6 +149,7 @@ export default {
       hiddenGroups: {}
     }
   },
+
   computed: {
     alwaysActiveGroup() {
       return alwaysActiveGroup(this)
@@ -226,6 +228,7 @@ export default {
       ]
     }
   },
+
   mounted() {
     this.$nextTick(() => {
       window.addEventListener('resize', this.updateDocElDimensions)
@@ -235,10 +238,95 @@ export default {
   beforeDestroy() {
     window.removeEventListener('resize', this.updateDocElDimensions)
   },
+
   methods: {
+
+wrapTextNodesInRange(range, fontSize) {
+  const textNodes = [];
+
+  const walker = document.createTreeWalker(
+    range.commonAncestorContainer,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: node => {
+        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const nodeRange = document.createRange();
+        nodeRange.selectNodeContents(node);
+        return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    }
+  );
+
+  let node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+
+  console.log(textNodes, textNodes.map(n => n.textContent))
+  debugger
+
+  for (let i = 0; i < textNodes.length; i++) {
+    const textNode = textNodes[i];
+    const nodeRange = document.createRange();
+    nodeRange.selectNodeContents(textNode);
+
+    // Adjust start if first node
+    if (textNode === range.startContainer || textNode.contains(range.startContainer)) {
+      nodeRange.setStart(range.startContainer, range.startOffset);
+    }
+
+    // Adjust end if last node
+    if (textNode === range.endContainer || textNode.contains(range.endContainer)) {
+      nodeRange.setEnd(range.endContainer, range.endOffset);
+    }
+
+    const span = document.createElement('span');
+    span.style.fontSize = fontSize;
+    nodeRange.surroundContents(span);
+  }
+},
+
     updateFontSize(newSize) {
+      const fontSize = `${newSize}px`
       console.log(`set to: ${newSize}px`)
+      let range = this.getSelection(0)
+      if (!range) { 
+        console.log('getSelection was', false)
+        range = document.getSelection().getRangeAt(0)
+      }
+      console.log('fontsizeselection', range)
+
+
+      const noHighlight = range.endContainer.isEqualNode(range.startContainer) && range.endOffset === range.startOffset
+      if (noHighlight) {
+        const parentParagraph = range.startContainer.parentElement.closest('p')
+        // TODO: restrict to texteditor ref after merging with main
+        parentParagraph.style.fontSize = fontSize
+        return
+      }
+
+      if (range.startContainer.nodeType === Node.TEXT_NODE) {
+        const newText = range.startContainer.splitText(range.startOffset)
+        range.setStart(newText, 0)
+      }
+      if (range.endContainer.nodeType === Node.TEXT_NODE) {
+        range.endContainer.splitText(range.endOffset)
+        range.setEnd(range.endContainer, range.endContainer.length) 
+      }
+
+      const onlySingleTextNode = range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE
+      if (onlySingleTextNode) {
+        const span = document.createElement('span')
+        span.style.fontSize = fontSize
+        range.surroundContents(span)
+        return
+      }
+
+
+      this.wrapTextNodesInRange(range, fontSize)
+      return
     },
+
     pingRichToolbar(vm = this) {
       vm.key = vm.key === 1 ? 0 : 1
       vm.$emit('ping')
