@@ -1,5 +1,5 @@
 <template>
-  <div class="richtoolbar" :class="{disabled: !inlineRich || preview === 'preview'}">
+  <div class="richtoolbar" ref="richToolbar" :class="{disabled: !inlineRich || preview === 'preview'}">
     <richtoolbar-group
         v-if="groupAllowed(alwaysActiveGroup)"
         :icon="alwaysActiveGroup.icon"
@@ -50,7 +50,7 @@
         :browserType="browser.type"
         :withLinkTab="browser.withLinkTab"
         :newWindow="browser.newWindow"
-        :toggleNewWindow="toggleBrowserNewWindow"
+        @toggle-newWindow="toggleBrowserNewWindow"
         :linkTitle="browser.linkTitle"
         :setLinkTitle="setBrowserLinkTitle"
         :currentPath="browser.path.current"
@@ -102,7 +102,7 @@ export default {
     responsive: {
       type: Boolean,
       default: true
-    }
+    },
   },
 
   data() {
@@ -375,6 +375,7 @@ wrapTextNodesInRange(range, fontSize) {
       if (!selection) throw 'no selection found'
       const range = selection.getRangeAt(0)
       if (!selection) throw 'no selection-range found'
+
       const len = range.endOffset - range.startOffset
       const start = range.startOffset
       const text = range.startContainer.textContent.substr(start, len)
@@ -578,7 +579,9 @@ wrapTextNodesInRange(range, fontSize) {
         }
       })
     },
-    onLinkSelect() {
+
+    // This runs after link is chosen in modal
+    onLinkSelect(vm = this) {
       if (this.param.cmd === 'insertLink') {
         if (this.browser.path.selected.startsWith('/')) {
           this.browser.path.selected += '.html'
@@ -592,7 +595,39 @@ wrapTextNodesInRange(range, fontSize) {
         this.restoreSelection()
         this.$nextTick(() => {
           const range = this.getSelection(0)
+          const textEditor = this.$refs.richToolbar.nextElementSibling
+
+          // check for list elements if start & end are not in same node.
+          let rangeIsInListItem = false
+          if (!range.startContainer.isEqualNode(range.endContainer)){
+            const listItems = Array.from(textEditor.querySelectorAll('li'));
+            // reversing because we want to prioritize last item, genrally while selecting a list item selection will automatically include previous item
+            listItems .reverse();
+            for (let i = 0; i < listItems.length; i++) {
+              const li = listItems[i];
+              if (range.intersectsNode(li)) {
+                // found last intersecting li node, using that, will ignore test of range
+                rangeIsInListItem = li
+                break
+              }
+            }
+          }
+
+
+          if (rangeIsInListItem) {
+            range.setStart(rangeIsInListItem, 0)
+            if (rangeIsInListItem.isEqualNode(range.endContainer)) {
+              range.setEnd(range.endContainer, range.endOffset)
+            } else {
+              range.setEnd(rangeIsInListItem, rangeIsInListItem.childNodes.length)
+            }
+          }
+
           link.appendChild(range.extractContents())
+          // check if link text would be empty, in this case insert link href as text
+          if (link.textContent.trim().length < 1) {
+            link.innerText = link.getAttribute('href')
+          }
           range.insertNode(link)
           $perAdminApp.action(this, 'reWrapEditable')
           $perAdminApp.action(this, 'writeInlineToModel')
