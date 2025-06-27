@@ -47,7 +47,7 @@
         :browserType="browser.type"
         :withLinkTab="browser.withLinkTab"
         :newWindow="browser.newWindow"
-        :toggleNewWindow="toggleBrowserNewWindow"
+        @toggle-newWindow="toggleBrowserNewWindow"
         :linkTitle="browser.linkTitle"
         :setLinkTitle="setBrowserLinkTitle"
         :currentPath="browser.path.current"

@@ -354,9 +354,9 @@
                 </div>
                 <div class="checkboxes-group">
                   <div class="pathbrowser-newwindow" v-if="newWindow !== undefined"
-                       @click="toggleNewWindow"
-                       @keyup.space="toggleNewWindow">
-                    <input type="checkbox" id="newWindow" :checked="newWindow"/>
+                       @click="$emit('toggle-newWindow')"
+                       @keyup.space="$emit('toggle-newWindow')">
+                    <input type="checkbox" id="newWindow" v-model="newWindow"/>
                     <label for="newWindow">Open in new window?</label>
                   </div>
                   <div class="pathbrowser-rel"
@@ -443,7 +443,10 @@ export default {
     currentPath: String,
     selectedPath: String,
     withLinkTab: Boolean,
-    newWindow: Boolean,
+    newWindow: {
+      type: Boolean,
+      default: false
+    },
     toggleNewWindow: Function,
     setCurrentPath: Function,
     setSelectedPath: Function,
