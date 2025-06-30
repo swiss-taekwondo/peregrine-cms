@@ -1,15 +1,15 @@
 <template>
-  <div class="font-size-wrapper" @focusin="onFocusIn" @focusout="onFocusOut">
+  <div class="font-size-wrapper" >
     <button class="add btn" @click="onAdd">
       <icon icon="add" :lib="iconLib" />
     </button>
 
-    <div class="inputWrapper">
-      <input value="16" @input="onInput" @blur="onInputBlur" @keydown="onInputKeyDown" ref="inputRef" type="number" max="250" min="1" />
+    <div class="inputWrapper" @focusin="onFocusIn" @focusout="onFocusOut">
+      <input v-model="inputValue" @input="onInput" @keyup="onInputKeyUp" ref="inputRef" type="number" max="250" min="1" />
 
       <ul>
-        <template v-for="item in fontSizeSelections">
-          <li data-value="item" @click="onListSelect">{{ item }}</li>
+        <template v-for="sizePreset in fontSizeSelections">
+          <li :key="sizePreset" @click="onListSelect(sizePreset)">{{ sizePreset }}</li>
         </template>
       </ul>
     </div>
@@ -32,13 +32,20 @@ export default {
     iconLib: {
       type: String,
       default: IconLib.MATERIAL_ICONS
-    }
+    },
+    isRangeInElement: {type: Function},
   },
 
   data() {
     return {
-      fontSizeSelections: [8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96]
+      fontSizeSelections: [8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96],
+      selectionRange: null,
+      inputValue:  16,
     };
+  },
+
+  mounted() {
+    this.inputValue = 16
   },
 
   methods: {
@@ -46,19 +53,19 @@ export default {
       this.exec("updateFontSize", nr);
     },
     onAdd() {
-      let value = this.$refs.inputRef.value;
+      let value = this.inputValue
       value = Number(value);
       if (!value || isNaN(value)) return;
       value += 1;
-      this.$refs.inputRef.value = value;
+      this.inputValue = value;
       this.applyFontSize(value)
     },
     onSubtract() {
-      let value = this.$refs.inputRef.value;
+      let value = this.inputValue;
       value = Number(value);
       if (!value || isNaN(value)) return;
       value -= 1;
-      this.$refs.inputRef.value = value;
+      this.inputValue = value;
       this.applyFontSize(value)
     },
 
@@ -68,31 +75,42 @@ export default {
       value = Number(value);
       if (!value || isNaN(value)) return;
     },
-    onInputBlur() {
-      let value = this.$refs.inputRef.value
-      value = value.replace(/[^\d]/g, "");
-      value = Number(value);
-      if (!value || isNaN(value)) return;
-      this.exec("restoreSelection")
-      this.applyFontSize(value)
-    },
-    onInputKeyDown(e) {
+
+    onInputKeyUp(e) {
+      console.log(e.key)
       if (e.key === "Enter" || e.key === "Tab") {
-        e.target.blur()
+        this.$refs.inputRef.parentElement.blur()
+        this.$refs.inputRef.blur()
       }
     },
     
-    onListSelect(e) {
-      let value = e.target.dataset.value;
-      console.log(value);
-      this.$refs.inputRef.value = value;
-      this.applyFontSize(value)
+    onListSelect(sizePreset) {
+      console.log(sizePreset)
+      this.inputValue = sizePreset;
+      this.applyFontSize(sizePreset)
+      this.$nextTick(() => {
+        this.$refs.inputRef.parentElement.blur()
+        this.$refs.inputRef.blur()
+      })
     },
     onFocusOut(e) {
       this.exec("restoreSelection")
+      if (this.selectionRange) {
+        const selection = window.getSelection()
+        selection.removeAllRanges()
+        selection.addRange(this.selectionRange)
+      }
+      this.$nextTick(() => {
+        this.applyFontSize(this.inputValue)
+      })
     },
     onFocusIn(e) {
       this.exec("saveSelection")
+      const range = window.getSelection().getRangeAt(0);
+      if (this.isRangeInElement(range)) {
+        console.log('onfocusin: ', range)
+        this.selectionRange = range
+      }
     },
   }
 };

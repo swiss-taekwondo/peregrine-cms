@@ -40,6 +40,7 @@
         @click="exec($event.btn.cmd)"/>
     <richtoolbar-font-size
       :exec="exec"
+      :isRangeInElement="isRangeInElement"
     />
 
     <pathbrowser
@@ -241,70 +242,122 @@ export default {
 
   methods: {
 
-wrapTextNodesInRange(range, fontSize) {
-  const textNodes = [];
+    // creates span for every text node, returns said nodes so they can be re-selected.
+    wrapTextNodesInRange(range, fontSize) {
+      const textNodes = [];
 
-  const walker = document.createTreeWalker(
-    range.commonAncestorContainer,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode: node => {
-        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        const nodeRange = document.createRange();
-        nodeRange.selectNodeContents(node);
-        return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: node => {
+            if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            const nodeRange = document.createRange();
+            nodeRange.selectNodeContents(node);
+            return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+
+      let node;
+      while (node = walker.nextNode()) {
+        textNodes.push(node);
       }
-    }
-  );
 
-  let node;
-  while (node = walker.nextNode()) {
-    textNodes.push(node);
-  }
+      const fontSizeNodes = []
+      for (let i = 0; i < textNodes.length; i++) {
+        const textNode = textNodes[i];
+        const nodeRange = document.createRange();
+        nodeRange.selectNodeContents(textNode);
 
-  console.log(textNodes, textNodes.map(n => n.textContent))
-  debugger
+        // Adjust start if first node
+        if (textNode === range.startContainer || textNode.contains(range.startContainer)) {
+          nodeRange.setStart(range.startContainer, range.startOffset);
+        }
 
-  for (let i = 0; i < textNodes.length; i++) {
-    const textNode = textNodes[i];
-    const nodeRange = document.createRange();
-    nodeRange.selectNodeContents(textNode);
+        // Adjust end if last node
+        if (textNode === range.endContainer || textNode.contains(range.endContainer)) {
+          nodeRange.setEnd(range.endContainer, range.endOffset);
+        }
 
-    // Adjust start if first node
-    if (textNode === range.startContainer || textNode.contains(range.startContainer)) {
-      nodeRange.setStart(range.startContainer, range.startOffset);
-    }
+        const existingSpan  = textNode.parentElement.tagName === 'SPAN' && textNode.parentElement.childNodes.length === 1 ? textNode.parentElement : null
+        if (existingSpan) {
+          existingSpan.style.fontSize = fontSize;
+          fontSizeNodes.push(existingSpan)
+        } else {
+          const span = document.createElement('span');
+          span.style.fontSize = fontSize;
+          nodeRange.surroundContents(span);
+          fontSizeNodes.push(span)
+        }
+      }
 
-    // Adjust end if last node
-    if (textNode === range.endContainer || textNode.contains(range.endContainer)) {
-      nodeRange.setEnd(range.endContainer, range.endOffset);
-    }
+      return fontSizeNodes
+    },
 
-    const span = document.createElement('span');
-    span.style.fontSize = fontSize;
-    nodeRange.surroundContents(span);
-  }
-},
+    isRangeInElement(range, element = this.$refs.richToolbar.nextElementSibling /* text editor */) {
+      const elementRange = document.createRange();
+      elementRange.selectNodeContents(element);
+
+      return (
+        range.compareBoundaryPoints(Range.START_TO_START, elementRange) >= 0 &&
+        range.compareBoundaryPoints(Range.END_TO_END, elementRange) <= 0
+      );
+    },
+
+    // for selecting updated nodes, this way range always applies to same text
+    selectNodes(nodeArray) {
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      const reselectRange = document.createRange()
+      reselectRange.setStart(nodeArray[0], 0)
+      reselectRange.setEnd(nodeArray[nodeArray.length - 1], nodeArray[nodeArray.length - 1].childNodes.length)
+      selection.addRange(reselectRange)
+    },
 
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`
+      const textEditor = this.$refs.richToolbar.nextElementSibling
       console.log(`set to: ${newSize}px`)
-      let range = this.getSelection(0)
-      if (!range) { 
-        console.log('getSelection was', false)
-        range = document.getSelection().getRangeAt(0)
-      }
-      console.log('fontsizeselection', range)
+      // let range = this.getSelection(0)
+      // if (!range) { 
+      //  console.log('getSelection was', false)
+      //  range = document.getSelection().getRangeAt(0)
+      // }
 
-
-      const noHighlight = range.endContainer.isEqualNode(range.startContainer) && range.endOffset === range.startOffset
-      if (noHighlight) {
-        const parentParagraph = range.startContainer.parentElement.closest('p')
-        // TODO: restrict to texteditor ref after merging with main
-        parentParagraph.style.fontSize = fontSize
+      // not useing this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
+      const range = window.getSelection().getRangeAt(0)
+      if (!this.isRangeInElement(range, textEditor)) {
+        console.warn('Selection range outside of Richtext Editor')
         return
       }
 
+      function setFontSizeOfEl(element, fontSizeStr) {
+        element.querySelectorAll('*[style*="font-size"]').forEach(element => {
+          if (element.tagName === 'SPAN') {
+            element.replaceWith(...element.childNodes)
+          } else {
+            element.style.removeProperty('font-size')
+          }
+        });
+        element.style.fontSize = fontSizeStr
+      }
+
+      // set text size on wrapper element if nothing is selected
+      const noHighlight = range.endContainer.isEqualNode(range.startContainer) && range.endOffset === range.startOffset
+      if (noHighlight) {
+        const parentQuery = 'p, ul, ol, h1, h2, h3, h4, h5, h6'
+        const fontSizeParent = (typeof range.startContainer.closest === 'function')? range.startContainer.closest(parentQuery) : range.startContainer.parentElement.closest(parentQuery)
+        if (!textEditor.contains(fontSizeParent)) {
+          console.warn('Attempting to change fontsize of paragraph outside of richtext editor')
+          return
+        }
+        setFontSizeOfEl(fontSizeParent, fontSize)
+        fontSizeParent.style.fontSize = fontSize
+        return
+      }
+
+      // split first & last text node if they are not fully selected
       if (range.startContainer.nodeType === Node.TEXT_NODE) {
         const newText = range.startContainer.splitText(range.startOffset)
         range.setStart(newText, 0)
@@ -314,16 +367,33 @@ wrapTextNodesInRange(range, fontSize) {
         range.setEnd(range.endContainer, range.endContainer.length) 
       }
 
-      const onlySingleTextNode = range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE
-      if (onlySingleTextNode) {
-        const span = document.createElement('span')
-        span.style.fontSize = fontSize
-        range.surroundContents(span)
-        return
+      // logic supporting singe nodes and re-using them instead
+      const onlySingleNode = range.startContainer.isEqualNode(range.endContainer) 
+      if (onlySingleNode) {
+        if (range.startContainer.nodeType === Node.TEXT_NODE) {
+          const span = document.createElement('span')
+          span.style.fontSize = fontSize
+          range.surroundContents(span)
+          this.selectNodes([span])
+          return
+        } else {
+          setFontSizeOfEl(range.startContainer, fontSize)
+        }
       }
 
 
-      this.wrapTextNodesInRange(range, fontSize)
+      const nodeRanges = this.wrapTextNodesInRange(range, fontSize)
+
+      // cleanup pointless nested spans if they exist
+      textEditor.querySelectorAll('span[style*="font-size"]:has(> span[style*="font-size"])').forEach(span => {
+        // :only-child still counts if element has text node siblings, so we need to check ourselves
+        if (span.childNodes.length === 1) {
+          span.replaceWith(span.childNodes[0]) // can only be one
+        }
+      })
+
+      // Reapply selection, this encorporates split text nodes potentially created in prev step
+      this.selectNodes(nodeRanges)
       return
     },
 
