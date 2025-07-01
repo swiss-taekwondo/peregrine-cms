@@ -41,6 +41,8 @@
     <richtoolbar-font-size
       :exec="exec"
       :isRangeInElement="isRangeInElement"
+      :isNodeInEditor="isNodeInEditor"
+      :getDefaultFontSize="getDefaultFontSize"
     />
 
     <pathbrowser
@@ -84,7 +86,6 @@ import {
   specialCharactersGroup,
   superSubScriptGroup,
   textFormatGroup,
-  // fontSizeGroup,
 } from './groups'
 import {get, restoreSelection, saveSelection, set} from '../../../../../../js/utils'
 import {PathBrowser} from '../../../../../../js/constants'
@@ -104,6 +105,9 @@ export default {
       type: Boolean,
       default: true
     },
+    getDefaultFontSize: {
+      type: Function,
+    }
   },
 
   data() {
@@ -168,7 +172,6 @@ export default {
         iconsGroup(this),
         specialCharactersGroup(this),
         removeFormatGroup(this),
-        // fontSizeGroup(this),
       ]
     },
     filteredGroups() {
@@ -304,6 +307,9 @@ export default {
         range.compareBoundaryPoints(Range.END_TO_END, elementRange) <= 0
       );
     },
+    isNodeInEditor(node) {
+      return this.$refs.richToolbar.nextElementSibling.contains(node)
+    },
 
     // for selecting updated nodes, this way range always applies to same text
     selectNodes(nodeArray) {
@@ -394,6 +400,7 @@ export default {
 
       // Reapply selection, this encorporates split text nodes potentially created in prev step
       this.selectNodes(nodeRanges)
+      this.$refs.richToolbar.nextElementSibling.dispatchEvent(new Event('input', {bubbles: true}))
       return
     },
 
@@ -419,6 +426,7 @@ export default {
     },
     execCmd(cmd, value = null, showUi = false) {
       if (!this.getInlineDoc() || !this.getInlineDoc().execCommand) return
+      console.log(this.getInlineDoc(), this.getInlineDoc().execCommand)
       this.getInlineDoc().execCommand(cmd, showUi, value)
     },
     queryCmdState(cmd) {

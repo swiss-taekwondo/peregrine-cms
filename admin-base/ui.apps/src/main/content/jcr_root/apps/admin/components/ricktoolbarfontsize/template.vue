@@ -1,15 +1,25 @@
 <template>
-  <div class="font-size-wrapper" >
+  <div class="font-size-wrapper">
     <button class="add btn" @click="onAdd">
       <icon icon="add" :lib="iconLib" />
     </button>
 
     <div class="inputWrapper" @focusin="onFocusIn" @focusout="onFocusOut">
-      <input v-model="inputValue" @input="onInput" @keyup="onInputKeyUp" ref="inputRef" type="number" max="250" min="1" />
+      <input
+        v-model="inputValue"
+        @input="onInput"
+        @keyup="onInputKeyUp"
+        ref="inputRef"
+        type="number"
+        max="250"
+        min="1"
+      />
 
       <ul>
         <template v-for="sizePreset in fontSizeSelections">
-          <li :key="sizePreset" @click="onListSelect(sizePreset)">{{ sizePreset }}</li>
+          <li :key="sizePreset" @click="onListSelect(sizePreset)">
+            {{ sizePreset }}
+          </li>
         </template>
       </ul>
     </div>
@@ -33,32 +43,65 @@ export default {
       type: String,
       default: IconLib.MATERIAL_ICONS
     },
-    isRangeInElement: {type: Function},
+    isRangeInElement: { type: Function },
+    getDefaultFontSize: {
+      type: Function
+    },
+    isNodeInEditor: {
+      type: Function
+    }
   },
 
   data() {
     return {
-      fontSizeSelections: [8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96],
+      fontSizeSelections: [ 8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96 ],
       selectionRange: null,
-      inputValue:  16,
+      inputValue: ""
     };
   },
 
   mounted() {
-    this.inputValue = 16
+    this.inputValue = "";
+    console.log("mounted", this.model);
+    document.addEventListener("selectionchange", this.onSelectionChange);
+  },
+  onBeforeUnmount() {
+    document.removeEventListener("selectionchange", this.onSelectionChange);
   },
 
   methods: {
+    onSelectionChange() {
+      const currSelection = document.getSelection().getRangeAt(0);
+      if (this.isRangeInElement(currSelection)) {
+        const htmlEl = currSelection.startContainer.closest ? currSelection.startContainer : currSelection.startContainer.parentElement;
+        const fontSizeParent = htmlEl.closest(
+          '[style*="font-size"]'
+        );
+        if (this.isNodeInEditor(fontSizeParent)) {
+          this.inputValue = fontSizeParent.style.fontSize.replace("px", "")
+          return;
+        }
+      }
+      // set font size todo
+      const defaultFontSize = Number(
+        this.getDefaultFontSize().replace("px", "")
+      );
+      console.log("current font size", defaultFontSize);
+      if (defaultFontSize && !isNaN(defaultFontSize)) {
+        this.inputValue = defaultFontSize;
+      }
+    },
+
     applyFontSize(nr) {
       this.exec("updateFontSize", nr);
     },
     onAdd() {
-      let value = this.inputValue
+      let value = this.inputValue;
       value = Number(value);
       if (!value || isNaN(value)) return;
       value += 1;
       this.inputValue = value;
-      this.applyFontSize(value)
+      this.applyFontSize(value);
     },
     onSubtract() {
       let value = this.inputValue;
@@ -66,7 +109,7 @@ export default {
       if (!value || isNaN(value)) return;
       value -= 1;
       this.inputValue = value;
-      this.applyFontSize(value)
+      this.applyFontSize(value);
     },
 
     onInput(e) {
@@ -77,41 +120,38 @@ export default {
     },
 
     onInputKeyUp(e) {
-      console.log(e.key)
       if (e.key === "Enter" || e.key === "Tab") {
-        this.$refs.inputRef.parentElement.blur()
-        this.$refs.inputRef.blur()
+        this.$refs.inputRef.parentElement.blur();
+        this.$refs.inputRef.blur();
       }
     },
-    
+
     onListSelect(sizePreset) {
-      console.log(sizePreset)
       this.inputValue = sizePreset;
-      this.applyFontSize(sizePreset)
+      this.applyFontSize(sizePreset);
       this.$nextTick(() => {
-        this.$refs.inputRef.parentElement.blur()
-        this.$refs.inputRef.blur()
-      })
+        this.$refs.inputRef.parentElement.blur();
+        this.$refs.inputRef.blur();
+      });
     },
     onFocusOut(e) {
-      this.exec("restoreSelection")
+      this.exec("restoreSelection");
       if (this.selectionRange) {
-        const selection = window.getSelection()
-        selection.removeAllRanges()
-        selection.addRange(this.selectionRange)
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(this.selectionRange);
       }
       this.$nextTick(() => {
-        this.applyFontSize(this.inputValue)
-      })
+        this.applyFontSize(this.inputValue);
+      });
     },
     onFocusIn(e) {
-      this.exec("saveSelection")
+      this.exec("saveSelection");
       const range = window.getSelection().getRangeAt(0);
       if (this.isRangeInElement(range)) {
-        console.log('onfocusin: ', range)
-        this.selectionRange = range
+        this.selectionRange = range;
       }
-    },
+    }
   }
 };
 </script>
@@ -124,16 +164,21 @@ export default {
   position: relative;
   margin: 0 2px;
   padding: 0;
+  background-color: white;
+  color: black;
 }
 
 .inputWrapper input {
   padding: 2px;
   margin: 0;
-  width: 40px;
+  width: 42px;
+  height: 32px;
 }
 
 .inputWrapper ul {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   z-index: 1;
   top: 100%;
   left: 0;

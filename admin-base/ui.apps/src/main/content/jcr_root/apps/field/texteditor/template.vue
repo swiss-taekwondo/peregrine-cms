@@ -25,10 +25,12 @@
 <template>
   <div class="text-editor-wrapper">
     <richtoolbar
-        class="on-right-panel"
-        :show-always-active="false"
-        :responsive="false"
-        @ping="key = key === 'foo'? 'bar' : 'foo'"/>
+      class="on-right-panel"
+      :show-always-active="false"
+      :responsive="false"
+      @ping="key = key === 'foo'? 'bar' : 'foo'"
+      :getDefaultFontSize="getDefaultFontSize"
+    />
     <p class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
@@ -82,14 +84,25 @@ export default {
     return {
       doc: document,
       editing: false,
-      key: 0
+      key: 0,
+      defaultFontSize: null,
     }
   },
   computed: {
     view() {
       return $perAdminApp.getView()
-    }
+    },
   },
+
+  mounted() {
+    set(this.view, '/state/inline/rich', true)
+    this.$nextTick(() => {
+      this.defaultFontSize = this.getDefaultFontSize()
+      this.$refs.textEditor.style.fontSize = this.defaultFontSize
+      this.$refs.textEditor.dataset.defautlFontSize = this.defaultFontSize
+    })
+  },
+
   methods: {
     onFocusIn(event) {
       set(this.view, '/state/inline/rich', true)
@@ -104,6 +117,7 @@ export default {
       this.pingToolbar()
     },
     onInput(event) {
+      console.log('oninput')
       const domProps = this._vnode.children[2].data.domProps
       const content = event.target.innerHTML;
       if (domProps) domProps.innerHTML = content
@@ -117,11 +131,17 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
+      console.log(vm.model)
       vm.model.text = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
     },
     pingToolbar() {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
+    },
+
+    getDefaultFontSize(vm = this) {
+      console.log('getDefaultFontSize', vm.model)
+      return vm.model.defaultFontSize;
     }
   }
 }
