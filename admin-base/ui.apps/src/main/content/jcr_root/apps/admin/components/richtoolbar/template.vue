@@ -13,36 +13,41 @@
         @click="exec($event.btn.cmd)"/>
     <template v-for="(group, groupIndex) in filteredGroups">
       <richtoolbar-group
-          :key="getKey(group, groupIndex)"
-          v-if="group.items.length > 0"
-          :icon="group.icon"
-          :iconLib="group.iconLib"
-          :collapse="!group.noCollapse && (group.collapse)"
-          :label="group.label"
-          :title="group.title"
-          :active="groupIsActive(group)"
-          :items="group.items"
-          :searchable="group.searchable"
-          :class="group.class"
-          @toggle-click="group.toggleClick? group.toggleClick() : () => {}"
-          @click="exec($event.btn.cmd)"/>
+        :key="getKey(group, groupIndex)"
+        v-if="group.items.length > 0"
+        :icon="group.icon"
+        :iconLib="group.iconLib"
+        :collapse="!group.noCollapse && (group.collapse)"
+        :label="group.label"
+        :title="group.title"
+        :active="groupIsActive(group)"
+        :items="group.items"
+        :searchable="group.searchable"
+        :class="group.class"
+        @toggle-click="group.toggleClick? group.toggleClick() : () => {}"
+        @click="exec($event.btn.cmd)"
+      />
     </template>
+
     <richtoolbar-group
-        v-if="groupAllowed(responsiveMenuGroup)"
-        :icon="responsiveMenuGroup.icon"
-        :iconLib="responsiveMenuGroup.iconLib"
-        :collapse="!responsiveMenuGroup.noCollapse && (responsiveMenuGroup.collapse)"
-        :label="responsiveMenuGroup.label"
-        :title="responsiveMenuGroup.title"
-        :active="false"
-        :items="responsiveMenuGroup.items"
-        :class="responsiveMenuGroup.class"
-        @click="exec($event.btn.cmd)"/>
+      v-if="groupAllowed(responsiveMenuGroup)"
+      :icon="responsiveMenuGroup.icon"
+      :iconLib="responsiveMenuGroup.iconLib"
+      :collapse="!responsiveMenuGroup.noCollapse && (responsiveMenuGroup.collapse)"
+      :label="responsiveMenuGroup.label"
+      :title="responsiveMenuGroup.title"
+      :active="false"
+      :items="responsiveMenuGroup.items"
+      :class="responsiveMenuGroup.class"
+      @click="exec($event.btn.cmd)"
+    />
+
     <richtoolbar-font-size
       :exec="exec"
-      :isRangeInElement="isRangeInElement"
+      :isRangeInEditor="isRangeInEditor"
       :isNodeInEditor="isNodeInEditor"
       :getDefaultFontSize="getDefaultFontSize"
+      :getSelection="getSelection"
     />
 
     <pathbrowser
@@ -298,22 +303,45 @@ export default {
       return fontSizeNodes
     },
 
-    isRangeInElement(range, element = this.$refs.richToolbar.nextElementSibling /* text editor */) {
+    getEditorSelection(returnRange = true) {
+      
+        const selection = window.getSelection()
+        const range = selection.getRangeAt(0)
+        if (this.isRangeInEditor(range)) return returnRange ? range : selection
+        const iframeSelection = document.querySelector('iframe').contentDocument.getSelection()
+        const iframeRange = iframeSelection.getRangeAt(0)
+        if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
+    },
+
+    getEditorFrom(range) {
+      const getEditorFromEl = typeof range.startContainer.closest === 'function' ? range.startContainer : range.startContainer.parentElement
+      const textEditor = getEditorFromEl.closest('.inline-edit[contenteditable="true"]')
+      return textEditor
+    },
+
+    
+    isRangeInEditor(range) {
+      if (!range) return false
+      const textEditor = this.getEditorFrom(range)
+      if (!textEditor) return false
       const elementRange = document.createRange();
-      elementRange.selectNodeContents(element);
+      elementRange.selectNodeContents(textEditor);
 
       return (
         range.compareBoundaryPoints(Range.START_TO_START, elementRange) >= 0 &&
         range.compareBoundaryPoints(Range.END_TO_END, elementRange) <= 0
       );
     },
+
     isNodeInEditor(node) {
-      return this.$refs.richToolbar.nextElementSibling.contains(node)
+      const textEditor = this.getEditorFrom({startContainer: node})
+      return textEditor.contains(node)
     },
 
     // for selecting updated nodes, this way range always applies to same text
     selectNodes(nodeArray) {
-      const selection = window.getSelection()
+      const selection = this.getEditorSelection(false)
+      console.log('selectNodes', selection, )
       selection.removeAllRanges()
       const reselectRange = document.createRange()
       reselectRange.setStart(nodeArray[0], 0)
@@ -323,17 +351,15 @@ export default {
 
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`
-      const textEditor = this.$refs.richToolbar.nextElementSibling
-      console.log(`set to: ${newSize}px`)
-      // let range = this.getSelection(0)
-      // if (!range) { 
-      //  console.log('getSelection was', false)
-      //  range = document.getSelection().getRangeAt(0)
-      // }
+      console.log('fontsize', fontSize)
 
       // not useing this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
-      const range = window.getSelection().getRangeAt(0)
-      if (!this.isRangeInElement(range, textEditor)) {
+      const range = this.getEditorSelection()
+      console.log('updatefontsize', range, )
+      debugger
+      const textEditor = this.getEditorFrom(range)
+      console.log('updatefontsize', textEditor, )
+      if (!this.isRangeInEditor(range, textEditor)) {
         console.warn('Selection range outside of Richtext Editor')
         return
       }
@@ -400,7 +426,7 @@ export default {
 
       // Reapply selection, this encorporates split text nodes potentially created in prev step
       this.selectNodes(nodeRanges)
-      this.$refs.richToolbar.nextElementSibling.dispatchEvent(new Event('input', {bubbles: true}))
+      textEditor.dispatchEvent(new Event('input', {bubbles: true}))
       return
     },
 
@@ -424,9 +450,8 @@ export default {
       if (!this.getInlineDoc()) return
       return this.getInlineDoc().querySelector('.inline-edit.inline-editing')
     },
-    execCmd(cmd, value = null, showUi = false) {
+    execCmd(cmd, value = null, showUi = true) {
       if (!this.getInlineDoc() || !this.getInlineDoc().execCommand) return
-      console.log(this.getInlineDoc(), this.getInlineDoc().execCommand)
       this.getInlineDoc().execCommand(cmd, showUi, value)
     },
     queryCmdState(cmd) {
@@ -659,7 +684,8 @@ export default {
     },
 
     // This runs after link is chosen in modal
-    onLinkSelect(vm = this) {
+    onLinkSelect() {
+      console.log("\x1b[31m ~ TEST:", )
       if (this.param.cmd === 'insertLink') {
         if (this.browser.path.selected.startsWith('/')) {
           this.browser.path.selected += '.html'
@@ -673,14 +699,16 @@ export default {
         this.restoreSelection()
         this.$nextTick(() => {
           const range = this.getSelection(0)
-          const textEditor = this.$refs.richToolbar.nextElementSibling
+          const textEditor = this.getEditorFrom(range).closest('.inline-edit[contenteditable="true"]')
+          console.log(range, textEditor)
+          debugger
 
           // check for list elements if start & end are not in same node.
           let rangeIsInListItem = false
           if (!range.startContainer.isEqualNode(range.endContainer)){
             const listItems = Array.from(textEditor.querySelectorAll('li'));
             // reversing because we want to prioritize last item, genrally while selecting a list item selection will automatically include previous item
-            listItems .reverse();
+            listItems.reverse();
             for (let i = 0; i < listItems.length; i++) {
               const li = listItems[i];
               if (range.intersectsNode(li)) {

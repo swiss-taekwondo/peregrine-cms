@@ -528,7 +528,6 @@ export default {
     writeInlineToModel(vm = this) {
       let content = ''
       let defaultFontSize = ''
-      console.log('inline write isrich:', vm.isRich)
       if (vm.isRich) {
         content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
         content = removeUnwantedStyles(content);
@@ -616,7 +615,6 @@ export default {
           return true
         }
       })
-      console.warn('test')
       this.writeInlineToModel()
     },
 

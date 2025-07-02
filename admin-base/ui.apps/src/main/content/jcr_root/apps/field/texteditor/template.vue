@@ -36,6 +36,7 @@
        ref="textEditor"
        v-html="value"
        contenteditable="true"
+       :style="{fontSize: defaultFontSize || 'inherit'}"
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
@@ -96,11 +97,6 @@ export default {
 
   mounted() {
     set(this.view, '/state/inline/rich', true)
-    this.$nextTick(() => {
-      this.defaultFontSize = this.getDefaultFontSize()
-      this.$refs.textEditor.style.fontSize = this.defaultFontSize
-      this.$refs.textEditor.dataset.defautlFontSize = this.defaultFontSize
-    })
   },
 
   methods: {
@@ -117,7 +113,6 @@ export default {
       this.pingToolbar()
     },
     onInput(event) {
-      console.log('oninput')
       const domProps = this._vnode.children[2].data.domProps
       const content = event.target.innerHTML;
       if (domProps) domProps.innerHTML = content
@@ -131,7 +126,6 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
-      console.log(vm.model)
       vm.model.text = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
     },
     pingToolbar() {
@@ -141,6 +135,7 @@ export default {
 
     getDefaultFontSize(vm = this) {
       console.log('getDefaultFontSize', vm.model)
+      this.defaultFontSize = vm.model.defaultFontSize;
       return vm.model.defaultFontSize;
     }
   }

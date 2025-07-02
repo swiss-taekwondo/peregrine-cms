@@ -43,11 +43,14 @@ export default {
       type: String,
       default: IconLib.MATERIAL_ICONS
     },
-    isRangeInElement: { type: Function },
+    isRangeInEditor: { type: Function },
     getDefaultFontSize: {
       type: Function
     },
     isNodeInEditor: {
+      type: Function
+    },
+    getSelection: {
       type: Function
     }
   },
@@ -71,29 +74,41 @@ export default {
 
   methods: {
     onSelectionChange() {
-      const currSelection = document.getSelection().getRangeAt(0);
-      if (this.isRangeInElement(currSelection)) {
-        const htmlEl = currSelection.startContainer.closest ? currSelection.startContainer : currSelection.startContainer.parentElement;
-        const fontSizeParent = htmlEl.closest(
-          '[style*="font-size"]'
-        );
-        if (this.isNodeInEditor(fontSizeParent)) {
-          this.inputValue = fontSizeParent.style.fontSize.replace("px", "")
-          return;
+      this.$nextTick(() => {
+
+        if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
+        // const currSelection = document.getSelection().getRangeAt(0);
+        const currSelection = this.getSelection(0);
+        if (this.isRangeInEditor(currSelection)) {
+          const htmlEl = currSelection.startContainer.closest ? currSelection.startContainer : currSelection.startContainer.parentElement;
+          const fontSizeParent = htmlEl.closest(
+            '[style*="font-size"]'
+          );
+          if (this.isNodeInEditor(fontSizeParent)) {
+            const nr = Number( fontSizeParent.style.fontSize.replace("px",  ""))
+            if (!isNaN) {
+              this.inputValue = nr
+            }
+            return;
+          }
         }
-      }
-      // set font size todo
-      const defaultFontSize = Number(
-        this.getDefaultFontSize().replace("px", "")
-      );
-      console.log("current font size", defaultFontSize);
-      if (defaultFontSize && !isNaN(defaultFontSize)) {
-        this.inputValue = defaultFontSize;
-      }
+
+        const defaultFontSize = Number(
+          this.getDefaultFontSize().replace("px", "")
+        );
+        console.log("current font size", defaultFontSize);
+        if (defaultFontSize && !isNaN(defaultFontSize)) {
+          this.inputValue = defaultFontSize;
+        }
+      })
     },
 
-    applyFontSize(nr) {
-      this.exec("updateFontSize", nr);
+    applyFontSize() {
+      if (!this.inputValue) {
+        console.warn('tried to set falsy fontsize')
+        return
+      }
+      this.exec("updateFontSize", this.inputValue);
     },
     onAdd() {
       let value = this.inputValue;
@@ -101,7 +116,7 @@ export default {
       if (!value || isNaN(value)) return;
       value += 1;
       this.inputValue = value;
-      this.applyFontSize(value);
+      this.applyFontSize();
     },
     onSubtract() {
       let value = this.inputValue;
@@ -109,7 +124,7 @@ export default {
       if (!value || isNaN(value)) return;
       value -= 1;
       this.inputValue = value;
-      this.applyFontSize(value);
+      this.applyFontSize();
     },
 
     onInput(e) {
@@ -117,6 +132,7 @@ export default {
       value = value.replace(/[^\d]/g, "");
       value = Number(value);
       if (!value || isNaN(value)) return;
+      this.inputValue = value
     },
 
     onInputKeyUp(e) {
@@ -128,7 +144,7 @@ export default {
 
     onListSelect(sizePreset) {
       this.inputValue = sizePreset;
-      this.applyFontSize(sizePreset);
+      this.applyFontSize();
       this.$nextTick(() => {
         this.$refs.inputRef.parentElement.blur();
         this.$refs.inputRef.blur();
@@ -142,13 +158,13 @@ export default {
         selection.addRange(this.selectionRange);
       }
       this.$nextTick(() => {
-        this.applyFontSize(this.inputValue);
+        this.applyFontSize();
       });
     },
     onFocusIn(e) {
       this.exec("saveSelection");
       const range = window.getSelection().getRangeAt(0);
-      if (this.isRangeInElement(range)) {
+      if (this.isRangeInEditor(range)) {
         this.selectionRange = range;
       }
     }
@@ -159,6 +175,7 @@ export default {
 <style scoped>
 .font-size-wrapper {
   display: flex;
+  border-left: 1px solid var(--pcms-gray);
 }
 .inputWrapper {
   position: relative;
