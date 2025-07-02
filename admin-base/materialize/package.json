@@ -10,12 +10,14 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node ./index.js"
+    "build": "sass -q peregrine.scss target/classes/etc/felibs/materialize/materialize.css",
+    "patch": "node ./uploadCSS.js http://localhost:8080 admin:admin",
+    "build:patch": "npm run build && npm run patch"
   },
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
     "fs-extra": "^7.0.1",
-    "node-sass": "^4.11.0"
+    "sass": "^1.89.2"
   }
 }
