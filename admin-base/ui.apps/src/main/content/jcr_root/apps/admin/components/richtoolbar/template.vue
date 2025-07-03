@@ -316,9 +316,11 @@ export default {
       
         const selection = window.getSelection()
         const range = selection.getRangeAt(0)
+      console.log('(this.isRangeInEditor(range))', (this.isRangeInEditor(range)))
         if (this.isRangeInEditor(range)) return returnRange ? range : selection
         const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
         const iframeRange = iframeSelection.getRangeAt(0)
+      console.log('(this.isRangeInEditor(iframeRange))', (this.isRangeInEditor(iframeRange)))
         if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
     },
 
@@ -333,7 +335,7 @@ export default {
       if (!range) return false
       const textEditor = this.getEditorFrom(range)
       if (!textEditor) return false
-      const elementRange = document.createRange();
+      const elementRange = textEditor.ownerDocument.createRange();
       elementRange.selectNodeContents(textEditor);
 
       return (
