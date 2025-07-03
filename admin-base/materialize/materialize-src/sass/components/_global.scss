@@ -30,7 +30,7 @@ ul {
 }
 
 a {
-	color: customDarken(#428bca, 6.5%);
+	color: $link-color;
 	text-decoration: none;
 
   // Gets rid of tap active state
