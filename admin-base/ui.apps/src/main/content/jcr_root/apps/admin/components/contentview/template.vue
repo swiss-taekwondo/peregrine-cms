@@ -527,11 +527,9 @@ export default {
 
     writeInlineToModel(vm = this) {
       let content = ''
-      let defaultFontSize = ''
       if (vm.isRich) {
         content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
         content = removeUnwantedStyles(content);
-        defaultFontSize = window.getComputedStyle(vm.target).getPropertyValue('font-size')
       } else {
         content = vm.target.innerText
       }
@@ -542,10 +540,7 @@ export default {
         parentProp = parentProp[dataInline.pop()]
       }
       const keyStr = dataInline.pop()
-      parentProp[keyStr] = content
-      if (defaultFontSize) {
-        parentProp.defaultFontSize = defaultFontSize
-      }
+      parentProp[keyStr] = content;
     },
 
     onInlineEdit(event) {
@@ -615,7 +610,6 @@ export default {
           return true
         }
       })
-      this.writeInlineToModel()
     },
 
     onInlineFocusOut(event) {

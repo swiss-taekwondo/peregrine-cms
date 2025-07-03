@@ -110,9 +110,6 @@ export default {
       type: Boolean,
       default: true
     },
-    getDefaultFontSize: {
-      type: Function,
-    }
   },
 
   data() {
@@ -250,6 +247,18 @@ export default {
 
   methods: {
 
+    getDefaultFontSize() {
+      const iframeWindow = document.querySelector("iframe#editview")
+        .contentWindow;
+      const currentInlineEditor = iframeWindow.document.querySelector(
+        '.inline-edit[contenteditable="true"]'
+      );
+      if (!currentInlineEditor) return null;
+      const defaultFontSize = iframeWindow.getComputedStyle(currentInlineEditor)
+        .fontSize;
+      return defaultFontSize;
+    },
+
     // creates span for every text node, returns said nodes so they can be re-selected.
     wrapTextNodesInRange(range, fontSize) {
       const textNodes = [];
@@ -308,7 +317,7 @@ export default {
         const selection = window.getSelection()
         const range = selection.getRangeAt(0)
         if (this.isRangeInEditor(range)) return returnRange ? range : selection
-        const iframeSelection = document.querySelector('iframe').contentDocument.getSelection()
+        const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
         const iframeRange = iframeSelection.getRangeAt(0)
         if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
     },
@@ -334,6 +343,7 @@ export default {
     },
 
     isNodeInEditor(node) {
+      if (!node) return false
       const textEditor = this.getEditorFrom({startContainer: node})
       return textEditor.contains(node)
     },
@@ -341,7 +351,6 @@ export default {
     // for selecting updated nodes, this way range always applies to same text
     selectNodes(nodeArray) {
       const selection = this.getEditorSelection(false)
-      console.log('selectNodes', selection, )
       selection.removeAllRanges()
       const reselectRange = document.createRange()
       reselectRange.setStart(nodeArray[0], 0)
@@ -351,14 +360,10 @@ export default {
 
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`
-      console.log('fontsize', fontSize)
 
       // not useing this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
       const range = this.getEditorSelection()
-      console.log('updatefontsize', range, )
-      debugger
       const textEditor = this.getEditorFrom(range)
-      console.log('updatefontsize', textEditor, )
       if (!this.isRangeInEditor(range, textEditor)) {
         console.warn('Selection range outside of Richtext Editor')
         return
@@ -685,7 +690,6 @@ export default {
 
     // This runs after link is chosen in modal
     onLinkSelect() {
-      console.log("\x1b[31m ~ TEST:", )
       if (this.param.cmd === 'insertLink') {
         if (this.browser.path.selected.startsWith('/')) {
           this.browser.path.selected += '.html'
@@ -700,8 +704,6 @@ export default {
         this.$nextTick(() => {
           const range = this.getSelection(0)
           const textEditor = this.getEditorFrom(range).closest('.inline-edit[contenteditable="true"]')
-          console.log(range, textEditor)
-          debugger
 
           // check for list elements if start & end are not in same node.
           let rangeIsInListItem = false

@@ -29,14 +29,12 @@
       :show-always-active="false"
       :responsive="false"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
-      :getDefaultFontSize="getDefaultFontSize"
     />
     <p class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
        v-html="value"
        contenteditable="true"
-       :style="{fontSize: defaultFontSize || 'inherit'}"
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
@@ -54,9 +52,9 @@ import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
-  'text-align':true,
-  'font-size':true,
-}
+  "text-align": true,
+  "font-size": true
+};
 function removeUnwantedStyles(htmlText) {
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = htmlText
@@ -86,7 +84,6 @@ export default {
       doc: document,
       editing: false,
       key: 0,
-      defaultFontSize: null,
     }
   },
   computed: {
@@ -132,12 +129,6 @@ export default {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
     },
-
-    getDefaultFontSize(vm = this) {
-      console.log('getDefaultFontSize', vm.model)
-      this.defaultFontSize = vm.model.defaultFontSize;
-      return vm.model.defaultFontSize;
-    }
   }
 }
 </script>

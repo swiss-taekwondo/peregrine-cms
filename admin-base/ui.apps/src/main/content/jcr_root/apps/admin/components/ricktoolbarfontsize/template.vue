@@ -6,7 +6,7 @@
 
     <div class="inputWrapper" @focusin="onFocusIn" @focusout="onFocusOut">
       <input
-        v-model="inputValue"
+        v-bind:value="inputValue"
         @input="onInput"
         @keyup="onInputKeyUp"
         ref="inputRef"
@@ -64,49 +64,70 @@ export default {
   },
 
   mounted() {
-    this.inputValue = "";
-    console.log("mounted", this.model);
-    document.addEventListener("selectionchange", this.onSelectionChange);
+    console.log('mounted input:', this.$refs.inpuRef)
+    const testOnSel =(event) => {
+      this.onSelectionchange(event, this.$refs.inputRef);
+    }
+    this.$nextTick(() => {
+      setTimeout(() => {
+
+        this.inputValue = "";
+        // document.addEventListener("selectionchange", this.onSelectionChange);
+        document.querySelector("iframe#editview").contentDocument.addEventListener("selectionchange", testOnSel);
+      })
+    })
   },
   onBeforeUnmount() {
-    document.removeEventListener("selectionchange", this.onSelectionChange);
+    console.log('mounted:', this.$refs.inpuRef)
+    // document.removeEventListener("selectionchange", this.onSelectionChange);
+    document.querySelector("iframe#editview").contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
   },
 
   methods: {
-    onSelectionChange() {
+    onPreviewMessage(event) {
+      console.log('event', event)
+    },
+
+    onSelectionChange(event, inputRef) {
+      if (!this.$refs.inputRef) console.log('WTF', this.$refs, inputRef)
+      if (this.$refs.inputRef && this.$refs.inputRef.closest('.richtoolbar.on-right-panel')) return
+      console.log(event)
       this.$nextTick(() => {
+        this.$nextTick(() => {
+          if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
+          // const currSelection = this.getSelection(0);
+          const currSelection = event.target.getSelection().getRangeAt(0);
+          if (this.isRangeInEditor(currSelection)) {
+            const htmlEl = currSelection.startContainer.closest
+              ? currSelection.startContainer
+              : currSelection.startContainer.parentElement;
 
-        if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
-        // const currSelection = document.getSelection().getRangeAt(0);
-        const currSelection = this.getSelection(0);
-        if (this.isRangeInEditor(currSelection)) {
-          const htmlEl = currSelection.startContainer.closest ? currSelection.startContainer : currSelection.startContainer.parentElement;
-          const fontSizeParent = htmlEl.closest(
-            '[style*="font-size"]'
-          );
-          if (this.isNodeInEditor(fontSizeParent)) {
-            const nr = Number( fontSizeParent.style.fontSize.replace("px",  ""))
-            if (!isNaN) {
-              this.inputValue = nr
+            const fontSizeParent = htmlEl.closest('[style*="font-size"]');
+            if (fontSizeParent && this.isNodeInEditor(fontSizeParent)) {
+              const nr = Number(fontSizeParent.style.fontSize.replace("px", ""));
+              console.log('number', nr, this.$refs.inputRef.value);
+              if (!isNaN(nr)) {
+                this.inputValue = nr;
+              }
+              return;
             }
-            return;
           }
-        }
 
-        const defaultFontSize = Number(
-          this.getDefaultFontSize().replace("px", "")
-        );
-        console.log("current font size", defaultFontSize);
-        if (defaultFontSize && !isNaN(defaultFontSize)) {
-          this.inputValue = defaultFontSize;
-        }
-      })
+          const defaultFontSize = Number(
+            this.getDefaultFontSize().replace("px", "")
+          );
+          console.log('onselectionchange going for default', defaultFontSize, this.inputValue, this.$refs.inputRef);
+          if (defaultFontSize && !isNaN(defaultFontSize)) {
+            this.inputValue = defaultFontSize;
+          }
+        });
+      });
     },
 
     applyFontSize() {
       if (!this.inputValue) {
-        console.warn('tried to set falsy fontsize')
-        return
+        console.warn("tried to set falsy fontsize");
+        return;
       }
       this.exec("updateFontSize", this.inputValue);
     },
@@ -128,11 +149,12 @@ export default {
     },
 
     onInput(e) {
+      console.log('oninput', e.target, this.$refs.inputRef);
       let value = e.target.value;
       value = value.replace(/[^\d]/g, "");
       value = Number(value);
       if (!value || isNaN(value)) return;
-      this.inputValue = value
+      this.inputValue = value;
     },
 
     onInputKeyUp(e) {
