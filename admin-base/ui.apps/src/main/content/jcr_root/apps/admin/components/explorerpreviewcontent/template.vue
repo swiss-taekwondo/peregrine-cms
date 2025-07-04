@@ -1059,6 +1059,13 @@ export default {
     cursor: pointer;
 }
 
+.explorer-preview .explorer-preview-content.preview-asset .asset-info-view img {
+    max-height: 50vh;
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0; left: 0;
@@ -1070,12 +1077,20 @@ export default {
   z-index: 1000;
 
     .modal-content {
-    max-width: 95vw;
-    max-height: 95vh;
-    
         img {
-        max-width: 100%;
-        max-height: 80vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            min-width: 50vw;
+            min-height: 50vh;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: block;
+            margin: auto; 
+        }
+        
+        img {
+            pointer-events: none;
         }
         
         button {

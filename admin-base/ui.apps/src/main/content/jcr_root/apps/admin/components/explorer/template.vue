@@ -546,7 +546,6 @@ export default {
             },
 
           nodeTypeToIcon: function (item) {
-            console.log(item.resourceType, item);
             if (item.resourceType === 'per:Page') return {icon: 'description', lib: IconLib.MATERIAL_ICONS};
             if (item.resourceType === 'per:Object') return {icon: 'layers', lib: IconLib.MATERIAL_ICONS};
             if (item.resourceType === 'per:ObjectDefinition') return {
@@ -556,7 +555,6 @@ export default {
             if (item.resourceType === 'nt:file') return this.fileExtToIcon(item);
             if (item.resourceType === 'per:Asset') {
               if (item.mimeType) {
-                console.log(item.mimeType)
                 if (item.mimeType.startsWith('video/')) {
                   return { icon: 'video_library', lib: IconLib.MATERIAL_ICONS }
                 } else if (item.mimeType.startsWith('audio/')) {
@@ -834,7 +832,7 @@ export default {
                 align-items: flex-end;
                 gap: 0.5rem;
                 margin-left: 0.5rem;
-                
+
                 > .preview-container:has(> img.preview) {
                     height: 64px;
                     width: 64px;
