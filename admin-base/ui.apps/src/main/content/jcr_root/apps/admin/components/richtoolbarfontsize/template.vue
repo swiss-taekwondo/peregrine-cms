@@ -97,12 +97,15 @@ export default {
 
   methods: {
 
+    // sets fontsize of input to that of selected text
     onSelectionChange(event) {
+      // skip if no selection is present or input is being focused
       const currSelection = event.currentTarget.getSelection()
       if (currSelection.rangeCount <= 0) return
       if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
       if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
 
+      // remove selection from mirror text editor to avoid issues when finding selection to apply fontsize later
       const iframeDoc = document.querySelector("iframe#editview").contentDocument
       if (event.currentTarget.isEqualNode(iframeDoc)) document.getSelection().removeAllRanges() // remove selection
       if (event.currentTarget.isEqualNode(document)) iframeDoc.getSelection().removeAllRanges() // remove selection
@@ -116,6 +119,7 @@ export default {
         ? currRange.startContainer
         : currRange.startContainer.parentElement;
 
+      // checking inline style
       const fontSizeParent = htmlEl.closest('[style*="font-size"]');
       if (fontSizeParent && this.isNodeInEditor(fontSizeParent)) {
         const nr = Number(fontSizeParent.style.fontSize.replace("px", ""));
@@ -125,16 +129,13 @@ export default {
         return;
       }
 
+      // getting style from preview computedStyle
       const defaultFontSize = Number(
         this.getDefaultFontSize().replace("px", "")
       );
       if (defaultFontSize && !isNaN(defaultFontSize)) {
         this.inputValue = defaultFontSize;
       }
-      this.$nextTick(() => {
-        this.$nextTick(() => {
-        });
-      });
     },
 
     applyFontSize() {
@@ -184,6 +185,8 @@ export default {
         this.$refs.inputRef.blur();
       });
     },
+
+    // save/load selection between manual inputs
     onFocusOut(e) {
       this.exec("restoreSelection");
       if (this.selectionRange) {

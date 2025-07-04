@@ -440,6 +440,8 @@ export default {
       const ownerDoc = nodeRanges[0].ownerDocument
       const selectionOfNodes = ownerDoc.getSelection().getRangeAt(0)
 
+      // writing to inline causes parent rerender, which deletes existing nodes & selection. save offsets and re-apply after saving
+      // mark selection nodes
       const startSelectionMarkId = crypto.randomUUID()
       const startOffset = selectionOfNodes.startOffset
       const endSelectionMarkId = crypto.randomUUID()
@@ -447,8 +449,7 @@ export default {
       nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
       nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
 
-      // writing to inline causes parent rerender, which deletes existing nodes & selection. save offsets and re-apply after saving
-
+      // save updates
       if (ownerDoc.querySelector('iframe#editview')) {
         // is sidebar edit
         $perAdminApp.action(this, 'textEditorWriteToModel')
@@ -459,7 +460,7 @@ export default {
 
       this.$nextTick(() => {
         this.$nextTick(() => {
-
+          // find marked nodes and set selection again. Requires two nextTicks
           const selectionAfter = ownerDoc.getSelection()
           selectionAfter.removeAllRanges()
           const newRange = ownerDoc.createRange()
