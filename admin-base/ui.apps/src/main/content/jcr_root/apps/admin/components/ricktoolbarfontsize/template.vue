@@ -53,6 +53,9 @@ export default {
     getSelection: {
       type: Function
     },
+    getEditorSelection: {
+      type: Function
+    },
   },
 
   data() {
@@ -97,12 +100,13 @@ export default {
     onSelectionChange(event) {
       const currSelection = event.currentTarget.getSelection()
       if (currSelection.rangeCount <= 0) return
+      if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
+      if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
+
       const iframeDoc = document.querySelector("iframe#editview").contentDocument
       if (event.currentTarget.isEqualNode(iframeDoc)) document.getSelection().removeAllRanges() // remove selection
       if (event.currentTarget.isEqualNode(document)) iframeDoc.getSelection().removeAllRanges() // remove selection
 
-      if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
-      if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
 
       const currRange = currSelection.getRangeAt(0);
 
@@ -183,7 +187,7 @@ export default {
     onFocusOut(e) {
       this.exec("restoreSelection");
       if (this.selectionRange) {
-        const selection = window.getSelection();
+        const selection = this.selectionRange.startContainer.ownerDocument.getSelection()
         selection.removeAllRanges();
         selection.addRange(this.selectionRange);
       }
@@ -193,8 +197,8 @@ export default {
     },
     onFocusIn(e) {
       this.exec("saveSelection");
-      const range = window.getSelection().getRangeAt(0);
-      if (this.isRangeInEditor(range)) {
+      const range = this.getEditorSelection()
+      if (range && this.isRangeInEditor(range)) {
         this.selectionRange = range;
       }
     }
@@ -205,8 +209,12 @@ export default {
 <style scoped>
 .font-size-wrapper {
   display: flex;
+}
+
+.on-right-panel .font-size-wrapper {
   border-left: 1px solid var(--pcms-gray);
 }
+
 .inputWrapper {
   position: relative;
   margin: 0 2px;

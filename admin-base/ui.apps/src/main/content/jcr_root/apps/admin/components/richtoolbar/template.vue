@@ -48,6 +48,7 @@
       :isNodeInEditor="isNodeInEditor"
       :getDefaultFontSize="getDefaultFontSize"
       :getSelection="getSelection"
+      :getEditorSelection="getEditorSelection"
     />
 
     <pathbrowser
@@ -318,13 +319,11 @@ export default {
 
       if (selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
-        console.log('(this.isRangeInEditor(range))', (this.isRangeInEditor(range)))
         if (this.isRangeInEditor(range)) return returnRange ? range : selection
       }
 
       if (iframeSelection.rangeCount > 0) {
         const iframeRange = iframeSelection.getRangeAt(0)
-        console.log('(this.isRangeInEditor(iframeRange))', (this.isRangeInEditor(iframeRange)))
         if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
       }
     },
@@ -359,7 +358,7 @@ export default {
     selectNodes(nodeArray) {
       const selection = this.getEditorSelection(false)
       selection.removeAllRanges()
-      const reselectRange = document.createRange()
+      const reselectRange = nodeArray[0].ownerDocument.createRange()
       reselectRange.setStart(nodeArray[0], 0)
       reselectRange.setEnd(nodeArray[nodeArray.length - 1], nodeArray[nodeArray.length - 1].childNodes.length)
       selection.addRange(reselectRange)
@@ -370,7 +369,6 @@ export default {
 
       // not using this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
       const range = this.getEditorSelection()
-      console.log('updatefontsize', range)
       const textEditor = this.getEditorFrom(range)
       if (!this.isRangeInEditor(range, textEditor)) {
         console.warn('Selection range outside of Richtext Editor')
@@ -439,7 +437,43 @@ export default {
 
       // Reapply selection, this encorporates split text nodes potentially created in prev step
       this.selectNodes(nodeRanges)
-      textEditor.dispatchEvent(new Event('input', {bubbles: true}))
+      const ownerDoc = nodeRanges[0].ownerDocument
+      const selectionOfNodes = ownerDoc.getSelection().getRangeAt(0)
+
+      const startSelectionMarkId = crypto.randomUUID()
+      const startOffset = selectionOfNodes.startOffset
+      const endSelectionMarkId = crypto.randomUUID()
+      const endOffset = selectionOfNodes.endOffset
+      nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
+      nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
+
+      // writing to inline causes parent rerender, which deletes existing nodes & selection. save offsets and re-apply after saving
+
+      if (ownerDoc.querySelector('iframe#editview')) {
+        // is sidebar edit
+        $perAdminApp.action(this, 'textEditorWriteToModel')
+      } else {
+        // inline edit
+        $perAdminApp.action(this, 'writeInlineToModel')
+      }
+
+      this.$nextTick(() => {
+        this.$nextTick(() => {
+
+          const selectionAfter = ownerDoc.getSelection()
+          selectionAfter.removeAllRanges()
+          const newRange = ownerDoc.createRange()
+
+          const startEl = ownerDoc.querySelector(`[data-start-selection-mark-id="${startSelectionMarkId}"]`)
+          newRange.setStart(startEl, startOffset)
+          delete startEl.dataset.startSelectionMarkId
+          const endEl = ownerDoc.querySelector(`[data-end-selection-mark-id="${endSelectionMarkId}"]`)
+          newRange.setEnd(endEl, endOffset)
+          delete endEl.dataset.endSelectionMarkId
+
+          selectionAfter.addRange(newRange)
+        })
+      })
       return
     },
 
