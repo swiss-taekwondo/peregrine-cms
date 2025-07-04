@@ -313,15 +313,20 @@ export default {
     },
 
     getEditorSelection(returnRange = true) {
-      
-        const selection = window.getSelection()
+      const selection = window.getSelection()
+      const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
+
+      if (selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
-      console.log('(this.isRangeInEditor(range))', (this.isRangeInEditor(range)))
+        console.log('(this.isRangeInEditor(range))', (this.isRangeInEditor(range)))
         if (this.isRangeInEditor(range)) return returnRange ? range : selection
-        const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
+      }
+
+      if (iframeSelection.rangeCount > 0) {
         const iframeRange = iframeSelection.getRangeAt(0)
-      console.log('(this.isRangeInEditor(iframeRange))', (this.isRangeInEditor(iframeRange)))
+        console.log('(this.isRangeInEditor(iframeRange))', (this.isRangeInEditor(iframeRange)))
         if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
+      }
     },
 
     getEditorFrom(range) {
@@ -363,8 +368,9 @@ export default {
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`
 
-      // not useing this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
+      // not using this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
       const range = this.getEditorSelection()
+      console.log('updatefontsize', range)
       const textEditor = this.getEditorFrom(range)
       if (!this.isRangeInEditor(range, textEditor)) {
         console.warn('Selection range outside of Richtext Editor')

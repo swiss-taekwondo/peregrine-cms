@@ -76,11 +76,12 @@ export default {
   mounted() {
     document.addEventListener("selectionchange", this.onSelectionChange);
 
-    // this is bad, but it doesn't work with on load/DOMContentLoaded, the listener just doesn't get triggered for the sub-nav input
+    // this is bad, but it doesn't work with on load/DOMContentLoaded or readystate, the listener just doesn't get triggered for the sub-nav input
     // because it loads before the iframe.
-    // this is the most reliable thing i could come up with to circumvent this BS
+    // this is the most reliable thing I could come up with to circumvent this BS
     document.querySelector("iframe#editview").contentDocument.addEventListener("selectionchange", this.onSelectionChange);
     this.inlineListenerInterval = setInterval(() => {
+      // Must queryselect each time, it seems the iframe rerenders sometimes causing event listeners to be lost
       document.querySelector("iframe#editview").contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
       document.querySelector("iframe#editview").contentDocument.addEventListener("selectionchange", this.onSelectionChange);
     }, 1000)
@@ -88,27 +89,28 @@ export default {
   onBeforeUnmount() {
     document.removeEventListener("selectionchange", this.onSelectionChange);
     document.querySelector("iframe#editview").contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
+    clearInterval(this.inlineListenerInterval)
   },
 
   methods: {
 
     onSelectionChange(event) {
-      if (event.currentTarget.isEqualNode(document.querySelector("iframe#editview").contentDocument)) clearInterval(this.inlineListenerInterval)
-      if (this.forInline) console.log("selectionchange", event.currentTarget)
-      // I have no clue why but for whatever reason, when this event is triggered it normally works perfectly.
-      // BUT if it is triggered by selectionchange in the preview AND it should update the on-sub-nav version (not sidebar)
-      // the ref is undefined?!
-      // - inline/preview selection change udpates sidebar input perfectly
-      // - sidebar selection change updates both inputs perfectly
-      // - just inline/preview selection change doens't update on-sub-nav input and I have no idea why
+      const currSelection = event.currentTarget.getSelection()
+      if (currSelection.rangeCount <= 0) return
+      const iframeDoc = document.querySelector("iframe#editview").contentDocument
+      if (event.currentTarget.isEqualNode(iframeDoc)) document.getSelection().removeAllRanges() // remove selection
+      if (event.currentTarget.isEqualNode(document)) iframeDoc.getSelection().removeAllRanges() // remove selection
+
+      if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
       if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
-      const currSelection = event.currentTarget.getSelection().getRangeAt(0);
 
-      if (!this.isRangeInEditor(currSelection)) return
+      const currRange = currSelection.getRangeAt(0);
 
-      const htmlEl = currSelection.startContainer.closest
-        ? currSelection.startContainer
-        : currSelection.startContainer.parentElement;
+      if (!this.isRangeInEditor(currRange)) return
+
+      const htmlEl = currRange.startContainer.closest
+        ? currRange.startContainer
+        : currRange.startContainer.parentElement;
 
       const fontSizeParent = htmlEl.closest('[style*="font-size"]');
       if (fontSizeParent && this.isNodeInEditor(fontSizeParent)) {
