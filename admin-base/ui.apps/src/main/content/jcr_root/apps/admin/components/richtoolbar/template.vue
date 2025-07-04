@@ -13,31 +13,43 @@
         @click="exec($event.btn.cmd)"/>
     <template v-for="(group, groupIndex) in filteredGroups">
       <richtoolbar-group
-          :key="getKey(group, groupIndex)"
-          v-if="group.items.length > 0"
-          :icon="group.icon"
-          :iconLib="group.iconLib"
-          :collapse="!group.noCollapse && (group.collapse)"
-          :label="group.label"
-          :title="group.title"
-          :active="groupIsActive(group)"
-          :items="group.items"
-          :searchable="group.searchable"
-          :class="group.class"
-          @toggle-click="group.toggleClick? group.toggleClick() : () => {}"
-          @click="exec($event.btn.cmd)"/>
+        :key="getKey(group, groupIndex)"
+        v-if="group.items.length > 0"
+        :icon="group.icon"
+        :iconLib="group.iconLib"
+        :collapse="!group.noCollapse && (group.collapse)"
+        :label="group.label"
+        :title="group.title"
+        :active="groupIsActive(group)"
+        :items="group.items"
+        :searchable="group.searchable"
+        :class="group.class"
+        @toggle-click="group.toggleClick? group.toggleClick() : () => {}"
+        @click="exec($event.btn.cmd)"
+      />
     </template>
+
     <richtoolbar-group
-        v-if="groupAllowed(responsiveMenuGroup)"
-        :icon="responsiveMenuGroup.icon"
-        :iconLib="responsiveMenuGroup.iconLib"
-        :collapse="!responsiveMenuGroup.noCollapse && (responsiveMenuGroup.collapse)"
-        :label="responsiveMenuGroup.label"
-        :title="responsiveMenuGroup.title"
-        :active="false"
-        :items="responsiveMenuGroup.items"
-        :class="responsiveMenuGroup.class"
-        @click="exec($event.btn.cmd)"/>
+      v-if="groupAllowed(responsiveMenuGroup)"
+      :icon="responsiveMenuGroup.icon"
+      :iconLib="responsiveMenuGroup.iconLib"
+      :collapse="!responsiveMenuGroup.noCollapse && (responsiveMenuGroup.collapse)"
+      :label="responsiveMenuGroup.label"
+      :title="responsiveMenuGroup.title"
+      :active="false"
+      :items="responsiveMenuGroup.items"
+      :class="responsiveMenuGroup.class"
+      @click="exec($event.btn.cmd)"
+    />
+
+    <richtoolbar-font-size
+      :exec="exec"
+      :isRangeInEditor="isRangeInEditor"
+      :isNodeInEditor="isNodeInEditor"
+      :getDefaultFontSize="getDefaultFontSize"
+      :getSelection="getSelection"
+      :getEditorSelection="getEditorSelection"
+    />
 
     <pathbrowser
         v-if="browser.open"
@@ -79,16 +91,17 @@ import {
   responsiveMenuGroup,
   specialCharactersGroup,
   superSubScriptGroup,
-  textFormatGroup
+  textFormatGroup,
 } from './groups'
 import {get, restoreSelection, saveSelection, set} from '../../../../../../js/utils'
 import {PathBrowser} from '../../../../../../js/constants'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
+import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
 
 export default {
   name: 'RichToolbar',
-  components: {RichtoolbarGroup, Pathbrowser},
+  components: {RichtoolbarGroup, Pathbrowser, RichtoolbarFontSize},
   props: {
     showAlwaysActive: {
       type: Boolean,
@@ -99,6 +112,7 @@ export default {
       default: true
     },
   },
+
   data() {
     return {
       selection: {
@@ -143,6 +157,7 @@ export default {
       hiddenGroups: {}
     }
   },
+
   computed: {
     alwaysActiveGroup() {
       return alwaysActiveGroup(this)
@@ -159,7 +174,7 @@ export default {
         listGroup(this),
         iconsGroup(this),
         specialCharactersGroup(this),
-        removeFormatGroup(this)
+        removeFormatGroup(this),
       ]
     },
     filteredGroups() {
@@ -195,7 +210,8 @@ export default {
         insertImage: this.insertImage,
         editImage: this.editImage,
         preview: this.togglePreview,
-        previewInNewTab: this.previewInNewTab
+        previewInNewTab: this.previewInNewTab,
+        updateFontSize: this.updateFontSize,
       }
     },
     formattingItems() {
@@ -219,6 +235,7 @@ export default {
       ]
     }
   },
+
   mounted() {
     this.$nextTick(() => {
       window.addEventListener('resize', this.updateDocElDimensions)
@@ -228,7 +245,239 @@ export default {
   beforeDestroy() {
     window.removeEventListener('resize', this.updateDocElDimensions)
   },
+
   methods: {
+
+    getDefaultFontSize() {
+      const iframeWindow = document.querySelector("iframe#editview")
+        .contentWindow;
+      const currentInlineEditor = iframeWindow.document.querySelector(
+        '.inline-edit[contenteditable="true"]'
+      );
+      if (!currentInlineEditor) return null;
+      const defaultFontSize = iframeWindow.getComputedStyle(currentInlineEditor)
+        .fontSize;
+      return defaultFontSize;
+    },
+
+    // creates span for every text node, returns said nodes so they can be re-selected.
+    wrapTextNodesInRange(range, fontSize) {
+      const textNodes = [];
+
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: node => {
+            if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            const nodeRange = document.createRange();
+            nodeRange.selectNodeContents(node);
+            return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+
+      let node;
+      while (node = walker.nextNode()) {
+        textNodes.push(node);
+      }
+
+      const fontSizeNodes = []
+      for (let i = 0; i < textNodes.length; i++) {
+        const textNode = textNodes[i];
+        const nodeRange = document.createRange();
+        nodeRange.selectNodeContents(textNode);
+
+        // Adjust start if first node
+        if (textNode === range.startContainer || textNode.contains(range.startContainer)) {
+          nodeRange.setStart(range.startContainer, range.startOffset);
+        }
+
+        // Adjust end if last node
+        if (textNode === range.endContainer || textNode.contains(range.endContainer)) {
+          nodeRange.setEnd(range.endContainer, range.endOffset);
+        }
+
+        const existingSpan  = textNode.parentElement.tagName === 'SPAN' && textNode.parentElement.childNodes.length === 1 ? textNode.parentElement : null
+        if (existingSpan) {
+          existingSpan.style.fontSize = fontSize;
+          fontSizeNodes.push(existingSpan)
+        } else {
+          const span = document.createElement('span');
+          span.style.fontSize = fontSize;
+          nodeRange.surroundContents(span);
+          fontSizeNodes.push(span)
+        }
+      }
+
+      return fontSizeNodes
+    },
+
+    getEditorSelection(returnRange = true) {
+      const selection = window.getSelection()
+      const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
+
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        if (this.isRangeInEditor(range)) return returnRange ? range : selection
+      }
+
+      if (iframeSelection.rangeCount > 0) {
+        const iframeRange = iframeSelection.getRangeAt(0)
+        if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
+      }
+    },
+
+    getEditorFrom(range) {
+      const getEditorFromEl = typeof range.startContainer.closest === 'function' ? range.startContainer : range.startContainer.parentElement
+      const textEditor = getEditorFromEl.closest('.inline-edit[contenteditable="true"]')
+      return textEditor
+    },
+
+    
+    isRangeInEditor(range) {
+      if (!range) return false
+      const textEditor = this.getEditorFrom(range)
+      if (!textEditor) return false
+      const elementRange = textEditor.ownerDocument.createRange();
+      elementRange.selectNodeContents(textEditor);
+
+      return (
+        range.compareBoundaryPoints(Range.START_TO_START, elementRange) >= 0 &&
+        range.compareBoundaryPoints(Range.END_TO_END, elementRange) <= 0
+      );
+    },
+
+    isNodeInEditor(node) {
+      if (!node) return false
+      const textEditor = this.getEditorFrom({startContainer: node})
+      return textEditor.contains(node)
+    },
+
+    // for selecting updated nodes, this way range always applies to same text
+    selectNodes(nodeArray) {
+      const selection = this.getEditorSelection(false)
+      selection.removeAllRanges()
+      const reselectRange = nodeArray[0].ownerDocument.createRange()
+      reselectRange.setStart(nodeArray[0], 0)
+      reselectRange.setEnd(nodeArray[nodeArray.length - 1], nodeArray[nodeArray.length - 1].childNodes.length)
+      selection.addRange(reselectRange)
+    },
+
+    updateFontSize(newSize) {
+      const fontSize = `${newSize}px`
+
+      // not using this.getSelection(), results are inconsistant, but I don't wanna update it since other stuff relies on it.
+      const range = this.getEditorSelection()
+      const textEditor = this.getEditorFrom(range)
+      if (!this.isRangeInEditor(range, textEditor)) {
+        console.warn('Selection range outside of Richtext Editor')
+        return
+      }
+
+      function setFontSizeOfEl(element, fontSizeStr) {
+        element.querySelectorAll('*[style*="font-size"]').forEach(element => {
+          if (element.tagName === 'SPAN') {
+            element.replaceWith(...element.childNodes)
+          } else {
+            element.style.removeProperty('font-size')
+          }
+        });
+        element.style.fontSize = fontSizeStr
+      }
+
+      // set text size on wrapper element if nothing is selected
+      const noHighlight = range.endContainer.isEqualNode(range.startContainer) && range.endOffset === range.startOffset
+      if (noHighlight) {
+        const parentQuery = 'p, ul, ol, h1, h2, h3, h4, h5, h6'
+        const fontSizeParent = (typeof range.startContainer.closest === 'function')? range.startContainer.closest(parentQuery) : range.startContainer.parentElement.closest(parentQuery)
+        if (!textEditor.contains(fontSizeParent)) {
+          console.warn('Attempting to change fontsize of paragraph outside of richtext editor')
+          return
+        }
+        setFontSizeOfEl(fontSizeParent, fontSize)
+        fontSizeParent.style.fontSize = fontSize
+        return
+      }
+
+      // split first & last text node if they are not fully selected
+      if (range.startContainer.nodeType === Node.TEXT_NODE) {
+        const newText = range.startContainer.splitText(range.startOffset)
+        range.setStart(newText, 0)
+      }
+      if (range.endContainer.nodeType === Node.TEXT_NODE) {
+        range.endContainer.splitText(range.endOffset)
+        range.setEnd(range.endContainer, range.endContainer.length) 
+      }
+
+      // logic supporting singe nodes and re-using them instead
+      const onlySingleNode = range.startContainer.isEqualNode(range.endContainer) 
+      if (onlySingleNode) {
+        if (range.startContainer.nodeType === Node.TEXT_NODE) {
+          const span = document.createElement('span')
+          span.style.fontSize = fontSize
+          range.surroundContents(span)
+          this.selectNodes([span])
+          return
+        } else {
+          setFontSizeOfEl(range.startContainer, fontSize)
+        }
+      }
+
+
+      const nodeRanges = this.wrapTextNodesInRange(range, fontSize)
+
+      // cleanup pointless nested spans if they exist
+      textEditor.querySelectorAll('span[style*="font-size"]:has(> span[style*="font-size"])').forEach(span => {
+        // :only-child still counts if element has text node siblings, so we need to check ourselves
+        if (span.childNodes.length === 1) {
+          span.replaceWith(span.childNodes[0]) // can only be one
+        }
+      })
+
+      // Reapply selection, this encorporates split text nodes potentially created in prev step
+      this.selectNodes(nodeRanges)
+      const ownerDoc = nodeRanges[0].ownerDocument
+      const selectionOfNodes = ownerDoc.getSelection().getRangeAt(0)
+
+      // writing to inline causes parent rerender, which deletes existing nodes & selection. save offsets and re-apply after saving
+      // mark selection nodes
+      const startSelectionMarkId = crypto.randomUUID()
+      const startOffset = selectionOfNodes.startOffset
+      const endSelectionMarkId = crypto.randomUUID()
+      const endOffset = selectionOfNodes.endOffset
+      nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
+      nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
+
+      // save updates
+      if (ownerDoc.querySelector('iframe#editview')) {
+        // is sidebar edit
+        $perAdminApp.action(this, 'textEditorWriteToModel')
+      } else {
+        // inline edit
+        $perAdminApp.action(this, 'writeInlineToModel')
+      }
+
+      this.$nextTick(() => {
+        this.$nextTick(() => {
+          // find marked nodes and set selection again. Requires two nextTicks
+          const selectionAfter = ownerDoc.getSelection()
+          selectionAfter.removeAllRanges()
+          const newRange = ownerDoc.createRange()
+
+          const startEl = ownerDoc.querySelector(`[data-start-selection-mark-id="${startSelectionMarkId}"]`)
+          newRange.setStart(startEl, startOffset)
+          delete startEl.dataset.startSelectionMarkId
+          const endEl = ownerDoc.querySelector(`[data-end-selection-mark-id="${endSelectionMarkId}"]`)
+          newRange.setEnd(endEl, endOffset)
+          delete endEl.dataset.endSelectionMarkId
+
+          selectionAfter.addRange(newRange)
+        })
+      })
+      return
+    },
+
     pingRichToolbar(vm = this) {
       vm.key = vm.key === 1 ? 0 : 1
       vm.$emit('ping')
@@ -249,7 +498,7 @@ export default {
       if (!this.getInlineDoc()) return
       return this.getInlineDoc().querySelector('.inline-edit.inline-editing')
     },
-    execCmd(cmd, value = null, showUi = false) {
+    execCmd(cmd, value = null, showUi = true) {
       if (!this.getInlineDoc() || !this.getInlineDoc().execCommand) return
       this.getInlineDoc().execCommand(cmd, showUi, value)
     },
@@ -483,7 +732,7 @@ export default {
     },
 
     // This runs after link is chosen in modal
-    onLinkSelect(vm = this) {
+    onLinkSelect() {
       if (this.param.cmd === 'insertLink') {
         if (this.browser.path.selected.startsWith('/')) {
           this.browser.path.selected += '.html'
@@ -497,14 +746,14 @@ export default {
         this.restoreSelection()
         this.$nextTick(() => {
           const range = this.getSelection(0)
-          const textEditor = this.$refs.richToolbar.nextElementSibling
+          const textEditor = this.getEditorFrom(range).closest('.inline-edit[contenteditable="true"]')
 
           // check for list elements if start & end are not in same node.
           let rangeIsInListItem = false
           if (!range.startContainer.isEqualNode(range.endContainer)){
             const listItems = Array.from(textEditor.querySelectorAll('li'));
             // reversing because we want to prioritize last item, genrally while selecting a list item selection will automatically include previous item
-            listItems .reverse();
+            listItems.reverse();
             for (let i = 0; i < listItems.length; i++) {
               const li = listItems[i];
               if (range.intersectsNode(li)) {

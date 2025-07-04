@@ -25,10 +25,11 @@
 <template>
   <div class="text-editor-wrapper">
     <richtoolbar
-        class="on-right-panel"
-        :show-always-active="false"
-        :responsive="false"
-        @ping="key = key === 'foo'? 'bar' : 'foo'"/>
+      class="on-right-panel"
+      :show-always-active="false"
+      :responsive="false"
+      @ping="key = key === 'foo'? 'bar' : 'foo'"
+    />
     <p class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
@@ -51,9 +52,9 @@ import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
-  'text-align':true,
-  'font-size':true,
-}
+  "text-align": true,
+  "font-size": true
+};
 function removeUnwantedStyles(htmlText) {
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = htmlText
@@ -82,14 +83,19 @@ export default {
     return {
       doc: document,
       editing: false,
-      key: 0
+      key: 0,
     }
   },
   computed: {
     view() {
       return $perAdminApp.getView()
-    }
+    },
   },
+
+  mounted() {
+    set(this.view, '/state/inline/rich', true)
+  },
+
   methods: {
     onFocusIn(event) {
       set(this.view, '/state/inline/rich', true)
@@ -122,7 +128,7 @@ export default {
     pingToolbar() {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
-    }
+    },
   }
 }
 </script>
