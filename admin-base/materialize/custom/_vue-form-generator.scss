@@ -123,12 +123,12 @@
             }
             &.error {
                 > label:after {
-                    color: color("red", "lighten-1");
+                    color: customColor("red", "lighten-1");
                 }
                 .field-wrap {
                     input:focus {
-                        border-bottom-color: color("red", "lighten-2");
-                        box-shadow: 0 1px 0 0 color("red", "lighten-2");
+                        border-bottom-color: customColor("red", "lighten-2");
+                        box-shadow: 0 1px 0 0 customColor("red", "lighten-2");
                     }
                 }
             }
@@ -141,7 +141,7 @@
                 margin-top: 0;
             }
             .errors {
-                color: color("red", "lighten-1");
+                color: customColor("red", "lighten-1");
             }
             .field-wrap {
                 input {
@@ -156,9 +156,9 @@
                         height: 3rem;
                         padding: 0 5rem 0 0.15rem;
                         background-color: #fff;
-                        border-color: color("blue-grey", "lighten-4");
+                        border-color: customColor("blue-grey", "lighten-4");
                         &:focus {
-                            border-bottom-color: color("blue-grey", "base");
+                            border-bottom-color: customColor("blue-grey", "base");
                         }
                         + span.helper {
                             position: absolute;
@@ -167,7 +167,7 @@
                             line-height: 3rem;
                             padding: 0 0.75rem;
                             font-style: 1rem;
-                            color: color("blue-grey", "base");
+                            color: customColor("blue-grey", "base");
                         }
                     }
                     input[type=range]{
@@ -183,12 +183,12 @@
                             + .btn-flat {
                                 width: 3rem;
                                 height: 3rem;
-                                border: 1px solid color("blue-grey", "lighten-4");
+                                border: 1px solid customColor("blue-grey", "lighten-4");
                                 border-left: 0;
                                 float:right;
                                 display: inline-block;
                                 padding: 0;
-                                color: color("blue-grey", "darken-1");
+                                color: customColor("blue-grey", "darken-1");
                             }
                         }
                     }
@@ -207,12 +207,12 @@
                             width: 3rem;
                             margin: 0;
                             height: 3rem;
-                            border: 1px solid color("blue-grey", "lighten-4");
+                            border: 1px solid customColor("blue-grey", "lighten-4");
                             border-left: 0;
                             float:right;
                             display: inline-block;
                             padding: 0;
-                            color: color("blue-grey", "darken-1");
+                            color: customColor("blue-grey", "darken-1");
                         }
                     }
                 }
@@ -244,8 +244,8 @@
                         box-sizing: border-box;
                     }
                     > input {
-                        border-bottom: 1px solid color("blue-grey", "lighten-4");
-                        color: color("blue-grey", "darken-3");
+                        border-bottom: 1px solid customColor("blue-grey", "lighten-4");
+                        color: customColor("blue-grey", "darken-3");
                     }
                 }
 
@@ -286,7 +286,7 @@
 
                 .vdatetime-popup__header {
                     padding: 15px 30px;
-                    background: color("blue-grey", "darken-2");
+                    background: customColor("blue-grey", "darken-2");
                     color: #fff;
                     font-size: 32px;
                     text-transform: capitalize;
@@ -393,7 +393,7 @@
                     &>span>span,
                     &:hover>span>span {
                         color: #fff;
-                        background: color("blue-grey", "darken-2");
+                        background: customColor("blue-grey", "darken-2");
                     }
                 }
 
@@ -450,7 +450,7 @@
                 }
 
                 .vdatetime-popup__list-picker__item--selected {
-                    color: color("blue-grey", "darken-2");
+                    color: customColor("blue-grey", "darken-2");
                     font-size: 32px;
                 }
 
@@ -465,7 +465,7 @@
                     padding: 10px 20px;
                     background: transparent;
                     font-size: 16px;
-                    color: color("blue-grey", "darken-2");
+                    color: customColor("blue-grey", "darken-2");
                     cursor: pointer;
                     transition: color .3s;
                     &:hover {
@@ -496,17 +496,17 @@
                     label {
                         .lever {
                             margin-left: 0px;
-                            // background-color: color("blue-grey", "lighten-3");
+                            // background-color: customColor("blue-grey", "lighten-3");
                             &:after {
-                                // background-color: color("blue-grey", "lighten-3");
+                                // background-color: customColor("blue-grey", "lighten-3");
                                 //box-shadow: none;
                             }
                         }
                         input[type=checkbox]:checked {
                             + .lever {
-                                background-color: color("blue-grey", "lighten-1");
+                                background-color: customColor("blue-grey", "lighten-1");
                                 &:after {
-                                    background-color: color("blue-grey", "base");
+                                    background-color: customColor("blue-grey", "base");
                                 }
                             }
                         }
@@ -575,7 +575,7 @@
                         width: 100%;
 
                         &:hover {
-                            background-color: color("blue-grey", "lighten-4");
+                            background-color: customColor("blue-grey", "lighten-4");
                         }
                     }
                     .collapsible {
@@ -587,12 +587,12 @@
                             position: relative;
                             .collapsible-header {
                                 background-color: #fff;
-                                border-bottom-color: color("blue-grey", "lighten-4");
-                                color: color("blue-grey", "darken-2");
+                                border-bottom-color: customColor("blue-grey", "lighten-4");
+                                color: customColor("blue-grey", "darken-2");
                                 padding: 0 3rem;
                                 .material-icons {
                                     position: absolute;
-                                    color: color("blue-grey", "lighten-1");
+                                    color: customColor("blue-grey", "lighten-1");
                                     cursor: move;
                                     left: 0.75rem;
                                     line-height: 42px;
@@ -601,11 +601,11 @@
                                         cursor: pointer;
                                         left: auto;
                                         right: 0.75rem;
-                                        color: color("blue-grey", "darken-1");
+                                        color: customColor("blue-grey", "darken-1");
                                         &:hover,
                                         &:focus,
                                         &:active {
-                                            color: color("blue-grey", "base");
+                                            color: customColor("blue-grey", "base");
                                         }
                                     }
                                 }
@@ -616,7 +616,7 @@
                                     left: 0;
                                     right: 0;
                                     height: 1px;
-                                    background-color: color("orange", "base");
+                                    background-color: customColor("orange", "base");
                                     content: '';
                                 }
                                 &.drop-before:before {
@@ -627,7 +627,7 @@
                                 }
                             }
                             .collapsible-body {
-                                border-color: color("blue-grey", "lighten-4");
+                                border-color: customColor("blue-grey", "lighten-4");
                                 padding: 0.75rem 0.75rem 0;
                                 background-color: #fff;
                                 display: block;
@@ -646,7 +646,7 @@
                             }
                             &:first-child {
                                 // .collapsible-header {
-                                //     border-top: 1px solid color("blue-grey", "lighten-4");
+                                //     border-top: 1px solid customColor("blue-grey", "lighten-4");
                                 // }
                             }
                             &:last-child {
@@ -687,8 +687,8 @@
                                                     border-left: none;
                                                     margin: 0 0 1px;
                                                     &:focus {
-                                                        border-bottom-color: color("blue-grey", "base");
-                                                        box-shadow: 0 1px 0 0 color("blue-grey", "base");
+                                                        border-bottom-color: customColor("blue-grey", "base");
+                                                        box-shadow: 0 1px 0 0 customColor("blue-grey", "base");
                                                     }
                                                 }
                                             }
@@ -754,7 +754,7 @@
                 > li.preview-item {
                     > label {
                         font-size: 1rem;
-                        color: color("blue-grey", "base");
+                        color: customColor("blue-grey", "base");
                     }
                 }
             }
@@ -776,7 +776,7 @@
                 display: inline-block;
                 height: 21px;
                 width: 21px;
-                border: 1px solid color("blue-grey", "lighten-4");
+                border: 1px solid customColor("blue-grey", "lighten-4");
                 vertical-align: top;
             }
             &.required {
@@ -955,4 +955,10 @@
       max-height: 50rem;
     }
   }
+}
+
+input:read-only,
+input:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
 }
