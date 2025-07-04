@@ -9,12 +9,15 @@
     "site": "node ./node_modules/jsdoc/jsdoc.js -c jsdoc.config.json -P package.json",
     "docker": "docker run -it -p 8080:8080 icaraps/peregrine-cms:stkd-nfs-amd64",
     "build:patch": "cd admin-base/ui.apps && npm run build && npm run patch",
-    "watch": "nodemon"
+    "build:css": "cd admin-base/materialize && npm run build",
+    "build:css:patch": "cd admin-base/materialize && npm run build:patch",
+    "watch": "chokidar \"admin-base/**/*\" -i \"admin-base/ui.apps/target\" -i \"admin-base/materialize/target\" -c \"node watcher.js {path}\""
   },
   "author": "headwire.com, Inc",
   "license": "Apache-2.0",
   "dependencies": {
     "camelcase": "^6.2.0",
+    "chokidar-cli": "^3.0.0",
     "fs-extra": "^9.1.0",
     "jsdoc": "^3.5.5",
     "jsdoc-vue": "^1.0.0",
