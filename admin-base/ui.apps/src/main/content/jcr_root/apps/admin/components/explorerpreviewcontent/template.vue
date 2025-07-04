@@ -64,7 +64,9 @@
              :class="`${nodeType}-info-view`">
           <img v-if="isImage"
                :src="currentObject"
-               class="info-view-image"/>
+               class="info-view-image"
+               v-on:click="openModal"
+               />
           <iframe
               v-else
               :src="currentObject"
@@ -309,7 +311,12 @@
         @select="onCopySelect">
     </path-browser>
 
-
+      <div v-if="modalVisible" class="modal-overlay" ref="previewModal" @click.self="closeModal" @keydown.esc="closeModal" tabindex="-1">
+        <div class="modal-content">
+          <img :src="currentObject" alt="Modal Image" />
+          <button @click="closeModal"><i class="material-icons">close</i></button>
+        </div>
+      </div>
   </div>
 </template>
 
@@ -400,6 +407,7 @@ export default {
       isOpen: false,
       isCopyOpen: false,
       isPublishDialogOpen: false,
+      modalVisible: false,
       selectedPath: null,
       options: {
         validateAfterLoad: true,
@@ -546,7 +554,7 @@ export default {
       } else {
         return false
       }
-    }
+    },
   },
   watch: {
     edit(val) {
@@ -1017,6 +1025,15 @@ export default {
           },
         ]
       };
+    },
+    openModal() {
+      this.modalVisible = true;
+      this.$nextTick(() => {
+        this.$refs.previewModal.focus();
+      });
+    },
+    closeModal() {
+      this.modalVisible = false;
     }
   }
 }
@@ -1034,5 +1051,51 @@ export default {
 .operationDisabledOnActivatedItem {
   opacity: 0.4;
   cursor: default!important;
+}
+</style>
+
+<style scoped>
+.info-view-image {
+    cursor: pointer;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+
+    .modal-content {
+    max-width: 95vw;
+    max-height: 95vh;
+    
+        img {
+        max-width: 100%;
+        max-height: 80vh;
+        }
+        
+        button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            background-color: white;
+            color: black;
+            border: 2px solid black;
+            border-radius: 100%;
+            aspect-ratio: 1 / 1;
+            align-items: center;
+            
+            &:hover, &:focus, &:active {
+                background-color: black;
+                color: white;
+                border: 2px solid white;
+            }
+        }
+    }
 }
 </style>

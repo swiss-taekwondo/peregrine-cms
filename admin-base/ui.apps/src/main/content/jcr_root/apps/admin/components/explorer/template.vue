@@ -35,6 +35,7 @@
             <ul class="collection">
                 <li v-if="showNavigateToParent"
                     v-on:click.stop.prevent="selectParent()"
+                    id="back-to-parent"
                     class="collection-item">
                     <admin-components-action
                             v-bind:model="{
@@ -61,6 +62,7 @@
                     <admin-components-draghandle/>
 
                     <admin-components-action v-if="editable(child)"
+                                class="folder"
                                              v-bind:model="{
                                 target: child,
                                 command: 'selectPath',
@@ -87,7 +89,12 @@
                             command: 'selectPath',
                             tooltipTitle: `${$i18n('select')} '${child.title || child.name}'`
                         }">
-                      <icon v-bind="nodeTypeToIcon(child)"/> {{child.title ? child.title : child.name}}
+                            <div class="preview-container" v-if="child.mimeType">
+                                <img v-bind:src="child.path" v-if="child.mimeType.startsWith('image/')" class="preview" v-bind:alt="child.title || child.name">
+                                <icon v-else v-bind="nodeTypeToIcon(child)"/>
+                            </div>
+                            <icon v-else v-bind="nodeTypeToIcon(child)"/>
+                            <span>{{child.title ? child.title : child.name}}</span>
                     </admin-components-action>
 
                     <admin-components-extensions v-bind:model="{id: 'admin.components.explorer', item: child}"></admin-components-extensions>
@@ -539,17 +546,31 @@ export default {
             },
 
           nodeTypeToIcon: function (item) {
-            if (item.resourceType === 'per:Page') return {icon: 'description', lib: IconLib.MATERIAL_ICONS}
-            if (item.resourceType === 'per:Object') return {icon: 'layers', lib: IconLib.MATERIAL_ICONS}
+            console.log(item.resourceType, item);
+            if (item.resourceType === 'per:Page') return {icon: 'description', lib: IconLib.MATERIAL_ICONS};
+            if (item.resourceType === 'per:Object') return {icon: 'layers', lib: IconLib.MATERIAL_ICONS};
             if (item.resourceType === 'per:ObjectDefinition') return {
               icon: 'insert_drive_file',
               lib: IconLib.MATERIAL_ICONS
-            }
-            if (item.resourceType === 'nt:file') return this.fileExtToIcon(item)
-            if (item.resourceType === 'per:Asset') return {icon: 'image', lib: IconLib.MATERIAL_ICONS}
-            if (item.resourceType === 'sling:Folder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS}
+            };
+            if (item.resourceType === 'nt:file') return this.fileExtToIcon(item);
+            if (item.resourceType === 'per:Asset') {
+              if (item.mimeType) {
+                console.log(item.mimeType)
+                if (item.mimeType.startsWith('video/')) {
+                  return { icon: 'video_library', lib: IconLib.MATERIAL_ICONS }
+                } else if (item.mimeType.startsWith('audio/')) {
+                  return { icon: 'audiotrack', lib: IconLib.MATERIAL_ICONS }
+                } else {
+                  return { icon: 'image', lib: IconLib.MATERIAL_ICONS }
+                }
+              } else {
+                return { icon: 'image', lib: IconLib.MATERIAL_ICONS }
+              } 
+            };
+            if (item.resourceType === 'sling:Folder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS};
             if (item.resourceType === 'sling:OrderedFolder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS}
-            return {icon: '█', lib: IconLib.PLAIN_TEXT}
+            return {icon: '█', lib: IconLib.PLAIN_TEXT};
           },
 
           fileExtToIcon(item) {
@@ -794,5 +815,43 @@ export default {
   align-items: center;
   font-weight: bolder;
   color: #000000;
+}
+
+.explorer .explorer-layout .row .explorer-main .collection .collection-item:not(#back-to-parent) {
+        display: flex;
+        align-items: center;
+        
+        > * {
+            display: flex;
+            align-items: center;
+            
+            > a {
+                width: 100%;
+            }
+            
+            > a:has(.preview-container) {
+                display: flex;
+                align-items: flex-end;
+                gap: 0.5rem;
+                margin-left: 0.5rem;
+                
+                > .preview-container:has(> img.preview) {
+                    height: 64px;
+                    width: 64px;
+                    > img.preview {
+                        height: 64px;
+                        width: 64px;
+                        object-fit: scale-down;
+                        object-position: bottom;
+                    }
+                }
+            }
+        }
+        
+        > span:not(.draggable):not(.folder) {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
 }
 </style>
