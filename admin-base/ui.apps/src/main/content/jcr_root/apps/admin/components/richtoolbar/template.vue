@@ -96,7 +96,7 @@ import {
 import {get, restoreSelection, saveSelection, set} from '../../../../../../js/utils'
 import {PathBrowser} from '../../../../../../js/constants'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
-import RichtoolbarFontSize from '../ricktoolbarfontsize/template.vue'
+import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
 
 export default {
