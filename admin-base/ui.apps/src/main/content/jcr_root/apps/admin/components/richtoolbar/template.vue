@@ -636,7 +636,6 @@ export default {
       vm.startBrowsing()
     },
     insertIcon(imgPath) {
-      console.log('imgPath: ', imgPath);
       this.execCmd('insertHTML', `<peregrine-icon img="${imgPath}"></peregrine-icon>`);
     },
     setViewport(viewport) {

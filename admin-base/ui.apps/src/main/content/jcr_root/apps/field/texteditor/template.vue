@@ -50,6 +50,58 @@
 import {set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 
+// Copied from themeclean flex. Icons are rendered as custom HTML element. But this is only defined in the theme.
+// https://github.com/headwirecom/themeclean-flex/blob/develop-sling12/ui.apps/src/main/content/jcr_root/etc/felibs/themecleanflex/dependencies/customElements.js
+
+// build script breaks the code so I'm using eval
+eval(`
+class PeregrineIcon extends HTMLElement {
+  constructor() {
+    super();
+
+    const shadowDom = this.attachShadow({ mode: 'open' });
+
+    const wrapperElem = document.createElement('span');
+    wrapperElem.setAttribute('class', 'wrapper');
+
+    const icon = document.createElement('span');
+    icon.setAttribute('class', 'icon');
+    icon.setAttribute('tabindex', 0);
+
+    let imgUrl;
+    if (this.hasAttribute('img')) {
+      imgUrl = this.getAttribute('img');
+    } else {
+      imgUrl = 'img/default.png';
+    }
+
+    const imgElem = document.createElement('img');
+    imgElem.src = imgUrl;
+    icon.appendChild(imgElem);
+
+    const styleElem = document.createElement('style');
+    styleElem.textContent = \`
+  .wrapper {
+    position: relative;
+  }
+
+  img {
+    width: 1.2rem;
+  }
+  \`;
+
+    shadowDom.appendChild(styleElem);
+    shadowDom.appendChild(wrapperElem);
+    wrapperElem.appendChild(icon);
+  }
+}
+
+if (!customElements.get('peregrine-icon')) {
+  customElements.define('peregrine-icon', PeregrineIcon);
+}
+`)
+
+
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
   "text-align": true,
