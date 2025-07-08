@@ -667,24 +667,29 @@ function toastImpl(message, className, displayLength, callback) {
  * @param options
  */
 function askUserImpl(title, message, options) {
+  const dialog = document.querySelector('#askUserModal')
   set(view, '/state/notification/title', title);
   set(view, '/state/notification/message', message);
+
   let yesText = options.yesText ? options.yesText : 'Yes';
   let noText = options.noText ? options.noText : 'No';
   set(view, '/state/notification/yesText', yesText);
   set(view, '/state/notification/noText', noText);
-  options.dismissible = false;
-  options.takeAction = false;
-  options.complete = function() {
-    const answer = $('#askUserModal').modal('getInstance').options.takeAction;
-    if (answer && options.yes) {
-      options.yes();
-    } else if (options.no) {
-      options.no();
-    }
-  };
-  $('#askUserModal').modal(options);
-  $('#askUserModal').modal('open');
+
+  set(view, '/state/notification/yesFn', () => {
+    options.yes()
+    dialog.close()
+  })
+  set(view, '/state/notification/noFn', () => {
+    options.no()
+    dialog.close()
+  })
+
+  // dialog.onfocusout = () => {
+  //   dialog.close()
+  // }
+
+  dialog.showModal()
 }
 
 /**

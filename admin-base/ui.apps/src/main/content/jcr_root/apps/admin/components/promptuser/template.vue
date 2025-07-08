@@ -23,7 +23,7 @@
   #L%
   -->
 <template>  
-    <div id="promptUserModal" class="modal bottom-sheet" ref="modal">
+    <dialog id="promptUserModal" class="modal bottom-sheet" ref="modal">
         <div class="modal-content">
             <h4>{{title}}</h4>
             <p>{{message}}</p>
@@ -47,7 +47,7 @@
                 {{yesText}}
             </button>
         </div>
-    </div>
+    </dialog>
 </template>
 
 <script>
@@ -86,3 +86,13 @@
 
     }
 </script>
+
+<style scoped>
+dialog[open] {
+  display: block;
+  border: none;
+}
+dialog::backdrop {
+  display: none;
+}
+</style>

@@ -23,7 +23,7 @@
   #L%
   -->
 <template>  
-    <div id="askUserModal" class="modal bottom-sheet" ref="modal">
+    <dialog id="askUserModal" ref="modal">
         <div class="modal-content">
             <h4>{{title}}</h4>
             <p>{{message}}</p>
@@ -44,7 +44,7 @@
                 {{yesText}}
             </button>
         </div>
-    </div>
+    </dialog>
 </template>
 
 <script>
@@ -62,16 +62,67 @@
             },
             noText() {
                 return $perAdminApp.getNodeFromViewOrNull('/state/notification/noText')
-            }
+            },
+            yesFn() {
+                return $perAdminApp.getNodeFromViewOrNull('/state/notification/yesFn')
+            },
+            noFn() {
+                return $perAdminApp.getNodeFromViewOrNull('/state/notification/noFn')
+            },
         },
         methods: {
             cancel() {
-                $('#askUserModal').modal('getInstance').options.takeAction = false;
+              this.yesFn()
             },
             ok() {
-                $('#askUserModal').modal('getInstance').options.takeAction = true;
+              this.noFn()
             }
         }
-
     }
 </script>
+
+<style scoped>
+dialog[open] {
+  display: block;
+  border: none;
+  width: 100%;
+  top: auto;
+  bottom: 0%;
+  right: 0;
+  left: 0;
+  margin: 0;
+  width: 100%;
+  opacity: 1;
+  max-height: 45%;
+  border-radius: 0;
+  will-change: bottom, opacity;
+  animation: slide-up 0.3s ease-in-out;
+}
+
+@keyframes slide-up {
+  from {
+    bottom: -100%;
+    opacity: 0;
+  }
+  to {
+    bottom: 0%;
+    opacity: 1;
+  }
+}
+
+dialog::backdrop {
+  display: none;
+}
+
+dialog .modal-content {
+  padding: 24px;
+  padding-top: 54px;
+}
+dialog .modal-footer {
+  padding: 4px 6px;
+  height: 56px;
+  width: 100%;
+  text-align: right;
+}
+
+</style>
