@@ -31,15 +31,15 @@
         <div class="modal-footer">
             <button 
                 type="button"
-                class="modal-action modal-close waves-effect waves-light btn-flat"
-                v-on:click="cancel()"
+                class="btn-flat"
+                v-on:click="noFn()"
                 title="cancel">
                 {{noText}}
             </button>
             <button 
                 type="button"
-                class="modal-action modal-close waves-effect waves-light btn-flat"
-                v-on:click="ok()"
+                class="btn-flat"
+                v-on:click="yesFn()"
                 title="ok">
                 {{yesText}}
             </button>
@@ -70,14 +70,6 @@
                 return $perAdminApp.getNodeFromViewOrNull('/state/notification/noFn')
             },
         },
-        methods: {
-            cancel() {
-              this.yesFn()
-            },
-            ok() {
-              this.noFn()
-            }
-        }
     }
 </script>
 
@@ -97,6 +89,7 @@ dialog[open] {
   border-radius: 0;
   will-change: bottom, opacity;
   animation: slide-up 0.3s ease-in-out;
+  max-width: none;
 }
 
 @keyframes slide-up {

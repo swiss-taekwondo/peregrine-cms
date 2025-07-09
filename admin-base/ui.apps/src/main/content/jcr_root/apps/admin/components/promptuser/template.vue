@@ -23,7 +23,7 @@
   #L%
   -->
 <template>  
-    <dialog id="promptUserModal" class="modal bottom-sheet" ref="modal">
+    <dialog id="promptUserModal" ref="modal">
         <div class="modal-content">
             <h4>{{title}}</h4>
             <p>{{message}}</p>
@@ -34,14 +34,14 @@
         <div class="modal-footer">
             <button 
                 type="button"
-                class="modal-action modal-close waves-effect waves-light btn-flat"
+                class="btn-flat"
                 v-on:click="cancel()"
                 title="cancel">
                 {{noText}}
             </button>
             <button 
                 type="button"
-                class="modal-action modal-close waves-effect waves-light btn-flat"
+                class="btn-flat"
                 v-on:click="ok()"
                 title="ok">
                 {{yesText}}
@@ -70,16 +70,21 @@
             },
             noText() {
                 return $perAdminApp.getNodeFromViewOrNull('/state/notification/noText')
-            }
+            },
+            yesFn() {
+                return $perAdminApp.getNodeFromViewOrNull('/state/notification/yesFn')
+            },
+            noFn() {
+                return $perAdminApp.getNodeFromViewOrNull('/state/notification/noFn')
+            },
         },
         methods: {
             cancel() {
-                $('#promptUserModal').modal('getInstance').options.takeAction = false;
+                this.noFn(this.value)
                 this.value = null;
             },
             ok() {
-                $('#promptUserModal').modal('getInstance').options.takeAction = true;
-                $('#promptUserModal').modal('getInstance').options.value = this.value;
+                this.yesFn(this.value)
                 this.value = null;
             }
         }
@@ -91,8 +96,45 @@
 dialog[open] {
   display: block;
   border: none;
+  width: 100%;
+  top: auto;
+  bottom: 0%;
+  right: 0;
+  left: 0;
+  margin: 0;
+  width: 100%;
+  opacity: 1;
+  max-height: 45%;
+  border-radius: 0;
+  will-change: bottom, opacity;
+  animation: slide-up 0.3s ease-in-out;
+  max-width: none;
 }
+
+@keyframes slide-up {
+  from {
+    bottom: -100%;
+    opacity: 0;
+  }
+  to {
+    bottom: 0%;
+    opacity: 1;
+  }
+}
+
 dialog::backdrop {
   display: none;
 }
+
+dialog .modal-content {
+  padding: 24px;
+  padding-top: 54px;
+}
+dialog .modal-footer {
+  padding: 4px 6px;
+  height: 56px;
+  width: 100%;
+  text-align: right;
+}
+
 </style>
