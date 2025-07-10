@@ -456,6 +456,7 @@ export default {
       return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, this.currentObject);
     },
     node() {
+      console.log('computing node: ', this.nodeType, NodeType.OBJECT, this.rawCurrentObject, this.nodeFromPath)
       if (this.nodeType === NodeType.OBJECT) {
         return this.rawCurrentObject.data
       }
@@ -534,6 +535,10 @@ export default {
     },
     selfOrAnyDescendantActivated() {
       const node = this.node;
+      if (!node) {
+        console.warn('selfOrAnyDescendantActivated() failed')
+        return
+      }
       return node.activated || node.selfOrAnyDescendantActivated;
     },
     classForActionDisabledOnActivatedResource() {
@@ -700,11 +705,12 @@ export default {
       this.valid.state = isValid;
       this.valid.errors = errors;
     },
+
     onConfirmDialog (event) {
       if (event === 'confirm') {
         const isValid = this.$refs.renameForm.validate()
         if (isValid) {
-          this.performRenameNode(this.formmodel.name, this.formmodel.title)
+          this.performRenameNode(this.formmodel.name, this.formmodel.title || "")
         } else {
           return
         }
@@ -719,6 +725,7 @@ export default {
       this.formmodel.name = this.node.name
       this.formmodel.title = this.node.title
     },
+
     performRenameNode(newName, newTitle) {
       const vm = this;
       $perAdminApp.stateAction(`rename${this.uNodeType}`, {
@@ -767,6 +774,7 @@ export default {
       console.log("Close Publishing Modal")
       this.isPublishDialogOpen = false;
     },
+
     checkActivationStatusAndPerform(action) {
       if (this.selfOrAnyDescendantActivated) {
         $perAdminApp.toast("You cannot perform this operation yet. The resource or one of its children is still published." +
@@ -775,7 +783,11 @@ export default {
         action();
       }
     },
+
     renameNode() {
+      // initialize with existing values
+      if (this.formmodel && !this.formmodel.title) this.formmodel.title = this.node.title
+      if (this.formmodel && !this.formmodel.name) this.formmodel.name = this.node.name
       this.checkActivationStatusAndPerform(() => {
         this.$refs.renameModal.open();
         this.$nextTick(() => {
@@ -783,6 +795,7 @@ export default {
         })
       });
     },
+
     moveNode() {
       this.checkActivationStatusAndPerform(() => {
         $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
@@ -849,8 +862,12 @@ export default {
             }
           })
     },
+
+    // after copy dialog
     onCopySelect() {
-      if (this.node.resourceType === 'nt:file') {
+      // debugger
+      // not a file for some reason
+      if (this.node.resourceType === 'nt:file' || this.node.resourceType === 'per:Asset') {
         let to = this.path.selected
 
         if (!to) {
@@ -861,7 +878,8 @@ export default {
 
         $perAdminApp.stateAction('copyFile', {
           from: this.currentObject,
-          to
+          to,
+          resourceType: this.node.resourceType,
         });
       } else {
         $perAdminApp.stateAction('copyPage', {

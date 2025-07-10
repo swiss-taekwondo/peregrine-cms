@@ -4,15 +4,22 @@ import { SUFFIX_PARAM_SEPARATOR } from '../constants';
 
 let log = LoggerFactory.logger('copyFile').setLevelDebug();
 
-export default function(me, { from, to }) {
+export default function(me, { from, to, resourceType = 'nt:file' }) {
   log.fine({ from, to });
 
+  console.log('TESING: ', me, from, to, resourceType)
+  debugger
   const view = me.getView();
   const page = to.split('/')[3];
   const file = from.split('/').pop();
+  let filename = file;
+  let extension = "";
   const fileSplit = file.split('.');
-  const extension = fileSplit.pop();
-  let filename = `${fileSplit.join('.')}-copy.${extension}`;
+  if (fileSplit.length > 0) {
+    extension = "." + fileSplit.pop();
+  }
+  filename = `${fileSplit.join('.')}-copy${extension}`;
+
   const options = {
     headers: {
       'Content-Type': 'text/plain',
@@ -27,7 +34,7 @@ export default function(me, { from, to }) {
     let counter = 2;
 
     while (existingNode) {
-      filename = `${fileSplit.join('.')}-copy-${counter}.${extension}`;
+      filename = `${fileSplit.join('.')}-copy-${counter}${extension}`;
       existingNode = me.findNodeFromPath(
         me.getView().admin.nodes,
         `${to}/${filename}`
@@ -43,7 +50,7 @@ export default function(me, { from, to }) {
     })
     .then((response) => {
       set(view, '/state/tools/file', to);
-      set(view, '/state/tools/explorerpreview/resourceType', 'nt:file');
+      set(view, '/state/tools/explorerpreview/resourceType', resourceType);
 
       return response;
     })
@@ -55,6 +62,6 @@ export default function(me, { from, to }) {
     .then(() => ({
       path: `${to}/${filename}`,
       filename: filename,
-      resourceType: 'nt:file',
+      resourceType: resourceType,
     }));
 }
