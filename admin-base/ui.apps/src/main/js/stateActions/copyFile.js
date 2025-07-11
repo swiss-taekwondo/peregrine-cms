@@ -10,14 +10,9 @@ export default function(me, { from, to }) {
   const view = me.getView();
   const page = to.split('/')[3];
   const file = from.split('/').pop();
-  let filename = file;
-  let extension = "";
   const fileSplit = file.split('.');
-  if (fileSplit.length > 1) {
-    extension = "." + fileSplit.pop();
-  }
-  filename = `${fileSplit.join('.')}-copy${extension}`;
-
+  const extension = fileSplit.pop();
+  let filename = `${fileSplit.join('.')}-copy.${extension}`;
   const options = {
     headers: {
       'Content-Type': 'text/plain',
@@ -32,7 +27,7 @@ export default function(me, { from, to }) {
     let counter = 2;
 
     while (existingNode) {
-      filename = `${fileSplit.join('.')}-copy-${counter}${extension}`;
+      filename = `${fileSplit.join('.')}-copy-${counter}.${extension}`;
       existingNode = me.findNodeFromPath(
         me.getView().admin.nodes,
         `${to}/${filename}`

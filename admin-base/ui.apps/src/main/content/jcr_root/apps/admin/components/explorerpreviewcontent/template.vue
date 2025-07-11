@@ -864,7 +864,7 @@ export default {
 
     // after copy dialog
     onCopySelect() {
-      // not a file for some reason
+      // Assets are not a nt:file, they are per:Asset. Using copyFile() on an asset gives it resouceType of nt:file and I could not seem to prevent that.
       if (this.node.resourceType === 'nt:file') {
         let to = this.path.selected
 
