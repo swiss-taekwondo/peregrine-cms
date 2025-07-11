@@ -4,18 +4,16 @@ import { SUFFIX_PARAM_SEPARATOR } from '../constants';
 
 let log = LoggerFactory.logger('copyFile').setLevelDebug();
 
-export default function(me, { from, to, resourceType = 'nt:file' }) {
+export default function(me, { from, to }) {
   log.fine({ from, to });
 
-  console.log('TESING: ', me, from, to, resourceType)
-  debugger
   const view = me.getView();
   const page = to.split('/')[3];
   const file = from.split('/').pop();
   let filename = file;
   let extension = "";
   const fileSplit = file.split('.');
-  if (fileSplit.length > 0) {
+  if (fileSplit.length > 1) {
     extension = "." + fileSplit.pop();
   }
   filename = `${fileSplit.join('.')}-copy${extension}`;
@@ -50,7 +48,7 @@ export default function(me, { from, to, resourceType = 'nt:file' }) {
     })
     .then((response) => {
       set(view, '/state/tools/file', to);
-      set(view, '/state/tools/explorerpreview/resourceType', resourceType);
+      set(view, '/state/tools/explorerpreview/resourceType', 'nt:file');
 
       return response;
     })
@@ -62,6 +60,6 @@ export default function(me, { from, to, resourceType = 'nt:file' }) {
     .then(() => ({
       path: `${to}/${filename}`,
       filename: filename,
-      resourceType: resourceType,
+      resourceType: 'nt:file',
     }));
 }

@@ -456,7 +456,6 @@ export default {
       return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, this.currentObject);
     },
     node() {
-      console.log('computing node: ', this.nodeType, NodeType.OBJECT, this.rawCurrentObject, this.nodeFromPath)
       if (this.nodeType === NodeType.OBJECT) {
         return this.rawCurrentObject.data
       }
@@ -865,9 +864,8 @@ export default {
 
     // after copy dialog
     onCopySelect() {
-      // debugger
       // not a file for some reason
-      if (this.node.resourceType === 'nt:file' || this.node.resourceType === 'per:Asset') {
+      if (this.node.resourceType === 'nt:file') {
         let to = this.path.selected
 
         if (!to) {
@@ -880,11 +878,13 @@ export default {
           from: this.currentObject,
           to,
           resourceType: this.node.resourceType,
+          mimeType: this.node.mimeType,
         });
       } else {
         $perAdminApp.stateAction('copyPage', {
           srcPath: this.currentObject,
           targetPath: this.path.selected,
+          resourceType: this.node.resourceType,
         });
       }
       this.isCopyOpen = false;
