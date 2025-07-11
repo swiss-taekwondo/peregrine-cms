@@ -11,7 +11,8 @@
     "build:patch": "cd admin-base/ui.apps && npm run build && npm run patch",
     "build:css": "cd admin-base/materialize && npm run build",
     "build:css:patch": "cd admin-base/materialize && npm run build:patch",
-    "watch": "chokidar \"admin-base/**/*\" -i \"admin-base/ui.apps/target\" -i \"admin-base/materialize/target\" -c \"node watcher.js {path}\""
+    "build:patch:all": "npm run build:patch && npm run build:css:patch",
+    "watch": "npm run build:patch:all && npx chokidar-cli admin-base/**/* --ignore admin-base/ui.apps/target --ignore admin-base/materialize/target --command \"node watcher.js {path}\""
   },
   "author": "headwire.com, Inc",
   "license": "Apache-2.0",

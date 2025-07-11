@@ -13,16 +13,13 @@ const run = (cmd) =>
 
 (async () => {
   try {
-    // Run both scripts on startup
-    await run("npm run build:patch");
-    await run("npm run build:css:patch");
-
-    // Handle changes after startup
     if (path) {
       if (path.includes("admin-base/materialize")) {
         await run("npm run build:css:patch");
+        console.log("Materialize CSS updated");
       } else if (path.includes("admin-base")) {
         await run("npm run build:patch");
+        console.log("Admin base updated");
       }
     }
 
