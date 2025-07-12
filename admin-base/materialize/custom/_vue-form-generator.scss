@@ -147,6 +147,9 @@
                 input {
                     margin: 0;
                 }
+                input[type="radio"] {
+                    display: none;
+                }
             }
             &.field-input {
                 .wrapper {
