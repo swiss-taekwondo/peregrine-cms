@@ -456,7 +456,7 @@ export default {
       return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, this.currentObject);
     },
     node() {
-      if (this.nodeType === NodeType.OBJECT) {
+      if (this.nodeType === NodeType.OBJECT && this.rawCurrentObject && this.rawCurrentObject.data) {
         return this.rawCurrentObject.data
       }
       return this.nodeFromPath;
@@ -668,6 +668,8 @@ export default {
       return string.charAt(0).toUpperCase() + string.slice(1);
     },
     onEdit() {
+      console.log('ON-EDIT')
+      debugger
       this.edit = true
       this.formGenerator.original = deepClone(this.node)
 
@@ -784,6 +786,8 @@ export default {
       });
     },
     moveNode() {
+      console.log('MOVE')
+      debugger
       this.checkActivationStatusAndPerform(() => {
         $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
             .then(() => {
@@ -809,6 +813,8 @@ export default {
         me.onDelete(this.nodeType, this.node.path).then(() => {
           $perAdminApp.stateAction(`unselect${me.uNodeType}`, {})
         }).then(() => {
+          debugger
+          // if (this.nodeType === NodeType.OBJECT) return;
           const path = $perAdminApp.getNodeFromView('/state/tools/pages')
           $perAdminApp.loadContent(
               '/content/admin/pages/pages.html/path' + SUFFIX_PARAM_SEPARATOR + path)
@@ -887,6 +893,8 @@ export default {
       this.isOpen = false;
     },
     save() {
+      console.log('SAVE ')
+      debugger
       let promise
       if (this.nodeType === NodeType.OBJECT) {
         promise = this.saveObject();
@@ -944,6 +952,7 @@ export default {
       return result
     },
     setActiveTab(clickedTab) {
+      this.edit = false;
       this.activeTab = clickedTab;
       $perAdminApp.action(this, 'setActiveTabName', {activeTab: this.activeTab})
     },
