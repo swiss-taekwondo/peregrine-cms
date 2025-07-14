@@ -730,6 +730,7 @@ export default {
                 const me = this
                 return new Promise((resolve, reject) => {
                     $perAdminApp.askUser(`Delete ${type}?`, me.$i18n(`Are you sure you want to delete this node and all its children?`), {
+                        defaultFocus: 'no',
                         yes() {
                             $perAdminApp.stateAction(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, path)
                             resolve()

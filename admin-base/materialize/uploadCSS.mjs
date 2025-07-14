@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { readFileSync } from "fs";
+import { basename } from "path";
+import fetch from "node-fetch";
 
 const origin = process.argv[2]; // e.g. http://localhost:8080
 const credentials = process.argv[3]; // e.g. admin:admin
@@ -8,8 +9,9 @@ const cssFile = "target/classes/etc/felibs/materialize/materialize.css";
 // Encode credentials
 const encodedAuth = Buffer.from(credentials).toString("base64");
 
-// Construct AEM endpoint URL
-const relativePath = cssFile.replace(/^.*\/etc/, "/etc");
+// Normalize path for cross-platform compatibility
+const normalizedPath = cssFile.replace(/\\/g, "/");
+const relativePath = normalizedPath.replace(/^.*\/etc/, "/etc");
 const url = `${origin}/bin/cpm/nodes/property.update.bin${relativePath}/_jcr_content`;
 
 // Read CSS file content

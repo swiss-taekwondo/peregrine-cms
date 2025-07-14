@@ -311,12 +311,12 @@
         @select="onCopySelect">
     </path-browser>
 
-      <div v-if="modalVisible" class="modal-overlay" ref="previewModal" @click.self="closeModal" @keydown.esc="closeModal" tabindex="-1">
+      <dialog v-if="modalVisible" class="modal-overlay" ref="previewModal" @click.self="closeModal" @keydown.esc="closeModal" tabindex="-1">
         <div class="modal-content">
           <img :src="currentObject" alt="Modal Image" />
           <button @click="closeModal"><i class="material-icons">close</i></button>
         </div>
-      </div>
+      </dialog>
   </div>
 </template>
 

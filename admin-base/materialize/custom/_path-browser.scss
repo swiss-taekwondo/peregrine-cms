@@ -129,6 +129,10 @@
               padding: 0 0.75rem;
               width: auto;
               text-align: left;
+              
+              input[type="radio"] {
+                  display: none;
+              }
 
               .modal-content-section {
                 display: inline-block;
@@ -209,6 +213,7 @@
                 align-items: center;
 
                 input[type="radio"] {
+                    display: none;
                   + label {
                     position: absolute;
                     top: 0;
