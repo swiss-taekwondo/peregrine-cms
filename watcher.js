@@ -11,15 +11,32 @@ const run = cmd =>
     });
   });
 
+const runningMessage = () => {
+  console.log(
+    "\x1b[34m%s\x1b[0m",
+    "🔭 Watcher is running. Waiting for changes..."
+  );
+};
+
 const onChange = async path => {
   try {
     if (path) {
-      if (path.includes("admin-base/materialize")) {
+      console.log("\x1b[33m%s\x1b[0m", `Change detected in ${path}`);
+      if (
+        path.includes("admin-base/materialize") ||
+        path.includes("admin-base\\materialize")
+      ) {
         await run("npm run build:css:patch");
-        console.log("Materialize CSS updated");
+        console.log(
+          "\x1b[36m%s\x1b[0m",
+          `Materialize CSS updated ${new Date().toLocaleTimeString()}`
+        );
       } else if (path.includes("admin-base")) {
         await run("npm run build:patch");
-        console.log("Admin base updated");
+        console.log(
+          "\x1b[36m%s\x1b[0m",
+          `Admin base updated ${new Date().toLocaleTimeString()}`
+        );
       }
     }
 
@@ -30,6 +47,7 @@ const onChange = async path => {
   } catch (err) {
     console.error("\x1b[31m%s\x1b[0m", `❌ Build failed: ${err.message}`);
   }
+  runningMessage();
 };
 
 const watcher = chokidar.watch("admin-base/", {
@@ -38,9 +56,6 @@ const watcher = chokidar.watch("admin-base/", {
     path.includes("admin-base/materialize/target"),
   ignoreInitial: false
 });
-console.log(
-  "\x1b[34m%s\x1b[0m",
-  "🔭 Watcher is running. Waiting for changes..."
-);
+runningMessage();
 
 watcher.on("change", onChange);
