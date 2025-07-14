@@ -649,12 +649,26 @@ function toastImpl(message, className, displayLength, callback) {
   toast.el.addEventListener('click', () => toast.remove());
 
   const progressBar = document.createElement('div');
+  const progressBarTransitionDelay = 100;
   progressBar.setAttribute('class', 'progress-bar');
-  progressBar.style.transition = `width ${displayLength - 100}ms linear`;
+  progressBar.style.transition = `width ${displayLength - progressBarTransitionDelay}ms linear`;
   toast.el.appendChild(progressBar);
   setTimeout(() => {
     progressBar.style.width = '0%';
-  }, 100);
+  }, progressBarTransitionDelay);
+
+  toast.el.addEventListener('mouseenter', () => {
+    toast.panning = true; // this pauses materialize toast lifespan, pause transition by setting width to current width
+    const currentWidth = getComputedStyle(progressBar).width;
+    progressBar.style.setProperty('width', currentWidth);
+  });
+
+  toast.el.addEventListener('mouseleave', () => {
+    toast.panning = false; // un-pause timer & update transition timings
+    progressBar.style.setProperty('width', '0%');
+    progressBar.style.transition = `width ${toast.timeRemaining}ms linear`;
+  });
+
   return toast;
 }
 
