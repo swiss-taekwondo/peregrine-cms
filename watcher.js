@@ -14,7 +14,8 @@ const run = (cmd) =>
 (async () => {
   try {
     if (path) {
-      if (path.includes("admin-base/materialize")) {
+      console.log("PATH: ", path)
+      if (path.includes("admin-base/materialize") || path.includes("admin-base\\materialize")) {
         await run("npm run build:css:patch");
         console.log("Materialize CSS updated");
       } else if (path.includes("admin-base")) {
