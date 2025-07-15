@@ -3,8 +3,8 @@ export default {
         return {
             formmodel: {
                 path: $perAdminApp.getNodeFromView('/state/tools/pages'),
+                // Using the rename modal to change the title is weird, since we are then forced to rename the file-name. Removing the title from here, since it can be updated in metadata.
                 name: '',
-                title: '',
                 templatePath: '',
                 skeletonPagePath: ''
             },
@@ -17,18 +17,6 @@ export default {
             nameChanged: false,
             nameSchema: {
                 fields: [
-                    {
-                        type: "input",
-                        inputType: "text",
-                        label: "Title",
-                        model: "title",
-                        required: true,
-                        onChanged: (model, newVal, oldVal, field) => {
-                          if(!this.nameChanged && this.uNodeType !== "Asset") {
-                              this.formmodel.name = $perAdminApp.normalizeString(newVal);
-                          }
-                        }
-                    },
                     {
                         type: "input",
                         inputType: "text",
