@@ -1,5 +1,6 @@
- import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync } from "fs";
+import { join } from "path";
+import fetch from "node-fetch";
 
 const origin = process.argv[2]; // http://localhost:8080
 const credentials = process.argv[3]; // admin:admin
@@ -15,7 +16,9 @@ function patch(dir) {
     if (stat.isDirectory()) {
       patch(fullPath);
     } else if (file.endsWith(".js")) {
-      const relativePath = fullPath.replace(/^.*\/etc/, "/etc");
+      // Normalize path for cross-platform compatibility
+      const normalizedPath = fullPath.replace(/\\/g, "/");
+      const relativePath = normalizedPath.replace(/^.*\/etc/, "/etc");
       const fileContent = readFileSync(fullPath, "utf8");
 
       const url = `${origin}/bin/cpm/nodes/property.update.bin${relativePath}/_jcr_content`;

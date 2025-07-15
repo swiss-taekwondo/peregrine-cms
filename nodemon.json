@@ -1,6 +1,0 @@
-{
-  "watch": ["admin-base"],
-  "ignore": ["admin-base/ui.apps/target"],
-  "ext": "*",
-  "exec": "npm run build:patch"
-}
