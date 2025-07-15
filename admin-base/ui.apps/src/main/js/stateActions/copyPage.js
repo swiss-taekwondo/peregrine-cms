@@ -30,7 +30,7 @@ export default function(me, copy) {
   log.fine(copy);
   const api = me.getApi();
   let fileName = null;
-  const { srcPath, targetPath, name, resourceType } = copy;
+  const { srcPath, targetPath, name, title, resourceType, mimeType } = copy;
 
   // change name for assets.
   // Not really sure why this is used for assets, but copyFile() behaves wildly different and causes many unwanted sideeffects when copying assets.
@@ -63,7 +63,7 @@ export default function(me, copy) {
     }
   }
 
-  api.copyPage(srcPath, targetPath, name || fileName || null).then(() => {
+  api.copyPage(srcPath, targetPath, name || fileName || null, {title, resourceType, mimeType}).then(() => {
     log.fine(`copy from ${srcPath} to ${targetPath} complete`);
   });
 }

@@ -790,11 +790,10 @@ class PerAdminImpl {
         .then(() => this.populateNodesForBrowser(path))
   }
 
-  renameAsset(path, newName, newTitle) {
+  renameAsset(path, newName) {
     return new Promise((resolve, reject) => {
       let data = new FormData()
       data.append('to', newName)
-      data.append('title', newTitle)
       updateWithForm('/admin/asset/rename.json' + path, data)
           .then((data) => this.populateNodesForBrowser(path))
           .then(() => resolve())
@@ -861,7 +860,7 @@ class PerAdminImpl {
     })
   }
 
-  copyPage(srcPath, targetPath, name = null) {
+  copyPage(srcPath, targetPath, name = null, otherProperties) {
     return new Promise((resolve, reject) => {
       let data = new FormData()
       data.append('path', srcPath)
@@ -870,6 +869,16 @@ class PerAdminImpl {
       data.append('newName', name)
       data.append('newTitle', name)
       data.append('type', 'child')
+
+      if (otherProperties) {
+        const keys = Object.keys(otherProperties)
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i];
+          const value = otherProperties[key]
+          data.append(key, value)
+        }
+      }
+
       updateWithForm('/admin/createPageFromSkeletonPage.json', data)
           .then((data) => this.populateNodesForBrowser(srcPath))
           .then(() => resolve())

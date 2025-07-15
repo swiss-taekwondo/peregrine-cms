@@ -733,12 +733,11 @@ export default {
       this.formmodel.title = this.node.title
     },
 
-    performRenameNode(newName, newTitle) {
+    performRenameNode(newName) {
       const vm = this;
       $perAdminApp.stateAction(`rename${this.uNodeType}`, {
         path: this.currentObject,
         name: newName,
-        title: newTitle,
         edit: this.isEdit
       }).then((data) => {
         if (vm.nodeType === 'asset' || vm.nodeType === 'object') {
@@ -758,6 +757,7 @@ export default {
         this.setActiveTab(Tab.INFO)
       })
     },
+
     openPublishingModal(){
       console.log("Open Publishing Modal")
       // this.$refs.publishingModal.open()
@@ -813,6 +813,7 @@ export default {
         });
       });
     },
+
     copyNode() {
       $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
           .then(() => {
@@ -893,6 +894,11 @@ export default {
           srcPath: this.currentObject,
           targetPath: this.path.selected,
           resourceType: this.node.resourceType,
+          mimeType: this.node.mimeType,
+        }).then(() => {
+          // dumb hack to make copy source render properly.
+          // Assets lose their resourceType and mimeType after being copied in explorer children array but it still exists
+          setTimeout(() => { $perAdminApp.getApi().populateNodesForBrowser(this.path.selected) }, 100);
         });
       }
       this.isCopyOpen = false;
