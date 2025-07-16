@@ -649,12 +649,26 @@ function toastImpl(message, className, displayLength, callback) {
   toast.el.addEventListener('click', () => toast.remove());
 
   const progressBar = document.createElement('div');
+  const progressBarTransitionDelay = 100;
   progressBar.setAttribute('class', 'progress-bar');
-  progressBar.style.transition = `width ${displayLength - 100}ms linear`;
+  progressBar.style.transition = `width ${displayLength - progressBarTransitionDelay}ms linear`;
   toast.el.appendChild(progressBar);
   setTimeout(() => {
     progressBar.style.width = '0%';
-  }, 100);
+  }, progressBarTransitionDelay);
+
+  toast.el.addEventListener('mouseenter', () => {
+    toast.panning = true; // this pauses materialize toast lifespan, pause transition by setting width to current width
+    const currentWidth = getComputedStyle(progressBar).width;
+    progressBar.style.setProperty('width', currentWidth);
+  });
+
+  toast.el.addEventListener('mouseleave', () => {
+    toast.panning = false; // un-pause timer & update transition timings
+    progressBar.style.setProperty('width', '0%');
+    progressBar.style.transition = `width ${toast.timeRemaining}ms linear`;
+  });
+
   return toast;
 }
 
@@ -667,24 +681,31 @@ function toastImpl(message, className, displayLength, callback) {
  * @param options
  */
 function askUserImpl(title, message, options) {
+  const dialog = document.querySelector('#askUserModal')
   set(view, '/state/notification/title', title);
   set(view, '/state/notification/message', message);
+
   let yesText = options.yesText ? options.yesText : 'Yes';
   let noText = options.noText ? options.noText : 'No';
   set(view, '/state/notification/yesText', yesText);
   set(view, '/state/notification/noText', noText);
-  options.dismissible = false;
-  options.takeAction = false;
-  options.complete = function() {
-    const answer = $('#askUserModal').modal('getInstance').options.takeAction;
-    if (answer && options.yes) {
-      options.yes();
-    } else if (options.no) {
-      options.no();
-    }
-  };
-  $('#askUserModal').modal(options);
-  $('#askUserModal').modal('open');
+
+  set(view, '/state/notification/yesFn', () => {
+    if (options.yes && typeof options.yes === 'function') options.yes()
+    dialog.close()
+  })
+  set(view, '/state/notification/noFn', () => {
+    if (options.no && typeof options.no === 'function') options.no()
+    dialog.close()
+  })
+
+  dialog.showModal()
+
+  if (options.defaultFocus && options.defaultFocus.toLowerCase && options.defaultFocus.toLowerCase() === 'yes') {
+    dialog.querySelector('button[title="ok" i]').focus()
+  } else {
+    dialog.querySelector('button[title="cancel" i]').focus()
+  }
 }
 
 /**
@@ -696,27 +717,31 @@ function askUserImpl(title, message, options) {
  * @param options
  */
 function promptUserImpl(title, message, options) {
+  const dialog = document.querySelector('#promptUserModal')
   set(view, '/state/notification/title', title);
   set(view, '/state/notification/message', message);
+
   let yesText = options.yesText ? options.yesText : 'Ok';
   let noText = options.noText ? options.noText : 'Cancel';
   set(view, '/state/notification/yesText', yesText);
   set(view, '/state/notification/noText', noText);
 
-  options.dismissible = false;
-  options.takeAction = false;
-  options.complete = function() {
-    const answer = $('#promptUserModal').modal('getInstance').options
-      .takeAction;
-    const value = $('#promptUserModal').modal('getInstance').options.value;
-    if (answer && options.yes) {
-      options.yes(value);
-    } else if (options.no) {
-      options.no();
-    }
-  };
-  $('#promptUserModal').modal(options);
-  $('#promptUserModal').modal('open');
+  set(view, '/state/notification/yesFn', (value) => {
+    if (options.yes && typeof options.yes === 'function') options.yes(value)
+    dialog.close()
+  })
+  set(view, '/state/notification/noFn', (value) => {
+    if (options.no && typeof options.no === 'function') options.no(value)
+    dialog.close()
+  })
+
+  dialog.showModal()
+
+  if (options.defaultFocus && options.defaultFocus.toLowerCase && options.defaultFocus.toLowerCase() === 'yes') {
+    dialog.querySelector('button[title="ok" i]').focus()
+  } else {
+    dialog.querySelector('button[title="cancel" i]').focus()
+  }
 }
 
 /**

@@ -64,7 +64,9 @@
              :class="`${nodeType}-info-view`">
           <img v-if="isImage"
                :src="currentObject"
-               class="info-view-image"/>
+               class="info-view-image"
+               v-on:click="openModal"
+               />
           <iframe
               v-else
               :src="currentObject"
@@ -309,7 +311,12 @@
         @select="onCopySelect">
     </path-browser>
 
-
+      <dialog v-if="modalVisible" class="modal-overlay" ref="previewModal" @click.self="closeModal" @keydown.esc="closeModal" tabindex="-1">
+        <div class="modal-content">
+          <img :src="currentObject" alt="Modal Image" />
+          <button @click="closeModal"><i class="material-icons">close</i></button>
+        </div>
+      </dialog>
   </div>
 </template>
 
@@ -400,6 +407,7 @@ export default {
       isOpen: false,
       isCopyOpen: false,
       isPublishDialogOpen: false,
+      modalVisible: false,
       selectedPath: null,
       options: {
         validateAfterLoad: true,
@@ -534,6 +542,10 @@ export default {
     },
     selfOrAnyDescendantActivated() {
       const node = this.node;
+      if (!node) {
+        console.warn('selfOrAnyDescendantActivated() failed')
+        return
+      }
       return node.activated || node.selfOrAnyDescendantActivated;
     },
     classForActionDisabledOnActivatedResource() {
@@ -546,7 +558,7 @@ export default {
       } else {
         return false
       }
-    }
+    },
   },
   watch: {
     edit(val) {
@@ -700,11 +712,12 @@ export default {
       this.valid.state = isValid;
       this.valid.errors = errors;
     },
+
     onConfirmDialog (event) {
       if (event === 'confirm') {
         const isValid = this.$refs.renameForm.validate()
         if (isValid) {
-          this.performRenameNode(this.formmodel.name, this.formmodel.title)
+          this.performRenameNode(this.formmodel.name, this.formmodel.title || "")
         } else {
           return
         }
@@ -719,12 +732,12 @@ export default {
       this.formmodel.name = this.node.name
       this.formmodel.title = this.node.title
     },
-    performRenameNode(newName, newTitle) {
+
+    performRenameNode(newName) {
       const vm = this;
       $perAdminApp.stateAction(`rename${this.uNodeType}`, {
         path: this.currentObject,
         name: newName,
-        title: newTitle,
         edit: this.isEdit
       }).then((data) => {
         if (vm.nodeType === 'asset' || vm.nodeType === 'object') {
@@ -744,6 +757,7 @@ export default {
         this.setActiveTab(Tab.INFO)
       })
     },
+
     openPublishingModal(){
       console.log("Open Publishing Modal")
       // this.$refs.publishingModal.open()
@@ -767,6 +781,7 @@ export default {
       console.log("Close Publishing Modal")
       this.isPublishDialogOpen = false;
     },
+
     checkActivationStatusAndPerform(action) {
       if (this.selfOrAnyDescendantActivated) {
         $perAdminApp.toast("You cannot perform this operation yet. The resource or one of its children is still published." +
@@ -775,7 +790,11 @@ export default {
         action();
       }
     },
+
     renameNode() {
+      // initialize with existing values
+      if (this.formmodel && !this.formmodel.title) this.formmodel.title = this.node.title
+      if (this.formmodel && !this.formmodel.name) this.formmodel.name = this.node.name
       this.checkActivationStatusAndPerform(() => {
         this.$refs.renameModal.open();
         this.$nextTick(() => {
@@ -783,6 +802,7 @@ export default {
         })
       });
     },
+
     moveNode() {
       this.checkActivationStatusAndPerform(() => {
         $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
@@ -793,6 +813,7 @@ export default {
         });
       });
     },
+
     copyNode() {
       $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
           .then(() => {
@@ -849,7 +870,10 @@ export default {
             }
           })
     },
+
+    // after copy dialog
     onCopySelect() {
+      // Assets are not a nt:file, they are per:Asset. Using copyFile() on an asset gives it resouceType of nt:file and I could not seem to prevent that.
       if (this.node.resourceType === 'nt:file') {
         let to = this.path.selected
 
@@ -861,12 +885,20 @@ export default {
 
         $perAdminApp.stateAction('copyFile', {
           from: this.currentObject,
-          to
+          to,
+          resourceType: this.node.resourceType,
+          mimeType: this.node.mimeType,
         });
       } else {
         $perAdminApp.stateAction('copyPage', {
           srcPath: this.currentObject,
           targetPath: this.path.selected,
+          resourceType: this.node.resourceType,
+          mimeType: this.node.mimeType,
+        }).then(() => {
+          // dumb hack to make copy source render properly.
+          // Assets lose their resourceType and mimeType after being copied in explorer children array but it still exists
+          setTimeout(() => { $perAdminApp.getApi().populateNodesForBrowser(this.path.selected) }, 100);
         });
       }
       this.isCopyOpen = false;
@@ -1017,6 +1049,15 @@ export default {
           },
         ]
       };
+    },
+    openModal() {
+      this.modalVisible = true;
+      this.$nextTick(() => {
+        this.$refs.previewModal.focus();
+      });
+    },
+    closeModal() {
+      this.modalVisible = false;
     }
   }
 }
@@ -1034,5 +1075,66 @@ export default {
 .operationDisabledOnActivatedItem {
   opacity: 0.4;
   cursor: default!important;
+}
+</style>
+
+<style scoped>
+.info-view-image {
+    cursor: pointer;
+}
+
+.explorer-preview .explorer-preview-content.preview-asset .asset-info-view img {
+    max-height: 50vh;
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+
+    .modal-content {
+        img {
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            min-width: 50vw;
+            min-height: 50vh;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: block;
+            margin: auto; 
+        }
+        
+        img {
+            pointer-events: none;
+        }
+        
+        button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            background-color: white;
+            color: black;
+            border: 2px solid black;
+            border-radius: 100%;
+            aspect-ratio: 1 / 1;
+            align-items: center;
+            
+            &:hover, &:focus, &:active {
+                background-color: black;
+                color: white;
+                border: 2px solid white;
+            }
+        }
+    }
 }
 </style>
