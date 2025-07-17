@@ -104,6 +104,7 @@ export default {
       if (currSelection.rangeCount <= 0) return
       if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
       if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
+      console.log(currSelection)
 
       // remove selection from mirror text editor to avoid issues when finding selection to apply fontsize later
       const iframeDoc = document.querySelector("iframe#editview").contentDocument
@@ -120,9 +121,9 @@ export default {
         : currRange.startContainer.parentElement;
 
       // checking inline style
-      const fontSizeParent = htmlEl.closest('[style*="font-size"]');
-      if (fontSizeParent && this.isNodeInEditor(fontSizeParent)) {
-        const nr = Number(fontSizeParent.style.fontSize.replace("px", ""));
+      // const fontSizeParent = htmlEl.closest('[style*="font-size"]');
+      if (htmlEl && this.isNodeInEditor(htmlEl)) {
+        const nr = Number(computedStyle(htmlEl).fontSize.replace("px", ""));
         if (!isNaN(nr)) {
           this.inputValue = nr;
         }

@@ -237,6 +237,7 @@ export default {
   },
 
   mounted() {
+    console.log('mounted', this.$refs.richToolbar)
     this.$nextTick(() => {
       window.addEventListener('resize', this.updateDocElDimensions)
       this.updateDocElDimensions()
