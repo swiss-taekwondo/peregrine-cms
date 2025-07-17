@@ -1,6 +1,6 @@
 import insertLink from './insertLink'
-import editLink from './editLink'
-import removeLink from './removeLink'
+// import editLink from './editLink'
+// import removeLink from './removeLink'
 import {IconLib} from '../../../../../../../../js/constants'
 
 export default (vm) => {
@@ -15,13 +15,13 @@ export default (vm) => {
     ]
   }
 
-  if (vm.itemIsTag('A')) {
-    link.collapse = true
-    link.items = [
-        editLink(vm),
-        removeLink(vm)
-    ]
-  }
+  // if (vm.itemIsTag('A')) {
+  //   link.collapse = true
+  //   link.items = [
+  //       editLink(vm),
+  //       removeLink(vm)
+  //   ]
+  // }
 
   return link
 }

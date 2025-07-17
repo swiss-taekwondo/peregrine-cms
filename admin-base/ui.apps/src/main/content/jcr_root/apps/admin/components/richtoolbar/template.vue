@@ -494,7 +494,7 @@ export default {
         if (this.browser.linkTitle) {
           link.setAttribute('title', this.browser.linkTitle)
         }
-        if (this.browser.type === ("Asset" || "file")) {
+        if (this.browser.type === "Asset" || this.browser.type === "file") {
           link.download = '';
         } else {
           link.setAttribute('target', this.browser.newWindow ? '_blank' : '_self')
@@ -503,7 +503,7 @@ export default {
         
         this.restoreSelection()
         this.$nextTick(() => {
-          const range = this.getSelection(0)
+          const range = document.getSelection().getRangeAt(0);
           const textEditor = this.$refs.richToolbar.nextElementSibling
 
           // check for list elements if start & end are not in same node.
