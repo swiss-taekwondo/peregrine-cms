@@ -24,7 +24,7 @@
           :items="group.items"
           :searchable="group.searchable"
           :class="group.class"
-          @toggle-click="group.toggleClick? group.toggleClick() : () => {}"
+          @toggle-click="group.toggleClick ? group.toggleClick() : () => {}"
           @click="exec($event.btn.cmd)"/>
     </template>
     <richtoolbar-group
@@ -54,6 +54,7 @@
         :setCurrentPath="setBrowserPathCurrent"
         :selectedPath="browser.path.selected"
         :setSelectedPath="setBrowserPathSelected"
+        :setResourceType="setBrowserResourceType"
         :rel="browser.rel"
         @toggle-rel="browser.rel = !browser.rel"
         :img-width="browser.img.width"
@@ -287,7 +288,7 @@ export default {
       this.browser.path.current = this.roots.pages
       this.browser.withLinkTab = true
       this.browser.newWindow = false
-      this.browser.type = PathBrowser.Type.PAGE
+      this.browser.type = PathBrowser.Type.FILE;
       this.saveSelection()
       this.selection.restore = true
       this.startBrowsing()
@@ -327,7 +328,6 @@ export default {
       this.browser.type = PathBrowser.Type.PAGE
       this.browser.newWindow = target === '_blank'
       this.browser.linkTitle = title
-      this.browser.path.suffix = '.html'
       this.saveSelection()
       this.selection.restore = true
       this.startBrowsing()
@@ -485,15 +485,22 @@ export default {
     // This runs after link is chosen in modal
     onLinkSelect(vm = this) {
       if (this.param.cmd === 'insertLink') {
-        if (this.browser.path.selected.startsWith('/')) {
+        if (this.browser.path.selected.startsWith('/') && this.browser.type === "Page") {
           this.browser.path.selected += '.html'
         }
 
         const link = this.selection.doc.createElement('a')
         link.setAttribute('href', this.browser.path.selected)
-        link.setAttribute('title', this.browser.linkTitle)
-        link.setAttribute('target', this.browser.newWindow ? '_blank' : '_self')
-        link.setAttribute('rel', this.browser.rel ? 'noopener noreferrer' : '')
+        if (this.browser.linkTitle) {
+          link.setAttribute('title', this.browser.linkTitle)
+        }
+        if (this.browser.type === ("Asset" || "file")) {
+          link.download = '';
+        } else {
+          link.setAttribute('target', this.browser.newWindow ? '_blank' : '_self')
+          link.setAttribute('rel', this.browser.rel ? 'noopener noreferrer' : '')
+        }
+        
         this.restoreSelection()
         this.$nextTick(() => {
           const range = this.getSelection(0)
@@ -597,6 +604,13 @@ export default {
     },
     setBrowserPathSelected(path) {
       this.browser.path.selected = path
+    },
+    setBrowserResourceType(type) {
+      if (!type) {
+        this.browser.type = PathBrowser.Type.FILE;
+      } else {
+        this.browser.type = type.split(":")[1];
+      }
     },
     toggleBrowserNewWindow() {
       this.browser.newWindow = !this.browser.newWindow
