@@ -55,10 +55,12 @@ window.onclick = function(ev) {
 
     if(node) {
         var toUrl = node.href
+        // check if the link has the attribute 'download'
+        const isDownload = node.hasAttribute('download');
         log.fine("onClick() - "+ toUrl);
         log.fine(toUrl, currentServer)
 
-        if(!(
+        if(isDownload || !(
             toUrl.startsWith('http') ||
             toUrl.startsWith('/') ||
             toUrl.startsWith('#')
