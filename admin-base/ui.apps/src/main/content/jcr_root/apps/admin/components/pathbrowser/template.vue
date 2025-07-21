@@ -450,6 +450,7 @@ export default {
     toggleNewWindow: Function,
     setCurrentPath: Function,
     setSelectedPath: Function,
+    setResourceType: Function,
     linkTitle: String,
     setLinkTitle: Function,
     altText: String,
@@ -578,12 +579,13 @@ export default {
         'image/jpg',
         'image/gif',
         'timage/tiff',
-        'image/svg+xml'
+        'image/svg+xml',
+        'image/webp',
       ].indexOf(item.mimeType) >= 0
     },
     isImageExtension(item) {
       if (item.path) {
-        return item.path.match(/.(jpg|jpeg|png|gif|svg)$/i)
+        return item.path.match(/.(jpg|jpeg|png|gif|svg|webp)$/i)
       } else {
         return false
       }
@@ -604,7 +606,7 @@ export default {
       }
     },
     getFolderIcon(item) {
-      if (item && item.resourceType === 'per:Page') {
+      if (item) {
           return item.hasChildren ? 'folder_open' : 'description'
       }
       return this.isType(PathBrowser.Type.ASSET) ? 'folder_open' : 'description'
@@ -715,7 +717,7 @@ export default {
       if (this.isSelectable(item)) {
         this.previewType = 'selected'
         this.setSelectedPath(item.path)
-
+        this.setResourceType(item.resourceType)
       }
     },
     selectLink(ev) {
