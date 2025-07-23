@@ -348,7 +348,7 @@ export default {
             },
 
             isObjectDefinitions(path) {
-                return !this.isInsideObjectDefinition(path) 
+                return !this.isInsideObjectDefinition(path)
                     && path.startsWith(`/content/${this.getTenant().name}/object-definitions`)
             },
 
@@ -542,6 +542,9 @@ export default {
                 if(child.resourceType === 'per:Page') {
                     return path + '.html'
                 }
+                if (child.resourceType === 'per:Object' && child.path.startsWith('/content/') && child.path.includes('/objects/news/')) {
+                  return path.replace("objects/news", "pages/news-details") + ".html"
+                }
                 return path + '.json'
             },
 
@@ -564,7 +567,7 @@ export default {
                 }
               } else {
                 return { icon: 'image', lib: IconLib.MATERIAL_ICONS }
-              } 
+              }
             };
             if (item.resourceType === 'sling:Folder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS};
             if (item.resourceType === 'sling:OrderedFolder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS}
@@ -611,7 +614,7 @@ export default {
             },
 
             showRow: function(item, ev) {
-                if (this.editable(item)) {  
+                if (this.editable(item)) {
                     this.showInfo(this, item);
                 }
             },
@@ -688,7 +691,7 @@ export default {
             addObjectDefinitionFile(me, target) {
                 const tenant = $perAdminApp.getView().state.tenant;
                 const path  = me.pt ? me.pt.path : `/content/${tenant.name}/object-definitions`;
-                
+
                 if (this.isInsideObjectDefinition(path)) {
                     $perAdminApp.stateAction('createObjectDefinitionFileWizard', {path, target});
                 }
@@ -819,15 +822,15 @@ export default {
 .explorer .explorer-layout .row .explorer-main .collection .collection-item:not(#back-to-parent) {
         display: flex;
         align-items: center;
-        
+
         > * {
             display: flex;
             align-items: center;
-            
+
             > a {
                 width: 100%;
             }
-            
+
             > a:has(.preview-container) {
                 display: flex;
                 align-items: flex-end;
@@ -846,7 +849,7 @@ export default {
                 }
             }
         }
-        
+
         > span:not(.draggable):not(.folder) {
             display: flex;
             align-items: center;

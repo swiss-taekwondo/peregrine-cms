@@ -526,10 +526,15 @@ class PerAdminImpl {
 
   populateObject(path, target, name) {
     return this.populateComponentDefinitionFromNode(path)
-        .then(() => {
-          return fetch('/admin/getObject.json' + path)
-              .then((data) => populateView(target, name, data))
-        })
+      .then(() => {
+        return fetch('/admin/getObject.json' + path)
+          .then((data) => {
+            if (data.tags) {
+              data.tags = JSON.parse(data.tags)
+            }
+            return populateView(target, name, data)
+          })
+      })
   }
 
   populateReferencedBy(path, sameTenant = false) {
