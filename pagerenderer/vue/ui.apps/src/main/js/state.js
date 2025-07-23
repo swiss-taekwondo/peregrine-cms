@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -55,6 +55,7 @@ window.onclick = function(ev) {
 
     if(node) {
         var toUrl = node.href
+        const isHash = node.getAttribute('href').startsWith('#');
         // check if the link has the attribute 'download'
         const isDownload = node.hasAttribute('download');
         log.fine("onClick() - "+ toUrl);
@@ -63,12 +64,12 @@ window.onclick = function(ev) {
         if(isDownload || !(
             toUrl.startsWith('http') ||
             toUrl.startsWith('/') ||
-            toUrl.startsWith('#')
+            isHash
         )) {
             return true
         }
 
-        if(toUrl.startsWith("#")) {
+        if(isHash) {
             // do nothing, it's an internal page reference
         } else if (getContentviewEditorActive()) {
             // do nothing, editor is open/active
