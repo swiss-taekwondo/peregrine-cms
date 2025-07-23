@@ -108,11 +108,11 @@ function updateWithFormAndConfig(path, data, config) {
  * @returns
  */
 function postFormData(url, data, config = null) {
-  
+
   if (!url) {
     return logger.error('missing url!', url, data, config);
   }
-  
+
   let formData;
 
   if (!data) {
@@ -130,7 +130,7 @@ function postFormData(url, data, config = null) {
      .post(url, formData, config)
      .then(({data}) => {
       logger.fine('postFormData, response data: ' + data);
-      
+
       return data;
     })
     .catch((error) => {
@@ -1110,7 +1110,6 @@ class PerAdminImpl {
 
   savePageEdit(path, node) {
     return new Promise((resolve, reject) => {
-      let formData = new FormData()
       // convert to a new object
       let nodeData = JSON.parse(JSON.stringify(node))
       if (nodeData.component) {
@@ -1119,8 +1118,11 @@ class PerAdminImpl {
           nodeData = component.methods.beforeSave(nodeData)
         }
       }
+
+      let isPage = false
       if (nodeData.path === '/jcr:content') {
         nodeData['jcr:primaryType'] = 'per:PageContent'
+        isPage = true
       } else {
         nodeData['jcr:primaryType'] = 'nt:unstructured'
       }
@@ -1133,15 +1135,42 @@ class PerAdminImpl {
       }
       stripNulls(nodeData)
 
-      formData.append('content', json(nodeData))
+      if (isPage) {
+        // Delete tags
+        const formDataTags = new FormData();
+        formDataTags.append('content', json({tags: {_opDelete: true}}));
 
-      updateWithForm('/admin/updateResource.json' + path + node.path, formData)
+        updateWithForm('/admin/updateResource.json' + path + node.path, formDataTags)
           // .then( (data) => this.populateNodesForBrowser(parentPath) )
-          .then(() => resolve())
-          .catch(error => {
+          .then(() => {
+            const formData = new FormData()
+            formData.append('content', json(nodeData))
+
+            updateWithForm('/admin/updateResource.json' + path + node.path, formData)
+              // .then( (data) => this.populateNodesForBrowser(parentPath) )
+              .then(() => resolve())
+              .catch(error => {
+                logger.error('Failed to save page: ' + error)
+                reject('Unable to save change. ' + error)
+              })
+          })
+          .catch((error) => {
             logger.error('Failed to save page: ' + error)
             reject('Unable to save change. ' + error)
-          })
+          });
+      }
+      else {
+        const formData = new FormData()
+        formData.append('content', json(nodeData))
+
+        updateWithForm('/admin/updateResource.json' + path + node.path, formData)
+          // .then( (data) => this.populateNodesForBrowser(parentPath) )
+          .then(() => resolve())
+          .catch(function (error) {
+            logger.error('Failed to save page: ' + error)
+            reject('Unable to save change. ' + error)
+          });
+      }
     })
   }
 
@@ -1154,6 +1183,18 @@ class PerAdminImpl {
     delete nodeData['jcr:createdBy']
     delete nodeData['jcr:lastModified']
     delete nodeData['jcr:lastModifiedBy']
+
+    if (nodeData.tags) {
+      const tags = []
+      Object.keys(nodeData.tags).forEach((tag) => {
+        tags.push(nodeData.tags[tag])
+      });
+      nodeData.tags = JSON.stringify(tags)
+    }
+    else {
+      nodeData.tags = JSON.stringify([])
+    }
+
     formData.append('content', json(nodeData))
     return updateWithForm('/admin/updateResource.json' + path, formData)
   }

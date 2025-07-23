@@ -237,7 +237,7 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
         }
     }
     processLoaders(data.loaders).then( () => {
-        log$3.fine('first time', firstTime);
+        log.fine('first time', firstTime);
 
         getPerView().page = data;
         getPerView().path = path.slice(0, path.indexOf('.html'));
@@ -247,7 +247,7 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
         }
 
         if(document.location !== path && !fromPopState) {
-          log$3.fine("PUSHSTATE : " + path);
+          log.fine("PUSHSTATE : " + path);
           document.title = getPerView().page.title + ' | ' + getPerView().page.brand;
 
           var canonical = document.querySelector('link[rel="canonical"]');
