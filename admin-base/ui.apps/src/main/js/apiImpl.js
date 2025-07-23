@@ -64,6 +64,9 @@ function fetch(path) {
     })
   }).catch((error) => {
     logger.error('Fetch request to', path, 'failed')
+    if (path.startsWith('/admin/access.json?')) {
+      window.location = '/system/sling/form/login'
+    }
     throw error
   })
 
