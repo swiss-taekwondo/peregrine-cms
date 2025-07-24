@@ -59,7 +59,7 @@
             :css="false">
           <div v-if="schema.multifield && activeItem === index" class="collapsible-body">
             <vue-form-generator
-                :schema="schema"
+                :schema="prepSchema(item, schema)"
                 :model="prepModel(item, schema)"></vue-form-generator>
           </div>
         </transition>
@@ -75,7 +75,7 @@
           <vue-form-generator
               v-if="schema.multifield"
               class="collection-item"
-              :schema="schema"
+              :schema="prepSchema(item, schema)"
               :model="prepModel(item, schema)"></vue-form-generator>
         </ul>
 
@@ -108,6 +108,71 @@ export default {
     }
   },
   methods: {
+    addStyleClassToVisibleFields(model, schema) {
+      const safeEval = (expr) => {
+        if (typeof expr !== 'string') return true;
+      
+        const fixed = expr
+          .replace(/\band\b/g, '&&')
+          .replace(/\bor\b/g, '||')
+          .replace(/\bnot\b/g, '!')
+      
+        try {
+          return Function("model", '"use strict"; return (' + fixed + ')')(model);
+        } catch (e) {
+          console.warn('Error evaluating visible:', expr, e);
+          return true;
+        }
+      };
+
+      const deepClone = (obj) => {
+        if (obj === null || typeof obj !== 'object') return obj;
+      
+        // Handle arrays
+        if (Array.isArray(obj)) {
+          return obj.map(item => deepClone(item));
+        }
+      
+        // Handle objects
+        const clonedObj = {};
+        for (const key in obj) {
+          // Only copy own properties
+          if (Object.hasOwn(obj, key)) {
+            clonedObj[key] = deepClone(obj[key]);
+          }
+        }
+        return clonedObj;
+      }
+
+      const clone = deepClone(schema);
+          
+          const process = (obj) => {
+            if (!obj) return;
+            
+            // Process groups
+            if (obj.groups) {
+              obj.groups.forEach(group => process(group));
+            }
+            
+            // Process fields
+            if (obj.fields) {
+              obj.fields.forEach(field => {
+                // Handles nested fields
+                if (field.fields) {
+                  process(field);
+                }
+
+                if (field.visible !== undefined) {                
+                  const result = safeEval(field.visible);        
+                  field.styleClasses = result ? '' : 'hidden';
+                }
+              })
+            }
+          }
+          
+      process(clone);
+      return clone;
+        },
     getSchemaForIndex(schema, index) {
       const newSchema = JSON.parse(JSON.stringify(schema))
       newSchema.fields[0].model = '' + index
@@ -136,6 +201,18 @@ export default {
       }
       return parseInt(index) + 1
     },
+    prepSchema(model, schema) {
+      const clonedSchema = this.addStyleClassToVisibleFields(model, schema);
+    
+      for (let i = 0; i < clonedSchema.fields.length; i++) {
+        const field = clonedSchema.fields[i].model;
+        if (!model.hasOwnProperty(field)) {
+          Vue.set(model, field, '');
+        }
+      }
+    
+      return clonedSchema;
+    },
     prepModel(model, schema) {
       for (let i = 0; i < schema.fields.length; i++) {
         const field = schema.fields[i].model
@@ -155,6 +232,7 @@ export default {
       } else {
         var newChild = {name: 'n' + Date.now()}
         this.prepModel(newChild, this.schema)
+        this.prepSchema(newChild, this.schema)
         newChild['sling:resourceType'] = this.schema.resourceType
       }
       if (!this.value) {

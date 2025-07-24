@@ -94,7 +94,7 @@ export default {
       return $perAdminApp.getView()
     },
     schema: function () {
-      const view = $perAdminApp.getView();
+      const view = this.view;
       const component = view.state.editor.component;
       const schema = this.addStyleClassToVisibleFields(view.admin.componentDefinitions[component].model);
       return schema;
@@ -136,6 +136,22 @@ export default {
   },
   methods: {
     addStyleClassToVisibleFields(schema) {
+      const safeEval = (expr, model) => {
+        if (typeof expr !== 'string') return true;
+      
+        const fixed = expr
+          .replace(/\band\b/g, '&&')
+          .replace(/\bor\b/g, '||')
+          .replace(/\bnot\b/g, '!')
+      
+        try {
+          return Function("model", '"use strict"; return (' + fixed + ')')(model);
+        } catch (e) {
+          console.warn('Error evaluating visible:', expr, e);
+          return true;
+        }
+      };
+
       const deepClone = (obj) => {
         if (obj === null || typeof obj !== 'object') return obj;
       
@@ -175,15 +191,8 @@ export default {
 
                 if (field.visible !== undefined) {
                   const model = this.dataModel;
-                
-                  // Takes the "visible" function and checks it
-                  const result = Function("model", '"use strict"; return (' + field.visible + ')')(model);
-                
-                  if (result === false) {
-                    field.styleClasses = 'hidden';
-                  } else {
-                    field.styleClasses = '';
-                  }
+                  const result = safeEval(field.visible, model);
+                  field.styleClasses = result ? '' : 'hidden';
                 }
               })
             }
