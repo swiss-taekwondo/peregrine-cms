@@ -55,7 +55,7 @@ window.onclick = function(ev) {
 
     if(node) {
         var toUrl = node.href
-        const isHash = node.getAttribute('href').startsWith('#');
+        const isHash = toUrl ? node.getAttribute('href').startsWith('#') : false;
         // check if the link has the attribute 'download'
         const isDownload = node.hasAttribute('download');
         log.fine("onClick() - "+ toUrl);
