@@ -363,3 +363,70 @@ export function asyncLoadJsScript(src) {
 export function isMac() {
   return window.navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 }
+
+export function addStyleClassToVisibleFields(schema, model) {
+  const safeEval = (expr, model) => {
+    if (typeof expr !== 'string') return true;
+  
+    const fixed = expr
+      .replace(/\band\b/g, '&&')
+      .replace(/\bor\b/g, '||')
+      .replace(/\bnot\b/g, '!')
+  
+    try {
+      return Function("model", '"use strict"; return (' + fixed + ')')(model);
+    } catch (e) {
+      console.warn('Error evaluating visible:', expr, e);
+      return true;
+    }
+  };
+
+  const deepClone = (obj) => {
+    if (obj === null || typeof obj !== 'object') return obj;
+  
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map(item => deepClone(item));
+    }
+  
+    // Handle objects
+    const clonedObj = {};
+    for (const key in obj) {
+      // Only copy own properties
+      if (Object.hasOwn(obj, key)) {
+        clonedObj[key] = deepClone(obj[key]);
+      }
+    }
+    return clonedObj;
+  }
+
+  const clone = deepClone(schema);
+      
+      const process = (obj) => {
+        if (!obj) return;
+        
+        // Process groups
+        if (obj.groups) {
+          obj.groups.forEach(group => process(group));
+        }
+        
+        // Process fields
+        if (obj.fields) {
+          obj.fields.forEach(field => {
+            // Handles nested fields
+            if (field.fields) {
+              process(field);
+            }
+
+            if (field.visible !== undefined) {
+              const result = safeEval(field.visible, model);
+              field.styleClasses = result ? '' : 'hidden';
+            }
+          })
+        }
+      }
+      
+  process(clone);
+  return clone;
+}
+

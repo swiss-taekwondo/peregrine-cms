@@ -59,7 +59,7 @@
 </template>
 
 <script>
-import {set} from '../../../../../../js/utils'
+import {set, addStyleClassToVisibleFields} from '../../../../../../js/utils'
 
 export default {
   props: ['model'],
@@ -96,7 +96,7 @@ export default {
     schema: function () {
       const view = this.view;
       const component = view.state.editor.component;
-      const schema = this.addStyleClassToVisibleFields(view.admin.componentDefinitions[component].model);
+      const schema = addStyleClassToVisibleFields(view.admin.componentDefinitions[component].model, this.dataModel);
       return schema;
     },
     dataModel: function () {
@@ -135,72 +135,6 @@ export default {
     }
   },
   methods: {
-    addStyleClassToVisibleFields(schema) {
-      const safeEval = (expr, model) => {
-        if (typeof expr !== 'string') return true;
-      
-        const fixed = expr
-          .replace(/\band\b/g, '&&')
-          .replace(/\bor\b/g, '||')
-          .replace(/\bnot\b/g, '!')
-      
-        try {
-          return Function("model", '"use strict"; return (' + fixed + ')')(model);
-        } catch (e) {
-          console.warn('Error evaluating visible:', expr, e);
-          return true;
-        }
-      };
-
-      const deepClone = (obj) => {
-        if (obj === null || typeof obj !== 'object') return obj;
-      
-        // Handle arrays
-        if (Array.isArray(obj)) {
-          return obj.map(item => deepClone(item));
-        }
-      
-        // Handle objects
-        const clonedObj = {};
-        for (const key in obj) {
-          // Only copy own properties
-          if (Object.hasOwn(obj, key)) {
-            clonedObj[key] = deepClone(obj[key]);
-          }
-        }
-        return clonedObj;
-      }
-
-      const clone = deepClone(schema);
-          
-          const process = (obj) => {
-            if (!obj) return;
-            
-            // Process groups
-            if (obj.groups) {
-              obj.groups.forEach(group => process(group));
-            }
-            
-            // Process fields
-            if (obj.fields) {
-              obj.fields.forEach(field => {
-                // Handles nested fields
-                if (field.fields) {
-                  process(field);
-                }
-
-                if (field.visible !== undefined) {
-                  const model = this.dataModel;
-                  const result = safeEval(field.visible, model);
-                  field.styleClasses = result ? '' : 'hidden';
-                }
-              })
-            }
-          }
-          
-      process(clone);
-      return clone;
-        },
     onOk(e) {
       let data = JSON.parse(JSON.stringify(this.dataModel))
       let _deleted = $perAdminApp.getNodeFromViewWithDefault('/state/tools/_deleted', {})
