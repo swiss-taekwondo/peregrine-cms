@@ -960,8 +960,8 @@
   }
 }
 
-input:read-only,
-input:disabled {
+input:read-only:not([type="range"]),
+input:disabled:not([type="range"]) {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
 }

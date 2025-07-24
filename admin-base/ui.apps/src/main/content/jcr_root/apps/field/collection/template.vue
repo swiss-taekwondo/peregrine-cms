@@ -59,7 +59,7 @@
             :css="false">
           <div v-if="schema.multifield && activeItem === index" class="collapsible-body">
             <vue-form-generator
-                :schema="schema"
+                :schema="prepSchema(item, schema)"
                 :model="prepModel(item, schema)"></vue-form-generator>
           </div>
         </transition>
@@ -75,7 +75,7 @@
           <vue-form-generator
               v-if="schema.multifield"
               class="collection-item"
-              :schema="schema"
+              :schema="prepSchema(item, schema)"
               :model="prepModel(item, schema)"></vue-form-generator>
         </ul>
 
@@ -87,6 +87,8 @@
 </template>
 
 <script>
+import {addStyleClassToVisibleFields} from '../../../../../js/utils'
+
 export default {
   mixins: [VueFormGenerator.abstractField],
   beforeMount() {
@@ -136,6 +138,18 @@ export default {
       }
       return parseInt(index) + 1
     },
+    prepSchema(model, schema) {
+      const clonedSchema = addStyleClassToVisibleFields(schema, model);
+    
+      for (let i = 0; i < clonedSchema.fields.length; i++) {
+        const field = clonedSchema.fields[i].model;
+        if (!model.hasOwnProperty(field)) {
+          Vue.set(model, field, '');
+        }
+      }
+    
+      return clonedSchema;
+    },
     prepModel(model, schema) {
       for (let i = 0; i < schema.fields.length; i++) {
         const field = schema.fields[i].model
@@ -155,6 +169,7 @@ export default {
       } else {
         var newChild = {name: 'n' + Date.now()}
         this.prepModel(newChild, this.schema)
+        this.prepSchema(newChild, this.schema)
         newChild['sling:resourceType'] = this.schema.resourceType
       }
       if (!this.value) {
