@@ -4,7 +4,7 @@ const fs        = require('fs-extra')
 const rollup    = require( 'rollup' )
 const path      = require('path')
 const vue       = require('rollup-plugin-vue')
-const buble     = require('rollup-plugin-buble')
+const babel = require('@rollup/plugin-babel').default
 const commonjs  = require('rollup-plugin-commonjs')
 const camelcase = require('camelcase')
 
@@ -67,7 +67,11 @@ function compileComponent(file){
         compileTemplate: true,
         css: `${distBasePath}/css/${nameCamelCase}.css`
       }),
-      buble(),
+      babel({
+        babelHelpers: 'bundled',
+        exclude: 'node_modules/**',
+        extensions: ['.js', '.jsx', '.vue']
+      }),
       commonjs()
     ]
   }).then( function(bundle) {

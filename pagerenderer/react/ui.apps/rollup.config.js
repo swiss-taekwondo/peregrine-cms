@@ -1,11 +1,21 @@
-import buble from 'rollup-plugin-buble';
+import babel from "@rollup/plugin-babel";
 
 export default {
 	input: 'src/main/js/peregrineApp.js',
 	output: {
-			file: 'target/classes/etc/felibs/pagerender-react/js/perview.js', 
+			file: 'target/classes/etc/felibs/pagerender-react/js/perview.js',
 			format: 'iife',
 			name: '$peregrineApp',
 	},
-	plugins: [ buble() ],
+  plugins: [
+    babel({
+      babelHelpers: 'bundled',
+      exclude: 'node_modules/**',
+      extensions: [
+        '.js',
+        '.jsx',
+        '.vue',
+      ]
+    }),
+  ],
 }
