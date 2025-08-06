@@ -11,9 +11,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
-  
+
   http://www.apache.org/licenses/LICENSE-2.0
-  
+
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -55,6 +55,7 @@
 import {NodeTree} from '../../../../../../js/constants'
 import {get} from '../../../../../../js/utils'
 import Richtoolbar from '../richtoolbar/template.vue'
+import TranslateWidget from "./translatewidget";
 
 export default {
     components: {Richtoolbar},
@@ -147,6 +148,9 @@ export default {
         isRich() {
             return get($perAdminApp.getView(), '/state/inline/rich', false)
         }
+    },
+    mounted() {
+      TranslateWidget();
     }
 }
 </script>
