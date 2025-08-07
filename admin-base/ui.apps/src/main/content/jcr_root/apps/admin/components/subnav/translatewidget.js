@@ -316,28 +316,6 @@ export default async function TranslateWidget() {
 
         await wait(1000);
 
-        // Remove replication fields if any
-        const translationContent =	`${pagePath}/translations/${action.dataset.lang}/_jcr_content`;
-        await fetch(`/bin/cpm/nodes/property.remove.json${translationContent}`, {
-          method: 'DELETE',
-          headers: {
-            'content-type': 'application/json'
-          },
-          body: JSON.stringify({
-            names: [
-              'per:ReplicatedBy',
-              'per:ReplicationLastAction',
-              'per:ReplicationRef',
-              'per:Replicated',
-            ]
-          })
-        });
-
-        // Remove translation node if any
-        await fetch(`/bin/cpm/nodes/node.json${translationPath}/translations`, {
-          method: 'DELETE'
-        });
-
         // Auto translate
         let successMessage = '';
         if (action.dataset.translate === 'ai') {
@@ -391,11 +369,35 @@ export default async function TranslateWidget() {
           successMessage = 'You are being redirected to the page for manual translation.'
         }
 
-        $perAdminApp.notifyUser('Success', successMessage)
+        // Remove translation node if any
+        await fetch(`/bin/cpm/nodes/node.json${translationPath}/translations`, {
+          method: 'DELETE'
+        });
 
-        await wait(1000);
+        // Remove replication fields if any
+        await fetch(`/bin/cpm/nodes/property.remove.json${pagePath}/translations/${action.dataset.lang}/_jcr_content`, {
+          method: 'DELETE',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            names: [
+              'per:ReplicatedBy',
+              'per:ReplicationLastAction',
+              'per:ReplicationRef',
+              'per:Replicated',
+            ]
+          })
+        });
 
-        location.href = `${editPath}:${translationPath}`;
+        $modal.modal('close');
+        setTimeout(async () => {
+          $perAdminApp.notifyUser('Success', successMessage)
+
+          await wait(1000);
+
+          location.href = `${editPath}:${translationPath}`;
+        }, 500);
       }
     });
 
