@@ -55,6 +55,7 @@ import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_TRANSLATE;
 import static com.peregrine.commons.ResourceUtils.isPropertyAllowedOnExistingNode;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.*;
+import static java.lang.Boolean.parseBoolean;
 import static java.util.Objects.isNull;
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
@@ -98,6 +99,7 @@ public class TranslateNode extends AbstractBaseServlet {
 
     private static final String PER_TRANSLATED = "per:Translated";
     private static final String LANG = "lang";
+    private static final String OVERRIDE = "override";
     private static final String LANG_PREFIX = LANG + "_";
     private static final String EXPERIENCES = "experiences";
     private static final String PROPERTIES = "properties";
@@ -148,6 +150,9 @@ public class TranslateNode extends AbstractBaseServlet {
                     .setHttpErrorCode(SC_BAD_REQUEST)
                     .setErrorMessage(PROPERTIES_MISSING);
         }
+
+        // Get override parameters
+        boolean override = parseBoolean(request.getParameter(OVERRIDE, "false"));
 
         if (isEmpty(geminiAPIKey)) {
             return new ErrorResponse()
@@ -259,7 +264,9 @@ public class TranslateNode extends AbstractBaseServlet {
                     if (!isEmpty(translation)) {
                         String key = valuesToTranslate[i];
                         for (String propertyName : propertiesToTranslate.get(key)) {
-                            languageNode.setProperty(propertyName, translation);
+                            if (!languageNode.hasProperty(propertyName) || override) {
+                                languageNode.setProperty(propertyName, translation);
+                            }
                         }
 
                         // Add timestamp
