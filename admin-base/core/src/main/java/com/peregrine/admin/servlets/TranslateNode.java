@@ -161,8 +161,8 @@ public class TranslateNode extends AbstractBaseServlet {
         }
 
         // String translations can map to multiple properties
-        Map<String, Set<String>> propertiesToTranslate = new HashMap<String, Set<String>>();
-        String[] valuesToTranslate = new String[0];
+        Map<String, Set<String>> propertiesToTranslate = new HashMap<>();
+        String[] valuesToTranslate;
 
         // Find properties to translate
         try {
@@ -179,7 +179,7 @@ public class TranslateNode extends AbstractBaseServlet {
                             propertiesToTranslate.get(value).add(propertyName);
                         }
                         else {
-                            propertiesToTranslate.put(property.getString(), new HashSet<String>(Arrays.asList(propertyName)));
+                            propertiesToTranslate.put(property.getString(), new HashSet<>(Arrays.asList(propertyName)));
                         }
                     }
                 }
@@ -250,7 +250,7 @@ public class TranslateNode extends AbstractBaseServlet {
                 .path("content").path("parts").path(0)
                 .path("text").asText();
 
-        String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<String[]>() {});
+        String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
 
         // Create translation experiences nodes
         try {
