@@ -122,50 +122,50 @@ public class TranslateNode extends AbstractBaseServlet {
 
     @Override
     protected Response handleRequest(Request request) throws IOException {
-        ResourceResolver resourceResolver = request.getResourceResolver();
-
-        // Get path parameters
-        String path = request.getParameter(PATH);
-        Node nodeToTranslate = getNode(resourceResolver, path);
-
-        if(isNull(nodeToTranslate)) {
-            return new ErrorResponse()
-                .setHttpErrorCode(SC_BAD_REQUEST)
-                .setErrorMessage(NODE_PATH_NOT_FOUND)
-                .setRequestPath(path);
-        }
-
-        // Get language parameters
-        String language = request.getParameter(LANG);
-        if (isEmpty(language) || LANGUAGE_MAP.get(language) == null) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(LANGUAGE_ERROR);
-        }
-
-        // Get properties parameters
-        String[] properties = request.getParameterValues(PROPERTIES + "[]", ",");
-        if (isNull(properties)) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(PROPERTIES_MISSING);
-        }
-
-        // Get override parameters
-        boolean override = parseBoolean(request.getParameter(OVERRIDE, "false"));
-
-        if (isEmpty(geminiAPIKey)) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(GEMINI_API_KEY_MISSING);
-        }
-
-        // String translations can map to multiple properties
-        Map<String, Set<String>> propertiesToTranslate = new HashMap<>();
-        String[] valuesToTranslate;
-
-        // Find properties to translate
         try {
+            ResourceResolver resourceResolver = request.getResourceResolver();
+
+            // Get path parameters
+            String path = request.getParameter(PATH);
+            Node nodeToTranslate = getNode(resourceResolver, path);
+
+            if(isNull(nodeToTranslate)) {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(NODE_PATH_NOT_FOUND)
+                        .setRequestPath(path);
+            }
+
+            // Get language parameters
+            String language = request.getParameter(LANG);
+            if (isEmpty(language) || LANGUAGE_MAP.get(language) == null) {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(LANGUAGE_ERROR);
+            }
+
+            // Get properties parameters
+            String[] properties = request.getParameterValues(PROPERTIES + "[]", ",");
+            if (isNull(properties)) {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(PROPERTIES_MISSING);
+            }
+
+            // Get override parameters
+            boolean override = parseBoolean(request.getParameter(OVERRIDE, "false"));
+
+            if (isEmpty(geminiAPIKey)) {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(GEMINI_API_KEY_MISSING);
+            }
+
+            // String translations can map to multiple properties
+            Map<String, Set<String>> propertiesToTranslate = new HashMap<>();
+            String[] valuesToTranslate;
+
+            // Find properties to translate
             PropertyIterator propertyIterator = nodeToTranslate.getProperties();
             while (propertyIterator.hasNext()) {
                 Property property = propertyIterator.nextProperty();
@@ -188,72 +188,57 @@ public class TranslateNode extends AbstractBaseServlet {
             // Values to translate passed to Gemini are unique to limit input tokens
             Set<String> keySet = propertiesToTranslate.keySet();
             valuesToTranslate = keySet.toArray(new String[keySet.size()]);
-        } catch (RepositoryException e) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(e.getMessage())
-                    .setException(e);
-        }
 
-        // Generate Gemini request body
-        ObjectNode payload = objectMapper.createObjectNode();
+            // Generate Gemini request body
+            ObjectNode payload = objectMapper.createObjectNode();
 
-        ObjectNode generationConfig = payload.putObject("generationConfig");
-        // Request is faster if thinking is disabled
-        generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
-        // Return a JSON array with translated values to limit output tokens
-        generationConfig.put("responseMimeType", "application/json");
-        generationConfig.putObject("responseSchema")
-                .put("type", "array")
-                .putObject("items")
-                .put("type", "string");
+            ObjectNode generationConfig = payload.putObject("generationConfig");
+            // Request is faster if thinking is disabled
+            generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
+            // Return a JSON array with translated values to limit output tokens
+            generationConfig.put("responseMimeType", "application/json");
+            generationConfig.putObject("responseSchema")
+                    .put("type", "array")
+                    .putObject("items")
+                    .put("type", "string");
 
-        ArrayNode contents = payload.putArray("contents");
-        ObjectNode contentItem = contents.addObject();
-        contentItem.put("role", "user");
-        ArrayNode parts = contentItem.putArray("parts");
+            ArrayNode contents = payload.putArray("contents");
+            ObjectNode contentItem = contents.addObject();
+            contentItem.put("role", "user");
+            ArrayNode parts = contentItem.putArray("parts");
 
-        // Prompt
-        parts.addObject().put("text", "Translate the array in \""+ LANGUAGE_MAP.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\n\\nReturn the translations as array of strings. If a translation is not possible, use empty string.");
+            // Prompt
+            parts.addObject().put("text", "Translate the array in \""+ LANGUAGE_MAP.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\n\\nReturn the translations as array of strings. If a translation is not possible, use empty string.");
 
-        String requestBody = objectMapper.writeValueAsString(payload);
+            String requestBody = objectMapper.writeValueAsString(payload);
 
-        // Gemini request
-        HttpRequest geminiRequest = HttpRequest.newBuilder()
-                .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"))
-                .header("x-goog-api-key", geminiAPIKey)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+            // Gemini request
+            HttpRequest geminiRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"))
+                    .header("x-goog-api-key", geminiAPIKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
 
-        HttpClient httpClient = HttpClient.newHttpClient();
-        HttpResponse<String> httpResponse;
-        try {
-            httpResponse = httpClient.send(geminiRequest, HttpResponse.BodyHandlers.ofString());
-        } catch (InterruptedException e) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(e.getMessage())
-                    .setException(e);
-        }
+            HttpClient httpClient = HttpClient.newHttpClient();
+            HttpResponse<String> httpResponse = httpClient.send(geminiRequest, HttpResponse.BodyHandlers.ofString());;
 
-        if (httpResponse.statusCode() != 200) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(httpResponse.body());
-        }
+            if (httpResponse.statusCode() != 200) {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(httpResponse.body());
+            }
 
-        // Parse Gemini translation response
-        JsonNode responseNode = objectMapper.readTree(httpResponse.body());
-        String translationsJsonString = responseNode
-                .path("candidates").path(0)
-                .path("content").path("parts").path(0)
-                .path("text").asText();
+            // Parse Gemini translation response
+            JsonNode responseNode = objectMapper.readTree(httpResponse.body());
+            String translationsJsonString = responseNode
+                    .path("candidates").path(0)
+                    .path("content").path("parts").path(0)
+                    .path("text").asText();
 
-        String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
+            String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
 
-        // Create translation experiences nodes
-        try {
+            // Create translation experiences nodes
             Node experiencesNode = getOrCreateChildNode(resourceResolver, nodeToTranslate, EXPERIENCES);
             Node languageNode = getOrCreateChildNode(resourceResolver, experiencesNode, LANG_PREFIX + language);
 
@@ -283,7 +268,7 @@ public class TranslateNode extends AbstractBaseServlet {
             response.writeAttribute("path", languageNode.getPath());
             return response;
         }
-        catch (RepositoryException e) {
+        catch (RepositoryException | InterruptedException e) {
             return new ErrorResponse()
                     .setHttpErrorCode(SC_BAD_REQUEST)
                     .setErrorMessage(e.getMessage())
