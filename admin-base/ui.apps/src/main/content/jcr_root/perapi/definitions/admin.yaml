@@ -673,10 +673,12 @@ paths:
           type: string
           in: formData
           description: ISO 639-1 language code e.g. "fr"
+          required: true
         - name: properties
           type: array
           in: formData
           description: Properties to translate
+          required: true
       responses:
         200:
           description: Returns the experiences translation node path

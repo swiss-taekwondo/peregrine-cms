@@ -96,6 +96,7 @@ public class TranslateNode extends AbstractBaseServlet {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
+    private static final String PER_TRANSLATED = "per:Translated";
     private static final String LANG = "lang";
     private static final String LANG_PREFIX = LANG + "_";
     private static final String EXPERIENCES = "experiences";
@@ -263,6 +264,9 @@ public class TranslateNode extends AbstractBaseServlet {
                         for (String propertyName : propertiesToTranslate.get(key)) {
                             languageNode.setProperty(propertyName, translation);
                         }
+
+                        // Add timestamp
+                        nodeToTranslate.setProperty(PER_TRANSLATED, Calendar.getInstance());
                     }
                 } catch (ArrayIndexOutOfBoundsException e) {
                     logger.info("Accessing translation failed at index: " + i);
