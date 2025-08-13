@@ -249,11 +249,13 @@ public class TranslateNode extends AbstractBaseServlet {
 
         Node experiencesNode;
         Node languageNode;
+        String languageNodePath;
 
         // Create translation experiences nodes
         try {
             experiencesNode = getOrCreateChildNode(resourceResolver, nodeToTranslate, EXPERIENCES);
             languageNode = getOrCreateChildNode(resourceResolver, experiencesNode, LANG_PREFIX + language);
+            languageNodePath = languageNode.getPath();
 
             for (int i = 0; i < propertiesToTranslate.size(); i++) {
                 try {
@@ -283,7 +285,7 @@ public class TranslateNode extends AbstractBaseServlet {
         }
 
         JsonResponse response = new JsonResponse();
-        response.writeAttribute("path", path);
+        response.writeAttribute("path", languageNodePath);
         return response;
     }
 
