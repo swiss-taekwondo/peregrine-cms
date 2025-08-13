@@ -282,17 +282,9 @@ public class TranslateNode extends AbstractBaseServlet {
                     .setException(e);
         }
 
-        try {
-            JsonResponse response = new JsonResponse();
-            response.writeAttribute("path", languageNode.getPath());
-            return response;
-        }
-        catch (RepositoryException e) {
-            return new ErrorResponse()
-                    .setHttpErrorCode(SC_BAD_REQUEST)
-                    .setErrorMessage(e.getMessage())
-                    .setException(e);
-        }
+        JsonResponse response = new JsonResponse();
+        response.writeAttribute("path", path);
+        return response;
     }
 
     private Node getOrCreateChildNode(ResourceResolver resourceResolver, Node parent, String name) throws RepositoryException {
