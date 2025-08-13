@@ -150,7 +150,7 @@ export default {
         }
     },
     mounted() {
-      TranslateWidget();
+      // TranslateWidget();
     }
 }
 </script>

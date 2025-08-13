@@ -490,7 +490,7 @@ paths:
                       description: Array of labels (Strings) applied to the version
                       items:
                         type: string
-                       
+
                     base:
                       type: boolean
                       description: If base is true, this is the current version.
@@ -658,6 +658,35 @@ paths:
                 description: Name of the updated tenant
         400:
           description: If the name was not a valid tenant name
+          schema:
+            $ref: "#/definitions/Error"
+  '/translateNode.json{path}':
+    post:
+      description: Translates a Node by producing an experiences translation node with the provided language identifier
+      parameters:
+        - name: path
+          type: string
+          in: path
+          description: The path to the Node to translate
+          required: true
+        - name: lang
+          type: string
+          in: formData
+          description: ISO 639-1 language code e.g. "fr"
+        - name: properties
+          type: array
+          in: formData
+          description: Properties to translate
+      responses:
+        200:
+          description: Returns the experiences translation node path
+          schema:
+            type: object
+            properties:
+              path:
+                type: string
+        400:
+          description: If the path did not resolve to a Node or if the translation failed
           schema:
             $ref: "#/definitions/Error"
   '/insertNodeAt.json{path}':
