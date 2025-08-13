@@ -247,15 +247,10 @@ public class TranslateNode extends AbstractBaseServlet {
 
         String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<String[]>() {});
 
-        Node experiencesNode;
-        Node languageNode;
-        String languageNodePath;
-
         // Create translation experiences nodes
         try {
-            experiencesNode = getOrCreateChildNode(resourceResolver, nodeToTranslate, EXPERIENCES);
-            languageNode = getOrCreateChildNode(resourceResolver, experiencesNode, LANG_PREFIX + language);
-            languageNodePath = languageNode.getPath();
+            Node experiencesNode = getOrCreateChildNode(resourceResolver, nodeToTranslate, EXPERIENCES);
+            Node languageNode = getOrCreateChildNode(resourceResolver, experiencesNode, LANG_PREFIX + language);
 
             for (int i = 0; i < propertiesToTranslate.size(); i++) {
                 try {
@@ -276,6 +271,10 @@ public class TranslateNode extends AbstractBaseServlet {
             }
 
             resourceResolver.adaptTo(Session.class).save();
+
+            JsonResponse response = new JsonResponse();
+            response.writeAttribute("path", languageNode.getPath());
+            return response;
         }
         catch (RepositoryException e) {
             return new ErrorResponse()
@@ -283,10 +282,6 @@ public class TranslateNode extends AbstractBaseServlet {
                     .setErrorMessage(e.getMessage())
                     .setException(e);
         }
-
-        JsonResponse response = new JsonResponse();
-        response.writeAttribute("path", languageNodePath);
-        return response;
     }
 
     private Node getOrCreateChildNode(ResourceResolver resourceResolver, Node parent, String name) throws RepositoryException {
