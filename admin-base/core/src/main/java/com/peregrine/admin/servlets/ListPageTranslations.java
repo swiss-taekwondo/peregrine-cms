@@ -142,13 +142,15 @@ public class ListPageTranslations extends AbstractBaseServlet {
 
                 // Find original properties based on the model
                 for (String propertyName : properties) {
-                    Property property = node.getProperty(propertyName);
+                    if (node.hasProperty(propertyName )) {
+                        Property property = node.getProperty(propertyName);
 
-                    // Look for single non-empty string values
-                    if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple()) {
-                        String value = property.getString();
-                        if (!isEmpty(value)) {
-                            originalNode.put(propertyName, value);
+                        // Look for single non-empty string values
+                        if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple()) {
+                            String value = property.getString();
+                            if (!isEmpty(value)) {
+                                originalNode.put(propertyName, value);
+                            }
                         }
                     }
                 }
