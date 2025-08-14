@@ -136,6 +136,7 @@ public class ListPageTranslations extends AbstractBaseServlet {
                 objectNode.put(PATH, node.getPath());
 
                 String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
+                objectNode.put(REFERENCE_NAME, translationRef);
                 List<String> properties = model.get(translationRef);
 
                 ObjectNode originalNode = objectMapper.createObjectNode();
