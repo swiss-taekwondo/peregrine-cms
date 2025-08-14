@@ -52,6 +52,8 @@ import java.net.http.HttpResponse;
 import java.util.*;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_TRANSLATE;
+import static com.peregrine.admin.util.AdminConstants.LANG_PREFIX;
+import static com.peregrine.admin.util.AdminConstants.PER_TRANSLATED_AT;
 import static com.peregrine.commons.ResourceUtils.isPropertyAllowedOnExistingNode;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.*;
@@ -97,10 +99,8 @@ public class TranslateNode extends AbstractBaseServlet {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
-    private static final String PER_TRANSLATED = "per:Translated";
     private static final String LANG = "lang";
     private static final String OVERRIDE = "override";
-    private static final String LANG_PREFIX = LANG + "_";
     private static final String EXPERIENCES = "experiences";
     private static final String PROPERTIES = "properties";
     private static final String NODE_PATH_NOT_FOUND = "Node path not found";
@@ -255,7 +255,7 @@ public class TranslateNode extends AbstractBaseServlet {
                         }
 
                         // Add timestamp
-                        nodeToTranslate.setProperty(PER_TRANSLATED, Calendar.getInstance());
+                        nodeToTranslate.setProperty(PER_TRANSLATED_AT, Calendar.getInstance());
                     }
                 } catch (ArrayIndexOutOfBoundsException e) {
                     logger.info("Accessing translation failed at index: " + i);
