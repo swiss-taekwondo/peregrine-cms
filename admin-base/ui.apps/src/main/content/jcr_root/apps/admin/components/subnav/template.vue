@@ -55,7 +55,6 @@
 import {NodeTree} from '../../../../../../js/constants'
 import {get} from '../../../../../../js/utils'
 import Richtoolbar from '../richtoolbar/template.vue'
-import TranslateWidget from "./translatewidget";
 
 export default {
     components: {Richtoolbar},
@@ -148,9 +147,6 @@ export default {
         isRich() {
             return get($perAdminApp.getView(), '/state/inline/rich', false)
         }
-    },
-    mounted() {
-      // TranslateWidget();
     }
 }
 </script>
