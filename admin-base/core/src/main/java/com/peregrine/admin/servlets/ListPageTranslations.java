@@ -113,7 +113,7 @@ public class ListPageTranslations extends AbstractBaseServlet {
 
             List<String> conditions = new ArrayList<>();
             for (String translationRef : new ArrayList<>(model.keySet())) {
-                conditions.add("["+ PER_TRANSLATE_REF +"]='" + translationRef + "'");
+                conditions.add("["+ TRANSLATE_REF +"]='" + translationRef + "'");
             }
 
             // Find all page nodes flagged with "per:TranslateRef"
@@ -135,7 +135,7 @@ public class ListPageTranslations extends AbstractBaseServlet {
                 ObjectNode objectNode = objectMapper.createObjectNode();
                 objectNode.put(PATH, node.getPath());
 
-                String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
+                String translationRef = node.getProperty(TRANSLATE_REF).getString();
                 objectNode.put(REFERENCE_NAME, translationRef);
                 List<String> properties = model.get(translationRef);
 
