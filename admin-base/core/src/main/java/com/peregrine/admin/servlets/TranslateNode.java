@@ -253,14 +253,14 @@ public class TranslateNode extends AbstractBaseServlet {
                                 languageNode.setProperty(propertyName, translation);
                             }
                         }
-
-                        // Add timestamp
-                        nodeToTranslate.setProperty(PER_TRANSLATED_AT, Calendar.getInstance());
                     }
                 } catch (ArrayIndexOutOfBoundsException e) {
                     logger.info("Accessing translation failed at index: " + i);
                 }
             }
+
+            // Add timestamp
+            languageNode.setProperty(PER_TRANSLATED_AT, Calendar.getInstance());
 
             resourceResolver.adaptTo(Session.class).save();
 
