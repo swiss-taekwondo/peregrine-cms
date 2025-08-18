@@ -70,7 +70,7 @@ public class AdminConstants {
     public static final String JOB_STATE_FAILED = "FAILED";
 
     public static final String LANG_PREFIX = "lang_";
-    public static final String TRANSLATE_REF = "translate_ref";
+    public static final String PER_TRANSLATE_REF = "per:TranslateRef";
     public static final String PER_TRANSLATED_AT = "per:TranslatedAt";
 
 }

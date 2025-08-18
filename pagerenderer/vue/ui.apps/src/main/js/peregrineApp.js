@@ -425,8 +425,18 @@ var peregrineApp = {
         const server = window.location.protocol + '//' + window.location.hostname;
         const domains = getPerView().page.domains || [];
         return (domains.indexOf(server) >= 0)
-    }
+    },
 
+    setLanguage(lang) {
+      window.localStorage.lang = lang;
+      window.location.reload();
+      // TODO language switch without reload
+      // $peregrineApp.loadContentFrom('perView', window.location.pathname);
+    },
+
+    setTranslateRef(node, ref) {
+      node['per:TranslateRef'] = ref;
+    }
 }
 
 /**
