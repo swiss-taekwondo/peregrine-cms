@@ -119,7 +119,7 @@ public class ListPageTranslations extends AbstractBaseServlet {
             // Find all page nodes flagged with "per:TranslateRef"
             String statement =  "SELECT * from [nt:unstructured] as n " +
                     "WHERE ("+ String.join(" OR ", conditions) +") " +
-                    "AND ISDESCENDANTNODE(n, '" + path + "')";
+                    "AND ISDESCENDANTNODE(n, '" + path + "/jcr:content')";
 
             QueryManager queryManager = session.getWorkspace().getQueryManager();
             Query query = queryManager.createQuery(statement, Query.JCR_SQL2);
