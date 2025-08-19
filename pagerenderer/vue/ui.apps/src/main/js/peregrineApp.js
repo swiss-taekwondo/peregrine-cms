@@ -436,6 +436,8 @@ var peregrineApp = {
 
     setTranslateRef(node, ref) {
       node['per:TranslateRef'] = ref;
+      delete node.experiences;
+      delete node.children;
     }
 }
 
