@@ -95,6 +95,13 @@ public class TranslateNode extends AbstractBaseServlet {
                 required = true
         )
         String gemini_api_key() default "";
+
+        @AttributeDefinition(
+                name = "Gemini Prompt",
+                description = "Gemini Prompt details to generate AI translations",
+                required = false
+        )
+        String gemini_prompt() default "";
     }
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
@@ -119,6 +126,7 @@ public class TranslateNode extends AbstractBaseServlet {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String geminiAPIKey;
+    private String geminiPrompt;
 
     @Override
     protected Response handleRequest(Request request) throws IOException {
@@ -208,7 +216,9 @@ public class TranslateNode extends AbstractBaseServlet {
             ArrayNode parts = contentItem.putArray("parts");
 
             // Prompt
-            parts.addObject().put("text", "Translate the array in \""+ LANGUAGE_MAP.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\n\\nReturn the translations as array of strings. If a translation is not possible, use empty string.");
+            String prompt = "Translate the array in \""+ LANGUAGE_MAP.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\nReturn the translations as array of strings.If a translation is not possible,use empty string." + geminiPrompt;
+            logger.info("Gemini Prompt: " + prompt);
+            parts.addObject().put("text", prompt);
 
             String requestBody = objectMapper.writeValueAsString(payload);
 
@@ -235,6 +245,8 @@ public class TranslateNode extends AbstractBaseServlet {
                     .path("candidates").path(0)
                     .path("content").path("parts").path(0)
                     .path("text").asText();
+
+            logger.info("Gemini Response: " + translationsJsonString);
 
             String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
 
@@ -296,6 +308,7 @@ public class TranslateNode extends AbstractBaseServlet {
 
     private void setup(TranslateNode.Configuration configuration) {
         geminiAPIKey = configuration.gemini_api_key();
+        geminiPrompt = configuration.gemini_prompt();
     }
 }
 
