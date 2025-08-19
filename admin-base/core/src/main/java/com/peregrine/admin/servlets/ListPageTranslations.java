@@ -156,6 +156,11 @@ public class ListPageTranslations extends AbstractBaseServlet {
                     }
                 }
 
+                // Skip empty nodes
+                if (originalNode.isEmpty()) {
+                    continue;
+                }
+
                 objectNode.set("original", originalNode);
 
                 // Find translated properties for each experience language
