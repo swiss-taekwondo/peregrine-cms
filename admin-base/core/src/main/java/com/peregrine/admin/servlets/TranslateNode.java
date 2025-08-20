@@ -205,10 +205,10 @@ public class TranslateNode extends AbstractBaseServlet {
             generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
             // Return a JSON array with translated values to limit output tokens
             generationConfig.put("responseMimeType", "application/json");
-            generationConfig.putObject("responseSchema")
-                    .put("type", "array")
-                    .putObject("items")
-                    .put("type", "string");
+//            generationConfig.putObject("responseSchema")
+//                    .put("type", "array")
+//                    .putObject("items")
+//                    .put("type", "string");
 
             ArrayNode contents = payload.putArray("contents");
             ObjectNode contentItem = contents.addObject();
