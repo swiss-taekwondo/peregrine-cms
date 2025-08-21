@@ -205,6 +205,7 @@ public class TranslateNode extends AbstractBaseServlet {
             generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
             // Return a JSON array with translated values to limit output tokens
             generationConfig.put("responseMimeType", "application/json");
+            // TODO this causes infinite line breaks or tabs until max token is reached randomly
 //            generationConfig.putObject("responseSchema")
 //                    .put("type", "array")
 //                    .putObject("items")

@@ -77,7 +77,10 @@ public class ListPageTranslations extends AbstractBaseServlet {
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
     private static final String PER_PAGE = "per:Page";
-    private static final String PAGE_MISSING = "Page not found";
+    private static final String PER_OBJECT = "per:Object";
+    private static final String NODE_PATH_NOT_FOUND = "Node path not found";
+    private static final String MODEL_PATH_NOT_FOUND = "Model path not found";
+    private static final String WRONG_NODE_TYPE = "Wrong Node type";
     private static final List<String> EXCLUDED_PROPERTIES = Arrays.asList(NAME, PATH, COMPONENT);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -90,12 +93,12 @@ public class ListPageTranslations extends AbstractBaseServlet {
 
             // Get path parameters
             String path = request.getParameter(PATH);
-            Node page = getNode(resourceResolver, path);
+            Node pageOrObject = getNode(resourceResolver, path);
 
-            if(isNull(page) || !PER_PAGE.equals(page.getPrimaryNodeType().toString())) {
+            if(isNull(pageOrObject)) {
                 return new ErrorResponse()
                         .setHttpErrorCode(SC_BAD_REQUEST)
-                        .setErrorMessage(PAGE_MISSING)
+                        .setErrorMessage(NODE_PATH_NOT_FOUND)
                         .setRequestPath(path);
             }
 
@@ -104,110 +107,51 @@ public class ListPageTranslations extends AbstractBaseServlet {
             if (isEmpty(data)) {
                 return new ErrorResponse()
                         .setHttpErrorCode(SC_BAD_REQUEST)
-                        .setErrorMessage(PAGE_MISSING)
+                        .setErrorMessage(MODEL_PATH_NOT_FOUND)
                         .setRequestPath(path);
             }
 
             Map<String, List<String>> model = new HashMap<>();
             model.putAll(objectMapper.readValue(data, Map.class));
 
-            List<String> conditions = new ArrayList<>();
-            for (String translationRef : new ArrayList<>(model.keySet())) {
-                conditions.add("["+ PER_TRANSLATE_REF +"]='" + translationRef + "'");
+            String nodeType = pageOrObject.getPrimaryNodeType().toString();
+            List<Node> nodes = new ArrayList<>();
+
+            if (PER_PAGE.equals(nodeType)) {
+                List<String> conditions = new ArrayList<>();
+                for (String translationRef : new ArrayList<>(model.keySet())) {
+                    conditions.add("["+ PER_TRANSLATE_REF +"]='" + translationRef + "'");
+                }
+
+                // Find all page nodes flagged with "per:TranslateRef"
+                String statement =  "SELECT * from [nt:unstructured] as n " +
+                        "WHERE ("+ String.join(" OR ", conditions) +") " +
+                        "AND ISDESCENDANTNODE(n, '" + path + "/jcr:content')";
+
+                QueryManager queryManager = session.getWorkspace().getQueryManager();
+                Query query = queryManager.createQuery(statement, Query.JCR_SQL2);
+                QueryResult queryResult = query.execute();
+
+                NodeIterator nodeIterator = queryResult.getNodes();
+
+                while (nodeIterator.hasNext()) {
+                    Node node = nodeIterator.nextNode();
+                    nodes.add(node);
+                }
             }
-
-            // Find all page nodes flagged with "per:TranslateRef"
-            String statement =  "SELECT * from [nt:unstructured] as n " +
-                    "WHERE ("+ String.join(" OR ", conditions) +") " +
-                    "AND ISDESCENDANTNODE(n, '" + path + "/jcr:content')";
-
-            QueryManager queryManager = session.getWorkspace().getQueryManager();
-            Query query = queryManager.createQuery(statement, Query.JCR_SQL2);
-            QueryResult queryResult = query.execute();
-            NodeIterator nodes = queryResult.getNodes();
+            else if (PER_OBJECT.equals(nodeType)){
+                nodes.add(pageOrObject);
+            }
+            else {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(WRONG_NODE_TYPE)
+                        .setRequestPath(path);
+            }
 
             JsonResponse response = new JsonResponse();
-            ArrayNode foundNodes = objectMapper.createArrayNode();
-
-            while (nodes.hasNext()) {
-                Node node = nodes.nextNode();
-
-                ObjectNode objectNode = objectMapper.createObjectNode();
-                objectNode.put(PATH, node.getPath());
-
-                String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
-                objectNode.put(REFERENCE_NAME, translationRef);
-                List<String> properties = model.get(translationRef);
-
-                ObjectNode originalNode = objectMapper.createObjectNode();
-
-                // Find original properties based on the model
-                for (String propertyName : properties) {
-                    if (node.hasProperty(propertyName )) {
-                        Property property = node.getProperty(propertyName);
-
-                        // Look for single non-empty string values
-                        if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple()) {
-                            String value = property.getString();
-                            if (!isEmpty(value)) {
-                                originalNode.put(propertyName, value);
-                            }
-                        }
-                    }
-                }
-
-                // Skip empty nodes
-                if (originalNode.isEmpty()) {
-                    continue;
-                }
-
-                objectNode.set("original", originalNode);
-
-                // Find translated properties for each experience language
-                Resource resource = resourceResolver.getResource(node.getPath());
-                Resource experiences = resource.getChild("experiences");
-
-                if (!isNull(experiences)) {
-                    ObjectNode translationNode = objectMapper.createObjectNode();
-
-                    for (Resource experienceResource : experiences.getChildren()){
-                        ObjectNode langNode = objectMapper.createObjectNode();
-
-                        if (experienceResource.getName().startsWith(LANG_PREFIX)) {
-                            Node experienceNode = experienceResource.adaptTo(Node.class);
-
-                            // Get Timestamp
-                            if (experienceNode.hasProperty(PER_TRANSLATED_AT)) {
-                                langNode.put(PER_TRANSLATED_AT, experienceNode.getProperty(PER_TRANSLATED_AT).getString());
-                            }
-
-                            PropertyIterator propertyIterator = experienceNode.getProperties();
-                            while (propertyIterator.hasNext()) {
-                                Property property = propertyIterator.nextProperty();
-                                String propertyName = property.getName();
-
-                                // Look for single non-empty string values
-                                if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple() && !EXCLUDED_PROPERTIES.contains(propertyName)) {
-                                    String value = property.getString();
-                                    if (!isEmpty(value)) {
-                                        langNode.put(propertyName, value);
-                                    }
-                                }
-                            }
-
-                            // Remove lang prefix from lang
-                            String lang = experienceResource.getName().substring(LANG_PREFIX.length());
-                            translationNode.set(lang, langNode);
-                        }
-                    }
-
-                    objectNode.set("translations", translationNode);
-                }
-
-                foundNodes.add(objectNode);
-            }
-
-            response.writeAttributeRaw("nodes", objectMapper.writeValueAsString(foundNodes));
+            ArrayNode translationNodes = getTranslationNodes(nodes, model, resourceResolver);
+            response.writeAttributeRaw("nodes", objectMapper.writeValueAsString(translationNodes));
 
             return response;
         }
@@ -217,5 +161,87 @@ public class ListPageTranslations extends AbstractBaseServlet {
                     .setErrorMessage(e.getMessage())
                     .setException(e);
         }
+    }
+
+    private ArrayNode getTranslationNodes(List<Node> nodes, Map<String, List<String>> model, ResourceResolver resourceResolver) throws RepositoryException {
+        ArrayNode foundNodes = objectMapper.createArrayNode();
+
+        for (Node node : nodes) {
+            ObjectNode objectNode = objectMapper.createObjectNode();
+            objectNode.put(PATH, node.getPath());
+
+            String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
+            objectNode.put(REFERENCE_NAME, translationRef);
+            List<String> properties = model.get(translationRef);
+
+            ObjectNode originalNode = objectMapper.createObjectNode();
+
+            // Find original properties based on the model
+            for (String propertyName : properties) {
+                if (node.hasProperty(propertyName )) {
+                    Property property = node.getProperty(propertyName);
+
+                    // Look for single non-empty string values
+                    if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple()) {
+                        String value = property.getString();
+                        if (!isEmpty(value)) {
+                            originalNode.put(propertyName, value);
+                        }
+                    }
+                }
+            }
+
+            // Skip empty nodes
+            if (originalNode.isEmpty()) {
+                continue;
+            }
+
+            objectNode.set("original", originalNode);
+
+            // Find translated properties for each experience language
+            Resource resource = resourceResolver.getResource(node.getPath());
+            Resource experiences = resource.getChild("experiences");
+
+            if (!isNull(experiences)) {
+                ObjectNode translationNode = objectMapper.createObjectNode();
+
+                for (Resource experienceResource : experiences.getChildren()){
+                    ObjectNode langNode = objectMapper.createObjectNode();
+
+                    if (experienceResource.getName().startsWith(LANG_PREFIX)) {
+                        Node experienceNode = experienceResource.adaptTo(Node.class);
+
+                        // Get Timestamp
+                        if (experienceNode.hasProperty(PER_TRANSLATED_AT)) {
+                            langNode.put(PER_TRANSLATED_AT, experienceNode.getProperty(PER_TRANSLATED_AT).getString());
+                        }
+
+                        PropertyIterator propertyIterator = experienceNode.getProperties();
+                        while (propertyIterator.hasNext()) {
+                            Property property = propertyIterator.nextProperty();
+                            String propertyName = property.getName();
+
+                            // Look for single non-empty string values
+                            if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple() && !EXCLUDED_PROPERTIES.contains(propertyName)) {
+                                String value = property.getString();
+                                if (!isEmpty(value)) {
+                                    langNode.put(propertyName, value);
+                                }
+                            }
+                        }
+
+                        // Remove lang prefix from lang
+                        String lang = experienceResource.getName().substring(LANG_PREFIX.length());
+                        translationNode.set(lang, langNode);
+                    }
+                }
+
+                objectNode.set("translations", translationNode);
+            }
+
+            foundNodes.add(objectNode);
+        }
+
+        return foundNodes;
     }
 }
