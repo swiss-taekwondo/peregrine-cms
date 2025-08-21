@@ -34,7 +34,7 @@ public interface AdminPaths {
     String RESOURCE_TYPE_UPLOAD_FILES = API_PREFIX + "uploadFiles";
     String RESOURCE_TYPE_UPDATE_TENANT = API_PREFIX + "updateTenant";
     String RESOURCE_TYPE_LIST_TENANTS = API_PREFIX + "listTenants";
-    String RESOURCE_TYPE_LIST_PAGE_TRANSLATIONS = API_PREFIX + "listPageTranslations";
+    String RESOURCE_TYPE_LIST_TRANSLATIONS = API_PREFIX + "listTranslations";
     String RESOURCE_TYPE_BACKUP_TENANT = API_PREFIX + "backupTenant";
     String RESOURCE_TYPE_DOWNLOAD_BACKUP_TENANT = API_PREFIX + "downloadBackupTenant";
     String RESOURCE_TYPE_UPLOAD_BACKUP_TENANT = API_PREFIX + "uploadBackupTenant";

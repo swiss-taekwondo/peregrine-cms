@@ -43,7 +43,7 @@ import javax.servlet.Servlet;
 import java.io.IOException;
 import java.util.*;
 
-import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_LIST_PAGE_TRANSLATIONS;
+import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_LIST_TRANSLATIONS;
 import static com.peregrine.admin.util.AdminConstants.*;
 import static com.peregrine.commons.ResourceUtils.isPropertyAllowedOnExistingNode;
 import static com.peregrine.commons.util.PerConstants.*;
@@ -56,7 +56,7 @@ import static org.osgi.framework.Constants.SERVICE_DESCRIPTION;
 import static org.osgi.framework.Constants.SERVICE_VENDOR;
 
 /**
- * List Page translations experiences given a translation model.
+ * List translations experiences given a translation model.
  *
  * The API Definition can be found in the Swagger Editor configuration:
  *    ui.apps/src/main/content/jcr_root/perapi/definitions/admin.yaml
@@ -64,15 +64,15 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
 @Component(
     service = Servlet.class,
     property = {
-        SERVICE_DESCRIPTION + EQUALS + PER_PREFIX + "list page translations servlet",
+        SERVICE_DESCRIPTION + EQUALS + PER_PREFIX + "list translations servlet",
         SERVICE_VENDOR + EQUALS + PER_VENDOR,
         SLING_SERVLET_METHODS + EQUALS + POST,
-        SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_LIST_PAGE_TRANSLATIONS,
+        SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_LIST_TRANSLATIONS,
         SLING_SERVLET_SELECTORS + EQUALS + JSON
     }
 )
 @SuppressWarnings("serial")
-public class ListPageTranslations extends AbstractBaseServlet {
+public class ListTranslations extends AbstractBaseServlet {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 

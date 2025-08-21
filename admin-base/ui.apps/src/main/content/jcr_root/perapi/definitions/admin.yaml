@@ -696,14 +696,14 @@ paths:
           description: If the path did not resolve to a Node or if the translation failed
           schema:
             $ref: "#/definitions/Error"
-  '/listPageTranslations.json{path}':
+  '/listTranslations.json{path}':
     post:
-      description: List Page translations experiences given a translation model
+      description: List translations experiences given a translation model
       parameters:
         - name: path
           type: string
           in: path
-          description: The path to the Page to list translations
+          description: The path to the Node to list translations
           required: true
         - name: model
           type: object
@@ -716,7 +716,7 @@ paths:
           schema:
             type: object
         400:
-          description: If the path did not resolve to a Page
+          description: If the path did not resolve
           schema:
             $ref: "#/definitions/Error"
   '/insertNodeAt.json{path}':
