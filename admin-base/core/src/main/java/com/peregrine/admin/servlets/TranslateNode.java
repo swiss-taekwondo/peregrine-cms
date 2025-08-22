@@ -28,6 +28,7 @@ package com.peregrine.admin.servlets;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableSortedMap;
@@ -281,7 +282,7 @@ public class TranslateNode extends AbstractBaseServlet {
             response.writeAttribute("path", languageNode.getPath());
             return response;
         }
-        catch (RepositoryException | InterruptedException e) {
+        catch (RepositoryException | InterruptedException | MismatchedInputException e) {
             return new ErrorResponse()
                     .setHttpErrorCode(SC_BAD_REQUEST)
                     .setErrorMessage(e.getMessage())
