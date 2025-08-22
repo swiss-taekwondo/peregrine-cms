@@ -138,6 +138,8 @@ public class ListTranslations extends AbstractBaseServlet {
                     Node node = nodeIterator.nextNode();
                     nodes.add(node);
                 }
+
+                nodes.add(pageOrObject.getNode("jcr:content"));
             }
             else if (PER_OBJECT.equals(nodeType)){
                 nodes.add(pageOrObject);
