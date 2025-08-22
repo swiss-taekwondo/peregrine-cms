@@ -167,79 +167,81 @@ public class ListTranslations extends AbstractBaseServlet {
         ArrayNode foundNodes = objectMapper.createArrayNode();
 
         for (Node node : nodes) {
-            ObjectNode objectNode = objectMapper.createObjectNode();
-            objectNode.put(PATH, node.getPath());
+            if (node.hasProperty(PER_TRANSLATE_REF)) {
+                ObjectNode objectNode = objectMapper.createObjectNode();
+                objectNode.put(PATH, node.getPath());
 
-            String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
-            objectNode.put(REFERENCE_NAME, translationRef);
-            List<String> properties = model.get(translationRef);
+                String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
+                objectNode.put(REFERENCE_NAME, translationRef);
+                List<String> properties = model.get(translationRef);
 
-            ObjectNode originalNode = objectMapper.createObjectNode();
+                ObjectNode originalNode = objectMapper.createObjectNode();
 
-            // Find original properties based on the model
-            for (String propertyName : properties) {
-                if (node.hasProperty(propertyName )) {
-                    Property property = node.getProperty(propertyName);
+                // Find original properties based on the model
+                for (String propertyName : properties) {
+                    if (node.hasProperty(propertyName )) {
+                        Property property = node.getProperty(propertyName);
 
-                    // Look for single non-empty string values
-                    if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple()) {
-                        String value = property.getString();
-                        if (!isEmpty(value)) {
-                            originalNode.put(propertyName, value);
-                        }
-                    }
-                }
-            }
-
-            // Skip empty nodes
-            if (originalNode.isEmpty()) {
-                continue;
-            }
-
-            objectNode.set("original", originalNode);
-
-            // Find translated properties for each experience language
-            Resource resource = resourceResolver.getResource(node.getPath());
-            Resource experiences = resource.getChild("experiences");
-
-            if (!isNull(experiences)) {
-                ObjectNode translationNode = objectMapper.createObjectNode();
-
-                for (Resource experienceResource : experiences.getChildren()){
-                    ObjectNode langNode = objectMapper.createObjectNode();
-
-                    if (experienceResource.getName().startsWith(LANG_PREFIX)) {
-                        Node experienceNode = experienceResource.adaptTo(Node.class);
-
-                        // Get Timestamp
-                        if (experienceNode.hasProperty(PER_TRANSLATED_AT)) {
-                            langNode.put(PER_TRANSLATED_AT, experienceNode.getProperty(PER_TRANSLATED_AT).getString());
-                        }
-
-                        PropertyIterator propertyIterator = experienceNode.getProperties();
-                        while (propertyIterator.hasNext()) {
-                            Property property = propertyIterator.nextProperty();
-                            String propertyName = property.getName();
-
-                            // Look for single non-empty string values
-                            if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple() && !EXCLUDED_PROPERTIES.contains(propertyName)) {
-                                String value = property.getString();
-                                if (!isEmpty(value)) {
-                                    langNode.put(propertyName, value);
-                                }
+                        // Look for single non-empty string values
+                        if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple()) {
+                            String value = property.getString();
+                            if (!isEmpty(value)) {
+                                originalNode.put(propertyName, value);
                             }
                         }
-
-                        // Remove lang prefix from lang
-                        String lang = experienceResource.getName().substring(LANG_PREFIX.length());
-                        translationNode.set(lang, langNode);
                     }
                 }
 
-                objectNode.set("translations", translationNode);
-            }
+                // Skip empty nodes
+                if (originalNode.isEmpty()) {
+                    continue;
+                }
 
-            foundNodes.add(objectNode);
+                objectNode.set("original", originalNode);
+
+                // Find translated properties for each experience language
+                Resource resource = resourceResolver.getResource(node.getPath());
+                Resource experiences = resource.getChild("experiences");
+
+                if (!isNull(experiences)) {
+                    ObjectNode translationNode = objectMapper.createObjectNode();
+
+                    for (Resource experienceResource : experiences.getChildren()){
+                        ObjectNode langNode = objectMapper.createObjectNode();
+
+                        if (experienceResource.getName().startsWith(LANG_PREFIX)) {
+                            Node experienceNode = experienceResource.adaptTo(Node.class);
+
+                            // Get Timestamp
+                            if (experienceNode.hasProperty(PER_TRANSLATED_AT)) {
+                                langNode.put(PER_TRANSLATED_AT, experienceNode.getProperty(PER_TRANSLATED_AT).getString());
+                            }
+
+                            PropertyIterator propertyIterator = experienceNode.getProperties();
+                            while (propertyIterator.hasNext()) {
+                                Property property = propertyIterator.nextProperty();
+                                String propertyName = property.getName();
+
+                                // Look for single non-empty string values
+                                if (isPropertyAllowedOnExistingNode(propertyName) && !property.isMultiple() && !EXCLUDED_PROPERTIES.contains(propertyName)) {
+                                    String value = property.getString();
+                                    if (!isEmpty(value)) {
+                                        langNode.put(propertyName, value);
+                                    }
+                                }
+                            }
+
+                            // Remove lang prefix from lang
+                            String lang = experienceResource.getName().substring(LANG_PREFIX.length());
+                            translationNode.set(lang, langNode);
+                        }
+                    }
+
+                    objectNode.set("translations", translationNode);
+                }
+
+                foundNodes.add(objectNode);
+            }
         }
 
         return foundNodes;
