@@ -4,7 +4,7 @@ package com.peregrine.admin.servlets;
  * #%L
  * admin base - Core
  * %%
- * Copyright (C) 2017 headwire inc.
+ * Copyright (C) 2025 headwire inc.
  * %%
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -31,7 +31,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.collect.ImmutableSortedMap;
 import com.peregrine.commons.servlets.AbstractBaseServlet;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Activate;
@@ -103,6 +102,13 @@ public class TranslateNode extends AbstractBaseServlet {
                 required = false
         )
         String gemini_prompt() default "";
+
+        @AttributeDefinition(
+                name = "Language Map",
+                description = "Language Map Configuration. Format: ISO 639-1 language code = language name",
+                required = true
+        )
+        String[] language_map();
     }
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
@@ -116,18 +122,11 @@ public class TranslateNode extends AbstractBaseServlet {
     private static final String PROPERTIES_MISSING = "Properties missing";
     private static final String GEMINI_API_KEY_MISSING = "Gemini API Key missing";
 
-    // Supported ISO 639-1 language codes with their matching language names
-    private static final Map<String, String> LANGUAGE_MAP = ImmutableSortedMap.<String, String>naturalOrder()
-            .put("fr", "French")
-            .put("de", "German")
-            .put("it", "Italian")
-            .put("en", "English")
-            .build();
-
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String geminiAPIKey;
     private String geminiPrompt;
+    private Map<String, String> languageMap;
 
     @Override
     protected Response handleRequest(Request request) throws IOException {
@@ -147,7 +146,7 @@ public class TranslateNode extends AbstractBaseServlet {
 
             // Get language parameters
             String language = request.getParameter(LANG);
-            if (isEmpty(language) || LANGUAGE_MAP.get(language) == null) {
+            if (isEmpty(language) || languageMap.get(language) == null) {
                 return new ErrorResponse()
                         .setHttpErrorCode(SC_BAD_REQUEST)
                         .setErrorMessage(LANGUAGE_ERROR);
@@ -218,7 +217,7 @@ public class TranslateNode extends AbstractBaseServlet {
             ArrayNode parts = contentItem.putArray("parts");
 
             // Prompt
-            String prompt = "Translate the array in \""+ LANGUAGE_MAP.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\nReturn the translations as array of strings.If a translation is not possible,use empty string." + geminiPrompt;
+            String prompt = "Translate the array in \""+ languageMap.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\nReturn the translations as array of strings.If a translation is not possible,use empty string." + geminiPrompt;
             logger.info("Gemini Prompt: " + prompt);
             parts.addObject().put("text", prompt);
 
@@ -311,6 +310,15 @@ public class TranslateNode extends AbstractBaseServlet {
     private void setup(TranslateNode.Configuration configuration) {
         geminiAPIKey = configuration.gemini_api_key();
         geminiPrompt = configuration.gemini_prompt();
+
+        languageMap = new HashMap<>();
+        String[] languages = configuration.language_map();
+        for (String language : languages) {
+            String[] tokens = language.split("=");
+            if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
+                languageMap.put(tokens[0], tokens[1]);
+            }
+        }
     }
 }
 

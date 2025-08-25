@@ -4,7 +4,7 @@ package com.peregrine.admin.servlets;
  * #%L
  * admin base - Core
  * %%
- * Copyright (C) 2017 headwire inc.
+ * Copyright (C) 2025 headwire inc.
  * %%
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
