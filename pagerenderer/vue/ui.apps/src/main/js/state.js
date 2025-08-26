@@ -91,15 +91,14 @@ window.onclick = function(ev) {
 
 window.onpopstate = function(e){
     if(e.state) {
+      if (!e.state.path) {
+        location.reload();
+      }
         log.fine("ONPOPSTATE : " + e.state.path);
         $peregrineApp.loadContent(e.state.path, false, true)
     } else {
         log.warn(e);
-        if (document.location.pathname.startsWith("/protected/")) {
-          $peregrineApp.loadContent((document.location.href.replace(document.location.hash, "")), false, true);
-        } else {
-          $peregrineApp.loadContent((document.location? document.location.href : null), false, true);
-        }
+        $peregrineApp.loadContent((document.location? document.location.href : null), false, true)
     }
 }
 
