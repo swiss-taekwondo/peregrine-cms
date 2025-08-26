@@ -19,6 +19,7 @@ public interface AdminPaths {
     String RESOURCE_TYPE_GET_OBJECT = API_PREFIX + "getObject";
     String RESOURCE_TYPE_LIST_REPLICATION_STATUS = API_PREFIX + "listReplicationStatus";
     String RESOURCE_TYPE_INSERT_NODE = API_PREFIX + "insertNodeAt";
+    String RESOURCE_TYPE_TRANSLATE = API_PREFIX + "translateNode";
     String RESOURCE_TYPE_LIST = API_PREFIX + "list";
     String RESOURCE_TYPE_MOVE_NODE = API_PREFIX + "moveNodeTo";
     String RESOURCE_TYPE_MOVE = API_PREFIX + "move";
@@ -33,6 +34,7 @@ public interface AdminPaths {
     String RESOURCE_TYPE_UPLOAD_FILES = API_PREFIX + "uploadFiles";
     String RESOURCE_TYPE_UPDATE_TENANT = API_PREFIX + "updateTenant";
     String RESOURCE_TYPE_LIST_TENANTS = API_PREFIX + "listTenants";
+    String RESOURCE_TYPE_LIST_TRANSLATIONS = API_PREFIX + "listTranslations";
     String RESOURCE_TYPE_BACKUP_TENANT = API_PREFIX + "backupTenant";
     String RESOURCE_TYPE_DOWNLOAD_BACKUP_TENANT = API_PREFIX + "downloadBackupTenant";
     String RESOURCE_TYPE_UPLOAD_BACKUP_TENANT = API_PREFIX + "uploadBackupTenant";
