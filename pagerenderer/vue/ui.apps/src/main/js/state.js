@@ -95,7 +95,11 @@ window.onpopstate = function(e){
         $peregrineApp.loadContent(e.state.path, false, true)
     } else {
         log.warn(e);
-        $peregrineApp.loadContent((document.location? document.location.href : null), false, true)
+        if (document.location.pathname.startsWith("/protected/")) {
+          $peregrineApp.loadContent((document.location.href.replace(document.location.hash, "")), false, true);
+        } else {
+          $peregrineApp.loadContent((document.location? document.location.href : null), false, true);
+        }
     }
 }
 
