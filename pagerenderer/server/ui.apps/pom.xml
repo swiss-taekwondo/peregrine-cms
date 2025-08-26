@@ -150,7 +150,7 @@
                 <artifactId>wcmio-content-package-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
-                    <serviceURL>http://${sling.host}:${sling.port}/bin/cpm/package.service.html</serviceURL>
+                    <serviceURL>${sling.origin}/bin/cpm/package.service.html</serviceURL>
                     <userId>${sling.user}</userId>
                     <password>${sling.password}</password>
                     <failOnMissingEmbed>true</failOnMissingEmbed>

@@ -44,8 +44,7 @@
     -->
 
     <properties>
-        <sling.host>localhost</sling.host>
-        <sling.port>8080</sling.port>
+        <sling.origin>http://localhost:8080</sling.origin>
         <sling.user>admin</sling.user>
         <sling.password>admin</sling.password>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -166,7 +165,7 @@
                 <artifactId>wcmio-content-package-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
-                    <!--<serviceURL>http://${sling.host}:${sling.port}/bin/cpm/</serviceURL>-->
+                    <!--<serviceURL>${sling.origin}/bin/cpm/</serviceURL>-->
                     <userId>${sling.user}</userId>
                     <password>${sling.password}</password>
                     <failOnMissingEmbed>true</failOnMissingEmbed>

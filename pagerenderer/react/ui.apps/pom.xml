@@ -92,7 +92,7 @@
             <artifactId>frontend-maven-plugin</artifactId>
                 <configuration>
                     <installDirectory>${nodepath}</installDirectory>
-                </configuration> 
+                </configuration>
             <executions>
                 <execution>
                     <id>install node and npm</id>
@@ -148,7 +148,7 @@
                 <artifactId>wcmio-content-package-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
-                    <!--<serviceURL>http://${sling.host}:${sling.port}/bin/cpm/package.service.html</serviceURL>-->
+                    <!--<serviceURL>${sling.origin}/bin/cpm/package.service.html</serviceURL>-->
                     <userId>${sling.user}</userId>
                     <password>${sling.password}</password>
                     <failOnMissingEmbed>true</failOnMissingEmbed>

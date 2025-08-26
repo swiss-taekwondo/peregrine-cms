@@ -33,8 +33,7 @@
     <description>Peregrine React Page Renderer Parent POM</description>
 
     <properties>
-        <sling.host>localhost</sling.host>
-        <sling.port>8080</sling.port>
+        <sling.origin>http://localhost:8080</sling.origin>
         <sling.user>admin</sling.user>
         <sling.password>admin</sling.password>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

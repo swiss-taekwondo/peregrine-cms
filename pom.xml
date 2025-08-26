@@ -19,8 +19,7 @@
     <properties>
         <node.version>v12.18.3</node.version>
 
-        <sling.host>localhost</sling.host>
-        <sling.port>8080</sling.port>
+        <sling.origin>http://localhost:8080</sling.origin>
         <sling.user>admin</sling.user>
         <sling.password>admin</sling.password>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -177,7 +176,7 @@
                 <artifactId>wcmio-content-package-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
-                    <serviceURL>http://${sling.host}:${sling.port}/bin/cpm/package.service.html</serviceURL>
+                    <serviceURL>${sling.origin}/bin/cpm/package.service.html</serviceURL>
                     <userId>${sling.user}</userId>
                     <password>${sling.password}</password>
                     <failOnMissingEmbed>true</failOnMissingEmbed>
@@ -322,7 +321,7 @@
                     <artifactId>maven-sling-plugin</artifactId>
                     <version>${org.apache.sling.commons.testing.version}</version>
                     <configuration>
-                        <slingUrl>http://${sling.host}:${sling.port}/system/console</slingUrl>
+                        <slingUrl>${sling.origin}/system/console</slingUrl>
                         <user>${sling.user}</user>
                         <password>${sling.password}</password>
                     </configuration>
@@ -940,7 +939,7 @@
         <profile>
             <id>autoInstallPackage</id>
             <properties>
-                <targetServiceUrl>http://${sling.host}:${sling.port}/bin/cpm/package.service.html</targetServiceUrl>
+                <targetServiceUrl>${sling.origin}/bin/cpm/package.service.html</targetServiceUrl>
             </properties>
             <build>
                 <plugins>

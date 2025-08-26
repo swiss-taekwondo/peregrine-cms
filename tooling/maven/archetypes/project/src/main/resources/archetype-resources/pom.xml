@@ -49,8 +49,7 @@
     -->
 
     <properties>
-        <sling.host>${slingHostName}</sling.host>
-        <sling.port>${slingPort}</sling.port>
+        <sling.origin>${slingOrigin}</sling.origin>
         <sling.user>admin</sling.user>
         <sling.password>admin</sling.password>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -172,7 +171,7 @@
                 <extensions>true</extensions>
                 <configuration>
                     <!-- AS TODO: Shall we split that into a Package Install for Sling and AEM ? -->
-                    <serviceURL>http://${sling.host}:${sling.port}/bin/cpm/</serviceURL>
+                    <serviceURL>${sling.origin}/bin/cpm/</serviceURL>
                     <userId>${sling.user}</userId>
                     <password>${sling.password}</password>
                     <failOnMissingEmbed>true</failOnMissingEmbed>
