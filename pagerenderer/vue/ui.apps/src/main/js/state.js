@@ -91,6 +91,9 @@ window.onclick = function(ev) {
 
 window.onpopstate = function(e){
     if(e.state) {
+      if (!e.state.path) {
+        location.reload();
+      }
         log.fine("ONPOPSTATE : " + e.state.path);
         $peregrineApp.loadContent(e.state.path, false, true)
     } else {
