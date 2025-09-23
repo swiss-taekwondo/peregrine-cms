@@ -419,6 +419,12 @@ var peregrineApp = {
         return (domains.indexOf(server) >= 0)
     },
 
+    isBetaSite() {
+      const server = window.location.protocol + '//' + window.location.hostname;
+      const domains = (getPerView().page.domains || []).slice(1);
+      return (domains.indexOf(server) >= 0)
+    },
+
     setLanguage(lang) {
       window.localStorage.lang = lang;
       window.location.reload();
