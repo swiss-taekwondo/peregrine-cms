@@ -256,17 +256,9 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
           updateMetaName("robots", getPerView().page.metaRobots);
           updateOpenGraph();
 
-          var domains = (getPerView().page.domains);
           var newLocation = path;
-          if (domains) {
-            for (var i = 0; i < domains.length; i++) {
-              var domain = domains[i];
-              // if the URL matches the desired domain, and the domain does not include a path
-              if (window.location.origin === domain) {
-                newLocation = newLocation.replace($peregrineSiteRoot, "");
-                break
-              }
-            }
+          if (peregrineApp.isPublicFacingSite()) {
+            newLocation = newLocation.replace($peregrineSiteRoot, "");
           }
 
           if (window.location.hash) {
