@@ -22,16 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
-import static com.peregrine.commons.util.PerConstants.ACTIVATED;
-import static com.peregrine.commons.util.PerConstants.CONTENT_ROOT;
-import static com.peregrine.commons.util.PerConstants.DEACTIVATED;
-import static com.peregrine.commons.util.PerConstants.FELIBS_ROOT;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATED;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATED_BY;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATION;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATION_LAST_ACTION;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATION_REF;
-import static com.peregrine.commons.util.PerConstants.SLASH;
+import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.getModifiableProperties;
 import static com.peregrine.commons.util.PerUtil.isJcrContent;
 import static com.peregrine.commons.util.PerUtil.isNotEmpty;
@@ -70,8 +61,13 @@ public final class ReplicationUtil {
     public static boolean supportsReplicationProperties(Resource resource) {
         boolean answer = false;
         Node sourceNode = resource.adaptTo(Node.class);
-        List<String> replicationPrimaries = getReplicationPrimaryNodeTypes(sourceNode);
         try {
+            if (sourceNode.getPrimaryNodeType().toString().equals(NT_RESOURCE)) {
+                return true;
+            }
+
+            List<String> replicationPrimaries = getReplicationPrimaryNodeTypes(sourceNode);
+
             if(replicationPrimaries != null) {
                 answer = replicationPrimaries.contains(sourceNode.getPrimaryNodeType().getName());
             }
