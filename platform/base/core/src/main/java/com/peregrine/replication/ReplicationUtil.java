@@ -63,13 +63,13 @@ public final class ReplicationUtil {
         Node sourceNode = resource.adaptTo(Node.class);
         try {
             if (sourceNode.getPrimaryNodeType().toString().equals(NT_RESOURCE)) {
-                return true;
+                answer = true;
             }
-
-            List<String> replicationPrimaries = getReplicationPrimaryNodeTypes(sourceNode);
-
-            if(replicationPrimaries != null) {
-                answer = replicationPrimaries.contains(sourceNode.getPrimaryNodeType().getName());
+            else {
+                List<String> replicationPrimaries = getReplicationPrimaryNodeTypes(sourceNode);
+                if(replicationPrimaries != null) {
+                    answer = replicationPrimaries.contains(sourceNode.getPrimaryNodeType().getName());
+                }
             }
         } catch(RepositoryException e) {
             LOGGER.warn("Failed to check Primary Node Type for Replication support -> ignore that", e);
