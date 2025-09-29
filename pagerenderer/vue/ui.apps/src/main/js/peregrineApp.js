@@ -256,7 +256,7 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
           updateMetaName("robots", getPerView().page.metaRobots);
           updateOpenGraph();
 
-          var newLocation = window?.hiddenPaths?.includes(path) ? window.location.pathname : path;
+          var newLocation = (window.hiddenPaths && typeof window.hiddenPaths.includes === 'function' && window.hiddenPaths.includes(path)) ? window.location.pathname : path;
           if (peregrineApp.isPublicFacingSite() || peregrineApp.isBetaSite()) {
             newLocation = newLocation.replace($peregrineSiteRoot, "");
           }
