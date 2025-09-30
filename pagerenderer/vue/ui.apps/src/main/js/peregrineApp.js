@@ -257,7 +257,7 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
           updateOpenGraph();
 
           var newLocation = (peregrineApp.hiddenPaths.includes(path)) ? window.location.pathname : path;
-          if (peregrineApp.isPublicFacingSite() || peregrineApp.isBetaSite()) {
+          if (peregrineApp.isPublicFacingSite() || peregrineApp.isBetaSite() || peregrineApp.isAlphaSite()) {
             newLocation = newLocation.replace($peregrineSiteRoot, "");
           }
 
@@ -423,6 +423,12 @@ var peregrineApp = {
     isBetaSite() {
       const server = window.location.protocol + '//' + window.location.hostname;
       const domains = (getPerView().page.domains || []).slice(1);
+      return (domains.indexOf(server) >= 0);
+    },
+
+    isAlphaSite() {
+      const server = window.location.protocol + '//' + window.location.hostname;
+      const domains = (getPerView().page.domains || []).slice(2);
       return (domains.indexOf(server) >= 0);
     },
 
