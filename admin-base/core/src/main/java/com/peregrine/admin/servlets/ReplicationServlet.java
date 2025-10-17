@@ -13,9 +13,9 @@ package com.peregrine.admin.servlets;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,6 +28,7 @@ package com.peregrine.admin.servlets;
 import com.peregrine.admin.resource.AdminResourceHandler;
 import com.peregrine.commons.util.PerConstants;
 import com.peregrine.commons.util.PerUtil;
+import com.peregrine.replication.PerReplicable;
 import com.peregrine.replication.Replication;
 import com.peregrine.replication.Replication.ReplicationException;
 import com.peregrine.replication.ReplicationUtil;
@@ -37,23 +38,25 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.jcr.*;
+import javax.jcr.query.Query;
+import javax.jcr.query.QueryManager;
+import javax.jcr.query.QueryResult;
+import javax.jcr.version.Version;
+import javax.jcr.version.VersionHistory;
+import javax.jcr.version.VersionManager;
 import javax.servlet.Servlet;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_DO_REPLICATION;
-import static com.peregrine.commons.util.PerUtil.EQUALS;
-import static com.peregrine.commons.util.PerUtil.PER_PREFIX;
-import static com.peregrine.commons.util.PerUtil.PER_VENDOR;
-import static com.peregrine.commons.util.PerUtil.POST;
-import static com.peregrine.commons.util.PerUtil.listMissingResources;
+import static com.peregrine.commons.util.PerConstants.*;
+import static com.peregrine.commons.util.PerUtil.*;
 import static java.lang.Boolean.parseBoolean;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_METHODS;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_RESOURCE_TYPES;
@@ -85,6 +88,8 @@ public final class ReplicationServlet extends ReplicationServletBase {
     public static final String DEACTIVATE = "deactivate";
     public static final String RESOURCES = "resources";
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+
     @Reference
     private ReplicationsContainerWithDefault replications;
 
@@ -101,7 +106,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
             final Request request,
             final Resource resource,
             final ResourceResolver resourceResolver
-    ) throws IOException, ReplicationException {
+    ) throws IOException, ReplicationException, RepositoryException {
         if (parseBoolean(request.getParameter(DEACTIVATE))) {
             return performDeactivation(replication, resource);
         }
@@ -120,15 +125,96 @@ public final class ReplicationServlet extends ReplicationServletBase {
         }
 
         toBeReplicated = replication.prepare(toBeReplicated);
+        List<String> toBeReplicatedPaths = new ArrayList<>();
         streamReplicableResources(toBeReplicated)
                 .map(Resource::getPath)
                 .forEach(p -> {
                     try {
                         resourceManagement.createVersion(resourceResolver, p, PerConstants.PUBLISHED_LABEL);
+                        toBeReplicatedPaths.add(p);
                     } catch (final AdminResourceHandler.ManagementException e) {
                         logger.trace("Unable to create a version for path: {} ", p, e);
                     }
                 });
+
+        String resourceType = resource.getResourceType();
+
+        // per:Page OR per:Object -> republish all pages (except published above) with label "Draft" or "Published"
+        if (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE)) {
+            Workspace workspace = resourceResolver.adaptTo(Session.class).getWorkspace();
+            QueryManager queryManager = workspace.getQueryManager();
+            VersionManager versionManager = workspace.getVersionManager();
+
+            String tenant = getTenantNameFromResource(resource);
+
+            // Find all pages
+            String pages = "/"+ CONTENT +"/"+ tenant +"/" + PAGES;
+
+            String statement =  "select * from [per:PageContent] as r " +
+                    "where ISDESCENDANTNODE(r, '"+ pages +"')";
+            Query query = queryManager.createQuery(statement, Query.JCR_SQL2);
+            QueryResult queryResult = query.execute();
+
+            List<Resource> publishedReferences = new ArrayList<>();
+            List<Resource> draftReferences = new ArrayList<>();
+            NodeIterator nodeIterator = queryResult.getNodes();
+            String draftLabel = "Draft";
+
+            while (nodeIterator.hasNext()) {
+                Node node = nodeIterator.nextNode();
+                String nodePath = node.getPath();
+
+                if (toBeReplicatedPaths.contains(nodePath)) {
+                    continue;
+                }
+
+                // Ignore specific folders
+                if (!nodePath.startsWith(pages + "/css") &&
+                        !nodePath.startsWith(pages + "/js") &&
+                        !nodePath.startsWith(pages + "/skeleton-pages")) {
+
+                    Resource pageContent = resourceResolver.getResource(nodePath);
+                    PerReplicable replicable = pageContent.adaptTo(PerReplicable.class);
+
+                    if (replicable.isReplicated()) {
+                        // Create a Draft version to restore the latest changes after publishing
+                        if (replicable.isStale()) {
+                            VersionHistory versionHistory = versionManager.getVersionHistory(nodePath);
+
+                            if (versionManager.isCheckedOut(nodePath)){
+                                Version draftVersion = versionManager.checkin(nodePath);
+                                versionManager.checkout(nodePath);
+                                versionHistory.addVersionLabel(draftVersion.getName(), draftLabel, true);
+
+                                logger.warn("Draft version created for {} at {}", nodePath, draftVersion.getFrozenNode().getPath());
+
+                                // Checkout Published version for publishing
+                                versionManager.restore(versionHistory.getVersionByLabel(PUBLISHED_LABEL), true);
+                                versionManager.checkout(nodePath);
+
+                                draftReferences.add(resourceResolver.getResource(pageContent.getParent().getPath()));
+                            }
+                        }
+                        else {
+                            publishedReferences.add(pageContent.getParent());
+                        }
+                    }
+                }
+            }
+
+            // Publish page references
+            replication.replicate(draftReferences);
+            replication.replicate(publishedReferences);
+
+            // Restore Draft versions
+            for (Resource pageResource : draftReferences) {
+                String contentPath = pageResource.getChild(JCR_CONTENT).getPath();
+                VersionHistory versionHistory = versionManager.getVersionHistory(contentPath);
+                versionManager.restore(versionHistory.getVersionByLabel(draftLabel), true);
+                versionManager.checkout(contentPath);
+            }
+        }
+
         return prepareResponse(resource, replication.replicate(toBeReplicated));
     }
 

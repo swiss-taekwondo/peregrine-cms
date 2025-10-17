@@ -539,14 +539,32 @@ class PerAdminImpl {
 
   populateReferencedBy(path, sameTenant = false) {
     return fetchRef('refBy', path, sameTenant)
-        .then((data) => populateView('/state', 'referencedBy', data))
+        .then((data) => {
+          if (sameTenant && data.referencedBy && Array.isArray(data.referencedBy)) {
+            data.referencedBy = data.referencedBy.filter(reference => reference.path !== path && !reference.activated || reference.activated && reference.is_stale)
+          }
+
+          populateView('/state', 'referencedBy', data)
+        })
   }
 
   populateReferences(path, sameTenant = false) {
     return new Promise((resolve, reject) => {
       fetchRef('ref', path, sameTenant)
-          .then(function (result) {
-            populateView('/state', 'references', result)
+          .then(function (data) {
+            if (sameTenant && data.references && Array.isArray(data.references)) {
+              data.references = data.references.filter(reference => reference.path !== path && !reference.activated || reference.activated && reference.is_stale)
+
+              const tenant = $perAdminApp.getView().state.tenant.name;
+              if (path.startsWith(`/content/${tenant}/pages/`) || path.startsWith(`/content/${tenant}/templates/`) || path.startsWith(`/content/${tenant}/objects/`)) {
+                const ignoredTypes = ['per:Page', 'sling:OrderedFolder', 'per:Object', 'per:ObjectDefinition', 'admin/objects/tag'];
+                data.references = data.references.filter(reference => !ignoredTypes.includes(reference.type));
+              }
+              else if (path.startsWith(`/content/${tenant}/assets/`) || path.startsWith(`/content/${tenant}/object-definitions/`)) {
+                data.references = [];
+              }
+            }
+            populateView('/state', 'references', data)
                 .then(() => resolve())
           })
           .catch(error => {
