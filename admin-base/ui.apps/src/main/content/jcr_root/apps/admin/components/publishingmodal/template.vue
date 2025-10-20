@@ -148,7 +148,7 @@ export default {
                     references: referencesToRepl
                 }
                 $perAdminApp.stateAction('publish', target)
-                $perAdminApp.notifyUser('Please wait', 'The publishing process is ongoing. You will be notified once it is completed.')
+                $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success")
             }
             this.close()
         },
