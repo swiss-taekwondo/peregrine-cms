@@ -541,7 +541,7 @@ class PerAdminImpl {
     return fetchRef('refBy', path, sameTenant)
         .then((data) => {
           if (sameTenant && data.referencedBy && Array.isArray(data.referencedBy)) {
-            data.referencedBy = data.referencedBy.filter(reference => reference.path !== path && !reference.activated || reference.activated && reference.is_stale)
+            data.referencedBy = data.referencedBy.filter(reference => reference.path !== path && !reference.path.includes('/experiences/lang_') && !reference.activated || reference.activated && reference.is_stale)
           }
 
           populateView('/state', 'referencedBy', data)
@@ -553,7 +553,7 @@ class PerAdminImpl {
       fetchRef('ref', path, sameTenant)
           .then(function (data) {
             if (sameTenant && data.references && Array.isArray(data.references)) {
-              data.references = data.references.filter(reference => reference.path !== path && !reference.activated || reference.activated && reference.is_stale)
+              data.references = data.references.filter(reference => reference.path !== path && !reference.path.includes('/experiences/lang_') && !reference.activated || reference.activated && reference.is_stale)
 
               const tenant = $perAdminApp.getView().state.tenant.name;
               if (path.startsWith(`/content/${tenant}/pages/`) || path.startsWith(`/content/${tenant}/templates/`) || path.startsWith(`/content/${tenant}/objects/`)) {
