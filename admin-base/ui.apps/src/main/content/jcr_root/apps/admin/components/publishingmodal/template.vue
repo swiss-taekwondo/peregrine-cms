@@ -147,15 +147,8 @@ export default {
                     path: this.path,
                     references: referencesToRepl
                 }
-                $perAdminApp.stateAction('publish', target)
-
-                setTimeout(() => {
-                  const waitMask = document.getElementById('waitMask');
-                  if (waitMask) {
-                    waitMask.style.display = 'none';
-                  }
-                  $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success")
-                }, 500);
+                $perAdminApp.stateAction('publish', target, true)
+                $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success")
             }
             this.close()
         },

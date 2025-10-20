@@ -593,9 +593,10 @@ function exitWaitState() {
  * @private
  * @param name
  * @param target
+ * @param skipWait
  */
-function stateActionImpl(name, target) {
-  enterWaitState();
+function stateActionImpl(name, target, skipWait) {
+  if (!skipWait) enterWaitState();
   return new Promise((resolve, reject) => {
     runBeforeStateActions(name).then(() => {
       try {
@@ -603,7 +604,7 @@ function stateActionImpl(name, target) {
         const action = stateAction($perAdminApp, target);
         Promise.resolve(action)
           .then((result) => {
-            exitWaitState();
+            if (!skipWait) exitWaitState();
             if (
               result &&
               typeof result === 'string' &&
@@ -616,12 +617,12 @@ function stateActionImpl(name, target) {
             }
           })
           .catch((error) => {
-            exitWaitState();
+            if (!skipWait) exitWaitState();
             notifyUserImpl('error', error);
             reject();
           });
       } catch (error) {
-        exitWaitState();
+        if (!skipWait) exitWaitState();
         reject(error);
       }
     });
@@ -1043,9 +1044,10 @@ var PerAdminApp = {
    * @method
    * @param name
    * @param target
+   * @param skipWait
    */
-  stateAction(name, target) {
-    return stateActionImpl(name, target);
+  stateAction(name, target, skipWait) {
+    return stateActionImpl(name, target, skipWait);
   },
 
   /**
