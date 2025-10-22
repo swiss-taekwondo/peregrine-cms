@@ -977,6 +977,11 @@ paths:
             type: array
             items:
               $ref: '#/definitions/ReplResource'
+        - name: draft
+          type: boolean
+          in: formData
+          description: flag indicating if page references should be published and drafted
+          required: false
       responses:
         200:
           description: returns the root node name / path and the list of the nodes referenced
