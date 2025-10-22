@@ -112,6 +112,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         }
 
         final boolean deep = parseBoolean(request.getParameter("deep"));
+        final boolean draft = parseBoolean(request.getParameter("draft"));
         final PerUtil.ResourceChecker tenantChecker = new ReplicationUtil.TenantOwnedResourceChecker(resource);
         List<Resource> toBeReplicated = listMissingResources(resource, tenantChecker, deep, new LinkedList<>());
         for (final Resource r : Optional.of(RESOURCES)
@@ -140,7 +141,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         String resourceType = resource.getResourceType();
 
         // per:Page OR per:Object -> republish all pages (except published above) with label "Draft" or "Published"
-        if (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE)) {
+        if (draft && (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE))) {
             Workspace workspace = resourceResolver.adaptTo(Session.class).getWorkspace();
             QueryManager queryManager = workspace.getQueryManager();
             VersionManager versionManager = workspace.getVersionManager();
