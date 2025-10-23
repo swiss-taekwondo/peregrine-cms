@@ -420,14 +420,11 @@ export function addStyleClassToVisibleFields(schema, model) {
             
             if (!field.foundModel) {
               field.foundModel = model;
-            } else {
-              field.model = Object.assign({}, field.model, model);
             }
 
             if (field.cssVisible !== undefined) {
               const result = safeEval(field.cssVisible, field.foundModel);
               field.styleClasses = result ? '' : 'hidden';
-              console.log(field, field.foundModel.type, field.foundModel.showicons, result, field.foundModel, this)
             }
           });
         }
