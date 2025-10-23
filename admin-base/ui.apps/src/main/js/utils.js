@@ -365,13 +365,13 @@ export function isMac() {
 }
 
 export function addStyleClassToVisibleFields(schema, model) {
-  const safeEval = (expr, model) => {
-    if (typeof expr !== 'string') return true;
+  const safeEval = function (expr, model) {
+    if (typeof expr !== 'string') { return true; }
   
     const fixed = expr
       .replace(/\band\b/g, '&&')
       .replace(/\bor\b/g, '||')
-      .replace(/\bnot\b/g, '!')
+      .replace(/\bnot\b/g, '!');
   
     try {
       return Function("model", '"use strict"; return (' + fixed + ')')(model);
@@ -381,12 +381,12 @@ export function addStyleClassToVisibleFields(schema, model) {
     }
   };
 
-  const deepClone = (obj) => {
-    if (obj === null || typeof obj !== 'object') return obj;
+  const deepClone = function (obj) {
+    if (obj === null || typeof obj !== 'object') { return obj; }
   
     // Handle arrays
     if (Array.isArray(obj)) {
-      return obj.map(item => deepClone(item));
+      return obj.map(function (item) { return deepClone(item); });
     }
   
     // Handle objects
@@ -398,35 +398,41 @@ export function addStyleClassToVisibleFields(schema, model) {
       }
     }
     return clonedObj;
-  }
+  };
 
   const clone = deepClone(schema);
       
-      const process = (obj) => {
-        if (!obj) return;
+      const process = function (obj) {
+        if (!obj) { return; }
         
         // Process groups
         if (obj.groups) {
-          obj.groups.forEach(group => process(group));
+          obj.groups.forEach(function (group) { return process(group); });
         }
         
         // Process fields
         if (obj.fields) {
-          obj.fields.forEach(field => {
+          obj.fields.forEach(function (field) {
             // Handles nested fields
             if (field.fields) {
               process(field);
             }
-
-            if (field.visible !== undefined) {
-              const result = safeEval(field.visible, model);
-              field.styleClasses = result ? '' : 'hidden';
+            
+            if (!field.foundModel) {
+              field.foundModel = model;
+            } else {
+              field.model = Object.assign({}, field.model, model);
             }
-          })
+
+            if (field.cssVisible !== undefined) {
+              const result = safeEval(field.cssVisible, field.foundModel);
+              field.styleClasses = result ? '' : 'hidden';
+              console.log(field, field.foundModel.type, field.foundModel.showicons, result, field.foundModel, this)
+            }
+          });
         }
-      }
+      };
       
   process(clone);
   return clone;
 }
-
