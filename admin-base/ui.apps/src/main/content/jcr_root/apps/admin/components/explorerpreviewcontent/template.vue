@@ -729,7 +729,7 @@ export default {
       this.$refs.renameModal.close()
     },
     onReady (event) {
-      this.formmodel.name = this.node.name
+      this.formmodel.name = this.nodeName || this.node.name
       this.formmodel.title = this.node.title
     },
 
@@ -797,7 +797,7 @@ export default {
     renameNode() {
       // initialize with existing values
       if (this.formmodel && !this.formmodel.title) this.formmodel.title = this.node.title
-      if (this.formmodel && !this.formmodel.name) this.formmodel.name = this.node.name
+      if (this.formmodel && !this.formmodel.name) this.formmodel.name = this.nodeName || this.node.name
       this.checkActivationStatusAndPerform(() => {
         this.$refs.renameModal.open();
         this.$nextTick(() => {
