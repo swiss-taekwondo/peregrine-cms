@@ -29,6 +29,9 @@ let log = LoggerFactory.logger('renameObject').setLevelDebug()
 export default function(me, target) {
 
     log.fine(target)
+  console.log('target',target)
+  debugger
+
     var api = me.getApi()
     return new Promise( (resolve, reject) => {
         api.renameObject(target.path, target.name).then( () => {

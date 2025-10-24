@@ -10,12 +10,17 @@ import java.util.List;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Created by Andreas Schaefer on 6/22/17.
@@ -28,6 +33,7 @@ public class ResourceRelocationService
     implements ResourceRelocation
 {
 
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
     public static final String FROM_RESOURCE_MUST_BE_SPECIFIED = "From Resource must be specified";
     public static final String NEW_NAME_MUST_BE_SPECIFIED = "New Name must be specified";
     public static final String PARENT_RESOURCE_MUST_BE_SPECIFIED = "Parent Resource must be specified";
@@ -155,18 +161,28 @@ public class ResourceRelocationService
         String fromName = from.getName();
         String newPath = parent.getPath() + SLASH + newName;
         // If the Node has a Content with a JCR Title which matches the original name then change that as well
-        ModifiableValueMap properties = PerUtil.getModifiableProperties(from);
+        log.error("testlog: {}, {}, {}, {}", fromPath, newPath, fromName, newName);
+        ModifiableValueMap properties = PerUtil.getModifiablePropertiesFallback(from);
+        // ModifiableValueMap properties = from.adaptTo(ModifiableValueMap.class);
         if(properties != null) {
+            log.warn("if-test");
             String title = properties.get(JCR_TITLE, String.class);
             if(fromName.equals(title)) {
                 properties.put(JCR_TITLE, newName);
             }
+            properties.put("jcr:title", newName);
+            properties.put("name", newName);
         }
         fromNode.getSession().move(fromPath, newPath);
         if(nextNode != null) {
             fromNodeParent.orderBefore(newName, nextNode.getName());
         }
         Resource answer = parent.getChild(newName);
+        // Update 'name' property if it exists
+        // ModifiableValueMap newProps = PerUtil.getModifiableProperties(answer);
+        // if(newProps != null) {
+        //     newProps.put("name", newName);
+        // }
         // Update the references
         for(com.peregrine.reference.Reference reference : references) {
             Resource propertyResource = reference.getPropertyResource();

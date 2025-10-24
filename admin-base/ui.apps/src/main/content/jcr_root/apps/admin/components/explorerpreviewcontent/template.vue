@@ -239,7 +239,7 @@
           </div>
           <div v-if="allowRename" :class="classForActionDisabledOnActivatedResource" :title="`rename ${nodeType}`" @click="renameNode()">
             <icon :lib="IconLib.MATERIAL_ICONS" icon="text_format"/>
-            <span>Rename {{ nodeType }}</span>
+            <span>Rename {{ nodeType }} testing</span>
           </div>
           <div v-if="allowMove" :class="classForActionDisabledOnActivatedResource" :title="`move ${nodeType}`" @click="moveNode()">
             <icon icon="compare_arrows"/>
@@ -735,6 +735,8 @@ export default {
 
     performRenameNode(newName) {
       const vm = this;
+      console.log('peerformrename', this.currentObject, newName, this.isEdit, this.uNodeType)
+      debugger
       $perAdminApp.stateAction(`rename${this.uNodeType}`, {
         path: this.currentObject,
         name: newName,
@@ -798,6 +800,7 @@ export default {
       // initialize with existing values
       if (this.formmodel && !this.formmodel.title) this.formmodel.title = this.node.title
       if (this.formmodel && !this.formmodel.name) this.formmodel.name = this.node.name
+      console.log('this.node.name',this.node.name, this.node.title)
       this.checkActivationStatusAndPerform(() => {
         this.$refs.renameModal.open();
         this.$nextTick(() => {

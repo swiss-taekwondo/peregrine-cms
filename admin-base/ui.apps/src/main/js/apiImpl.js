@@ -847,6 +847,7 @@ class PerAdminImpl {
   }
 
   renameObject(path, newName) {
+    // TODO: name property is not updated only path. Name is used for checks
     return new Promise((resolve, reject) => {
       let data = new FormData()
       data.append('to', newName)
@@ -1048,7 +1049,12 @@ class PerAdminImpl {
       return false
     } else {
       const nodes = $perAdminApp.getView().admin.nodes
-      const folder = $perAdminApp.findNodeFromPath(nodes, path)
+      let folder = $perAdminApp.findNodeFromPath(nodes, path)
+      if (!folder.hasChildren) {
+        // path likely includes filename
+        folder = $perAdminApp.findNodeFromPath(nodes, path.split('/').slice(0, -1).join('/'))
+        if (!folder.hasChildren) throw new Error("nameAvailable could not find folder")
+      }
       for (let i = 0; i < folder.children.length; i++) {
         if (folder.children[i].name === value) {
           return false

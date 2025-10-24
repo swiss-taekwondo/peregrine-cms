@@ -483,6 +483,19 @@ public class PerUtil {
     }
 
     /**
+     * Gets the Modifiable Value Map of a Resource's JCR Content, or the Resource.
+     *
+     * @param resource Resource to look for the properties
+     * @return The Modifiable Value Map of the Resource or JCR Content node
+     */
+    public static ModifiableValueMap getModifiablePropertiesFallback(Resource resource) {
+         return Optional.ofNullable(getJcrContent(resource))
+                .or(()-> Optional.ofNullable(resource))
+                .map(r -> r.adaptTo(ModifiableValueMap.class))
+                .orElse(null);
+    }
+
+    /**
      * Lists all the parent nodes between the child and the root if the root is one
      * of the child's parents. Both child and root and not included in the returned list
      * @param root
