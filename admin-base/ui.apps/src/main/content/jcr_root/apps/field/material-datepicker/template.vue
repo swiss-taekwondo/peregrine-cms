@@ -9,10 +9,10 @@
 			:disabled="!value || schema.readonly"
 			@click="clearValue"
 			type="button"
-			class="clear-button"
+			class="clear-button btn-flat"
 			title="Clear date"
 		>
-			<i class="material-icons">clear</i>
+			<i class="icon material-icons">delete</i>
 		</button>
 	</div>
 </template>
@@ -32,11 +32,21 @@
 		},
 		methods: {
 			clearValue() {
-        this.value = "";
+              this.value = "";
 			}
 		},
-    updated() {
-      console.log('updated', this, this.readOnly)
-    }
+        updated() {
+          console.log('updated', this, this.readonly)
+        }
 	}
 </script>
+
+<style scoped>
+.icon {
+  color: inherit;
+  width: 21px;
+}
+button {
+  height: 100%;
+}
+</style>
