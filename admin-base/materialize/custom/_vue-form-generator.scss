@@ -13,6 +13,7 @@
     input[type=tel]:not(.browser-default),
     input[type=number]:not(.browser-default),
     input[type=search]:not(.browser-default),
+    button.clear-button,
     textarea.materialize-textarea {
         // Disabled input style
         &:disabled,
@@ -243,6 +244,8 @@
             &.field-material-datepicker,
             &.field-material-datetime {
                 .vdatetime {
+                    flex: 1;
+
                     >* {
                         box-sizing: border-box;
                     }
@@ -250,6 +253,17 @@
                         border-bottom: 1px solid customColor("blue-grey", "lighten-4");
                         color: customColor("blue-grey", "darken-3");
                     }
+                }
+
+                .datetime-input-wrapper {
+                  display: flex;
+                }
+
+                .clear-button {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  color: customColor("blue-grey", "darken-3");
                 }
 
                 .vdatetime-fade-enter-active,
@@ -536,6 +550,14 @@
                             border-bottom: 1px solid #607d8b;
                             box-shadow: 0 1px 0 0 #607d8b;
                         }
+                        &[readonly="readonly"] {
+                            pointer-events: none;
+                            padding: 0;
+                            color: black;
+                            background: none;
+                            border: none;
+                            background-color: transparent;
+                        } 
 
                         a {
                             color: #2b6cb0
@@ -960,6 +982,7 @@
   }
 }
 
+p.text-editor[readonly="readonly"],
 input:read-only:not([type="range"]),
 input:disabled:not([type="range"]) {
     opacity: 0.5 !important;
