@@ -34,10 +34,7 @@
 			clearValue() {
               this.value = "";
 			}
-		},
-        updated() {
-          console.log('updated', this, this.readonly)
-        }
+		}
 	}
 </script>
 
