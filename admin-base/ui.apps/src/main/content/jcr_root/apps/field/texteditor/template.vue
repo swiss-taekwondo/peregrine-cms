@@ -124,6 +124,14 @@ export default {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
     }
+  },
+  watch: {
+    value() {
+      if (!this.value) return
+      const textCheckDiv = document.createElement('div')
+      textCheckDiv.innerHTML = this.value
+      if (!textCheckDiv.textContent.trim()) this.value = '';
+    }
   }
 }
 </script>
