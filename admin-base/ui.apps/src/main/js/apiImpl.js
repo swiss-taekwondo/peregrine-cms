@@ -346,126 +346,58 @@ class PerAdminImpl {
 
             let promises = []
             if (data && data.model) {
+              const processField = (field) => {
+                let from = field.valuesFrom
+                if (from) {
+                  field.values = []
+                  let promise = axios.get(from).then((response) => {
+                    for (var key in response.data) {
+                      if (response.data[key]['jcr:title']) {
+                        const nodeName = key
+                        const val = from.replace('.infinity.json',
+                          '/' + nodeName)
+                        let name = response.data[key].name
+                        if (!name) {
+                          name = response.data[key]['jcr:title']
+                        }
+                        field.values.push(
+                          {value: val, name: name})
+                      }
+                    }
+                  }).catch((error) => {
+                    logger.error('missing node',
+                      field.valuesFrom,
+                      'for list population in dialog', error)
+                  })
+                  promises.push(promise)
+                }
+                let visible = field.visible
+                if (visible) {
+                  field.visible = function () {
+                    return exprEval.Parser.evaluate(visible, this)
+                  }
+                }
+
+                if (field.type === 'collection' && Array.isArray(field.fields)) {
+                  for (let i = 0; i < field.fields.length; i++) {
+                    processField(field.fields[i])
+                  }
+                }
+              };
+
               if (data.model.groups) {
                 for (let j = 0; j < data.model.groups.length; j++) {
                   for (let i = 0; i < data.model.groups[j].fields.length; i++) {
-                    let from = data.model.groups[j].fields[i].valuesFrom
-                    if (from) {
-                      data.model.groups[j].fields[i].values = []
-                      let promise = axios.get(from).then((response) => {
-                        for (var key in response.data) {
-                          if (response.data[key]['jcr:title']) {
-                            const nodeName = key
-                            const val = from.replace('.infinity.json',
-                                '/' + nodeName)
-                            let name = response.data[key].name
-                            if (!name) {
-                              name = response.data[key]['jcr:title']
-                            }
-                            data.model.groups[j].fields[i].values.push(
-                                {value: val, name: name})
-                          }
-                        }
-                      }).catch((error) => {
-                        logger.error('missing node',
-                            data.model.groups[j].fields[i].valuesFrom,
-                            'for list population in dialog', error)
-                      })
-                      promises.push(promise)
-                    }
-                    let visible = data.model.groups[j].fields[i].visible
-                    if (visible) {
-                      data.model.groups[j].fields[i].visible = function (model) {
-                        return exprEval.Parser.evaluate(visible, this)
-                      }
-                    }
+                    processField(data.model.groups[j].fields[i])
                   }
                 }
               } else {
                 for (let i = 0; i < data.model.fields.length; i++) {
-                  let from = data.model.fields[i].valuesFrom
-                  if (from) {
-                    data.model.fields[i].values = []
-                    let promise = axios.get(from).then((response) => {
-                      const toProcess = []
-                      for (let key in response.data) {
-                        toProcess.push({key, data: response.data[key]})
-                      }
-
-                      let next = toProcess.shift()
-                      while (next) {
-                        if (next.data['jcr:title']) {
-                          const nodeName = next.key
-                          const val = next.data.path ? next.data.path + '/'
-                              + nodeName
-                              : from.replace('.infinity.json', '/' + nodeName)
-                          let name = next.data.name
-                          if (!name) {
-                            name = next.data['jcr:title']
-                          }
-                          if (next.parent) {
-                            name = next.parent + '-' + name
-                          }
-                          data.model.fields[i].values.push(
-                              {value: val, name: name})
-                          for (let k in next.data) {
-                            if (next.data[k] instanceof Object
-                                && next.data[k]['sling:resourceType']
-                                === 'admin/objects/tag') {
-                              toProcess.push(
-                                  {key: k, parent: name, data: next.data[k]})
-                            }
-                          }
-                        }
-                        next = toProcess.shift()
-                      }
-
-                    }).catch((error) => {
-                      logger.error('missing node',
-                          data.model.fields[i].valuesFrom,
-                          'for list population in dialog', error)
-                    })
-                    promises.push(promise)
-                  }
-                  const visible = data.model.fields[i].visible
-                  if (visible) {
-                    data.model.fields[i].visible = function (model) {
-                      return exprEval.Parser.evaluate(visible, this)
-                    }
-                  }
+                  processField(data.model.fields[i])
                 }
                 if (data.ogTags) {
                   for (let i = 0; i < data.ogTags.fields.length; i++) {
-                    let from = data.ogTags.fields[i].valuesFrom
-                    if (from) {
-                      data.ogTags.fields[i].values = []
-                      let promise = axios.get(from).then((response) => {
-                        for (var key in response.data) {
-                          if (response.data[key]['jcr:title']) {
-                            const nodeName = key
-                            const val = from.replace('.infinity.json',
-                                '/' + nodeName)
-                            let name = response.data[key].name
-                            if (!name) {
-                              name = response.data[key]['jcr:title']
-                            }
-                            data.ogTags.fields[i].values.push(
-                                {value: val, name: name})
-                          }
-                        }
-                      }).catch((error) => {
-                        logger.error('missing node',
-                            data.ogTags.fields[i].valuesFrom,
-                            'for list population in dialog', error)
-                      })
-                      promises.push(promise)
-                    }
-                    const visible = data.ogTags.fields[i].visible
-                    if (visible) {
-                      data.ogTags.fields[i].visible = function (ogTags) {
-                        return exprEval.Parser.evaluate(visible, this)
-                      }
-                    }
+                    processField(data.ogTags.fields[i]);
                   }
                   translateFields(data.ogTags.fields)
                 }

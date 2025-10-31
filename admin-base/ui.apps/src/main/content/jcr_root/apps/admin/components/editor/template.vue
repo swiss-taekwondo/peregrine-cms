@@ -59,7 +59,7 @@
 </template>
 
 <script>
-import {set, addStyleClassToVisibleFields} from '../../../../../../js/utils'
+import {set} from '../../../../../../js/utils'
 
 export default {
   props: ['model'],
@@ -96,7 +96,7 @@ export default {
     schema: function () {
       const view = this.view;
       const component = view.state.editor.component;
-      const schema = addStyleClassToVisibleFields(view.admin.componentDefinitions[component].model, this.dataModel);
+      const schema = view.admin.componentDefinitions[component].model;
       return schema;
     },
     dataModel: function () {
@@ -338,9 +338,3 @@ export default {
 //      }
 }
 </script>
-
-<style>
-.hidden {
-  display: none;
-}
-</style>

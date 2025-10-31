@@ -11,9 +11,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
-  
+
   http://www.apache.org/licenses/LICENSE-2.0
-  
+
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -59,7 +59,7 @@
             :css="false">
           <div v-if="schema.multifield && activeItem === index" class="collapsible-body">
             <vue-form-generator
-                :schema="prepSchema(item, schema)"
+                :schema="schema"
                 :model="prepModel(item, schema)"></vue-form-generator>
           </div>
         </transition>
@@ -75,7 +75,7 @@
           <vue-form-generator
               v-if="schema.multifield"
               class="collection-item"
-              :schema="prepSchema(item, schema)"
+              :schema="schema"
               :model="prepModel(item, schema)"></vue-form-generator>
         </ul>
 
@@ -87,8 +87,6 @@
 </template>
 
 <script>
-import {addStyleClassToVisibleFields} from '../../../../../js/utils'
-
 export default {
   mixins: [VueFormGenerator.abstractField],
   beforeMount() {
@@ -138,18 +136,6 @@ export default {
       }
       return parseInt(index) + 1
     },
-    prepSchema(model, schema) {
-      const clonedSchema = addStyleClassToVisibleFields(schema, model);
-    
-      for (let i = 0; i < clonedSchema.fields.length; i++) {
-        const field = clonedSchema.fields[i].model;
-        if (!model.hasOwnProperty(field)) {
-          Vue.set(model, field, '');
-        }
-      }
-    
-      return clonedSchema;
-    },
     prepModel(model, schema) {
       for (let i = 0; i < schema.fields.length; i++) {
         const field = schema.fields[i].model
@@ -169,7 +155,6 @@ export default {
       } else {
         var newChild = {name: 'n' + Date.now()}
         this.prepModel(newChild, this.schema)
-        this.prepSchema(newChild, this.schema)
         newChild['sling:resourceType'] = this.schema.resourceType
       }
       if (!this.value) {
