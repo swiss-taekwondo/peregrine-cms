@@ -861,7 +861,7 @@ public class AdminResourceHandlerService
         }
         try {
             final Resource answer = resourceRelocation.rename(fromResource, newName, true);
-            ModifiableValueMap mvm = getModifiableProperties(answer, true);
+            ModifiableValueMap mvm = getModifiableProperties(answer, !answer.isResourceType(OBJECT_PRIMARY_TYPE));
             if (mvm != null && mvm.containsKey(NAME_PROPERTY)) {
                 mvm.put(NAME_PROPERTY, newName);
             }
@@ -1394,7 +1394,7 @@ public class AdminResourceHandlerService
                 .filter(path -> !path.startsWith(CONTENT_ROOT + SLASH))
                 .collect(Collectors.toList());
 
-                packagePaths.add(CONTENT_ROOT + SLASH + toName);         
+                packagePaths.add(CONTENT_ROOT + SLASH + toName);
             createTenantPackage(resourceResolver, toName, packagePaths);
         } catch (PersistenceException e) {
             logger.error("Failed to create package for site " + toName, e);
