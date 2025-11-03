@@ -899,6 +899,10 @@ function loadi18nImpl() {
  */
 function sessionKeepAlive() {
   setInterval(function() {
+    if (!document.hasFocus()) {
+      return;
+    }
+
     api.populateUser();
   }, 1000 * 60);
 }
