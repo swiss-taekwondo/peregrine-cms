@@ -807,7 +807,9 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       let data = new FormData()
       data.append('to', newName)
-      data.append('title', newTitle)
+      if (newTitle) {
+        data.append('title', newTitle)
+      }
       updateWithForm('/admin/page/rename.json' + path, data)
           .then((data) => this.populateNodesForBrowser(path))
           .then(() => resolve())
