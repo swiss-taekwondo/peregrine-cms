@@ -1232,12 +1232,15 @@ class PerAdminImpl {
           .then(respData => {
             count = 0
             noticeFunction = setInterval(function () {
+              if (!document.hasFocus()) {
+                return;
+              }
+
               function stopPolling(data) {
                 const lastAction = data['per:ReplicationLastAction']
                 const activated = data['activated']
                 const ref = data['per:ReplicationRef']
                 const replicated = data['per:Replicated']
-                let stopPolling = false
                 if (lastAction === 'deactivated' && activated === false
                     && !ref) {
                   return true
@@ -1271,7 +1274,7 @@ class PerAdminImpl {
                               ? 'un' : ''}published.`)
                     }
                   })
-            }, 500)
+            }, 1000)
           })
           .then(() => resolve())
           .catch(error => {
