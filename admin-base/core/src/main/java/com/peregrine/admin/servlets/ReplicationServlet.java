@@ -184,6 +184,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
                             if (versionManager.isCheckedOut(nodePath)){
                                 try {
+                                    Version publishedVersion = versionHistory.getVersionByLabel(PUBLISHED_LABEL);
                                     Version draftVersion = versionManager.checkin(nodePath);
                                     versionManager.checkout(nodePath);
                                     versionHistory.addVersionLabel(draftVersion.getName(), draftLabel, true);
@@ -191,7 +192,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
                                     logger.warn("Draft version created for {} at {}", nodePath, draftVersion.getFrozenNode().getPath());
 
                                     // Checkout Published version for publishing
-                                    versionManager.restore(versionHistory.getVersionByLabel(PUBLISHED_LABEL), true);
+                                    versionManager.restore(publishedVersion, true);
                                     versionManager.checkout(nodePath);
 
                                     draftReferences.add(resourceResolver.getResource(pageContent.getParent().getPath()));
@@ -217,7 +218,8 @@ public final class ReplicationServlet extends ReplicationServletBase {
                 String contentPath = pageResource.getChild(JCR_CONTENT).getPath();
                 VersionHistory versionHistory = versionManager.getVersionHistory(contentPath);
                 try {
-                    versionManager.restore(versionHistory.getVersionByLabel(draftLabel), true);
+                    Version draftVersion = versionHistory.getVersionByLabel(draftLabel);
+                    versionManager.restore(draftVersion, true);
                     versionManager.checkout(contentPath);
                 }
                 catch (Exception e) {
