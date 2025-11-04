@@ -183,17 +183,22 @@ public final class ReplicationServlet extends ReplicationServletBase {
                             VersionHistory versionHistory = versionManager.getVersionHistory(nodePath);
 
                             if (versionManager.isCheckedOut(nodePath)){
-                                Version draftVersion = versionManager.checkin(nodePath);
-                                versionManager.checkout(nodePath);
-                                versionHistory.addVersionLabel(draftVersion.getName(), draftLabel, true);
+                                try {
+                                    Version draftVersion = versionManager.checkin(nodePath);
+                                    versionManager.checkout(nodePath);
+                                    versionHistory.addVersionLabel(draftVersion.getName(), draftLabel, true);
 
-                                logger.warn("Draft version created for {} at {}", nodePath, draftVersion.getFrozenNode().getPath());
+                                    logger.warn("Draft version created for {} at {}", nodePath, draftVersion.getFrozenNode().getPath());
 
-                                // Checkout Published version for publishing
-                                versionManager.restore(versionHistory.getVersionByLabel(PUBLISHED_LABEL), true);
-                                versionManager.checkout(nodePath);
+                                    // Checkout Published version for publishing
+                                    versionManager.restore(versionHistory.getVersionByLabel(PUBLISHED_LABEL), true);
+                                    versionManager.checkout(nodePath);
 
-                                draftReferences.add(resourceResolver.getResource(pageContent.getParent().getPath()));
+                                    draftReferences.add(resourceResolver.getResource(pageContent.getParent().getPath()));
+                                }
+                                catch (Exception e) {
+                                    logger.error("Unable to create a draft version for path: {} ", nodePath, e);
+                                }
                             }
                         }
                         else {
@@ -211,8 +216,13 @@ public final class ReplicationServlet extends ReplicationServletBase {
             for (Resource pageResource : draftReferences) {
                 String contentPath = pageResource.getChild(JCR_CONTENT).getPath();
                 VersionHistory versionHistory = versionManager.getVersionHistory(contentPath);
-                versionManager.restore(versionHistory.getVersionByLabel(draftLabel), true);
-                versionManager.checkout(contentPath);
+                try {
+                    versionManager.restore(versionHistory.getVersionByLabel(draftLabel), true);
+                    versionManager.checkout(contentPath);
+                }
+                catch (Exception e) {
+                    logger.error("Unable to restore a draft version for path: {} ", contentPath, e);
+                }
             }
         }
 
