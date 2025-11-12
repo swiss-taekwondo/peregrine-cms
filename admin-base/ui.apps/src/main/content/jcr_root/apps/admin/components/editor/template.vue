@@ -94,9 +94,9 @@ export default {
       return $perAdminApp.getView()
     },
     schema: function () {
-      const view = $perAdminApp.getView();
+      const view = this.view;
       const component = view.state.editor.component;
-      const schema = this.addStyleClassToVisibleFields(view.admin.componentDefinitions[component].model);
+      const schema = view.admin.componentDefinitions[component].model;
       return schema;
     },
     dataModel: function () {
@@ -135,63 +135,6 @@ export default {
     }
   },
   methods: {
-    addStyleClassToVisibleFields(schema) {
-      const deepClone = (obj) => {
-        if (obj === null || typeof obj !== 'object') return obj;
-      
-        // Handle arrays
-        if (Array.isArray(obj)) {
-          return obj.map(item => deepClone(item));
-        }
-      
-        // Handle objects
-        const clonedObj = {};
-        for (const key in obj) {
-          // Only copy own properties
-          if (Object.hasOwn(obj, key)) {
-            clonedObj[key] = deepClone(obj[key]);
-          }
-        }
-        return clonedObj;
-      }
-
-      const clone = deepClone(schema);
-          
-          const process = (obj) => {
-            if (!obj) return;
-            
-            // Process groups
-            if (obj.groups) {
-              obj.groups.forEach(group => process(group));
-            }
-            
-            // Process fields
-            if (obj.fields) {
-              obj.fields.forEach(field => {
-                // Handles nested fields
-                if (field.fields) {
-                  process(field);
-                }
-
-                if (field.visible !== undefined) {
-                  const model = this.dataModel;
-                
-                  // Takes the "visible" function and checks it
-                  const result = Function("model", '"use strict"; return (' + field.visible + ')')(model);
-                
-                  if (result === false) {
-                    field.styleClasses = 'hidden';
-                  } else {
-                    field.styleClasses = '';
-                  }
-                }
-              })
-            }
-          }
-          
-      process(clone);
-      return clone;
-        },
     onOk(e) {
       let data = JSON.parse(JSON.stringify(this.dataModel))
       let _deleted = $perAdminApp.getNodeFromViewWithDefault('/state/tools/_deleted', {})
@@ -395,9 +338,3 @@ export default {
 //      }
 }
 </script>
-
-<style>
-.hidden {
-  display: none;
-}
-</style>

@@ -139,6 +139,16 @@
                         </span>
 
                         <admin-components-action
+                            v-if="child.activated"
+                            v-bind:model="{
+                                    target: child,
+                                    command: 'unPublishResource',
+                                    tooltipTitle: `${$i18n('undo publish')} '${child.title || child.name}'`
+                                }">
+                            <i class="material-icons">cloud_off</i>
+                        </admin-components-action>
+
+                        <admin-components-action
                             v-bind:model="{
                                 target: child,
                                 command: 'deleteTenantOrPage',
@@ -348,7 +358,7 @@ export default {
             },
 
             isObjectDefinitions(path) {
-                return !this.isInsideObjectDefinition(path) 
+                return !this.isInsideObjectDefinition(path)
                     && path.startsWith(`/content/${this.getTenant().name}/object-definitions`)
             },
 
@@ -542,6 +552,9 @@ export default {
                 if(child.resourceType === 'per:Page') {
                     return path + '.html'
                 }
+                if (child.resourceType === 'per:Object' && child.path.startsWith('/content/') && child.path.includes('/objects/news/')) {
+                  return path.replace("objects/news", "pages/news-details") + ".html"
+                }
                 return path + '.json'
             },
 
@@ -564,7 +577,7 @@ export default {
                 }
               } else {
                 return { icon: 'image', lib: IconLib.MATERIAL_ICONS }
-              } 
+              }
             };
             if (item.resourceType === 'sling:Folder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS};
             if (item.resourceType === 'sling:OrderedFolder') return {icon: 'folder', lib: IconLib.MATERIAL_ICONS}
@@ -611,7 +624,7 @@ export default {
             },
 
             showRow: function(item, ev) {
-                if (this.editable(item)) {  
+                if (this.editable(item)) {
                     this.showInfo(this, item);
                 }
             },
@@ -688,7 +701,7 @@ export default {
             addObjectDefinitionFile(me, target) {
                 const tenant = $perAdminApp.getView().state.tenant;
                 const path  = me.pt ? me.pt.path : `/content/${tenant.name}/object-definitions`;
-                
+
                 if (this.isInsideObjectDefinition(path)) {
                     $perAdminApp.stateAction('createObjectDefinitionFileWizard', {path, target});
                 }
@@ -712,13 +725,37 @@ export default {
                 return !(obj.activated || obj.anyDescendantActivated || obj.isReferenced);
             },
 
+            unPublishResource(me, target) {
+              if (target.anyDescendantActivated) {
+                $perAdminApp.toast("One of the children of this resource is still published. Please unpublish all of them first.", "warn", 5000)
+              }
+              else if (target.isReferenced) {
+                $perAdminApp.askUser('Warning',
+                  ("Unpublishing may break references. Would you like to continue ?"), {
+                    yesText: 'Yes',
+                    yes: function yes() {
+                      $perAdminApp.stateAction('unreplicate', target.path);
+                    },
+                  });
+              }
+              else {
+                $perAdminApp.stateAction('unreplicate', target.path);
+              }
+            },
+
             deleteTenantOrPage: function(me, target) {
                 if (target.activated) {
-                    $perAdminApp.toast("The resource is still published. Please unpublish it first.", "warn", 7500)
+                    $perAdminApp.toast("The resource is still published. Please unpublish it first.", "warn", 5000)
                 } else if (target.anyDescendantActivated) {
-                    $perAdminApp.toast("One of the children of this resource is still published. Please unpublish all of them first.", "warn", 7500)
+                    $perAdminApp.toast("One of the children of this resource is still published. Please unpublish all of them first.", "warn", 5000)
                 } else if (target.isReferenced) {
-                    $perAdminApp.toast("The resource is referenced somewhere. Please remove the references first.", "warn", 7500)
+                  $perAdminApp.askUser('Warning',
+                    ("Deleting may break references. Would you like to continue ?"), {
+                      yesText: 'Yes',
+                      yes: function yes() {
+                        me.deletePage(me, target);
+                      },
+                    });
                 } else if(me.path === '/content') {
                     me.deleteTenant(me, target)
                 } else {
@@ -819,15 +856,15 @@ export default {
 .explorer .explorer-layout .row .explorer-main .collection .collection-item:not(#back-to-parent) {
         display: flex;
         align-items: center;
-        
+
         > * {
             display: flex;
             align-items: center;
-            
+
             > a {
                 width: 100%;
             }
-            
+
             > a:has(.preview-container) {
                 display: flex;
                 align-items: flex-end;
@@ -846,7 +883,7 @@ export default {
                 }
             }
         }
-        
+
         > span:not(.draggable):not(.folder) {
             display: flex;
             align-items: center;

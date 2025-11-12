@@ -42,9 +42,9 @@ export default {
             if (!value || value.length === 0) {
               return [this.$i18n('Name is required.')];
             }
-            let regExMatch = /[^0-9a-zA-Z_-]/;
+            let regExMatch = /[^0-9a-zA-Z-]/;
             let errorMsg =
-              'Page names may only contain letters, numbers, underscores, and dashes';
+              'Page names may only contain letters, numbers and dashes. Google dislikes underscores in URLs';
             if (this.uNodeType === 'Asset') {
               regExMatch = /[^0-9a-z.A-Z_-]/;
               errorMsg =

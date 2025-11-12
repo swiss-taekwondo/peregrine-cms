@@ -11,9 +11,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
-  
+
   http://www.apache.org/licenses/LICENSE-2.0
-  
+
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,7 +31,7 @@
         v-on:complete="$emit('complete',$event)"
         v-bind:modalTitle="modalTitle" >
 
-        <table>           
+        <table>
             <tbody v-if="references">
                 <tr>
                     <th>Publish Item</th>
@@ -54,7 +54,7 @@
                     <td class="switch">
                         <label> <input type="checkbox" v-model="ref.publish"> <span class="lever publishingaction"></span> </label>
                     </td>
-                    <td class="printaction">{{printAction(ref)}}</td>              
+                    <td class="printaction">{{printAction(ref)}}</td>
                 </tr>
             </tbody>
             <tbody v-if="referencedBy && referencedBy.length > 0">
@@ -88,7 +88,7 @@ export default {
         'isOpen',
         'path',
         'modalTitle',
-        
+
     ],
     data(){
         return {
@@ -100,7 +100,7 @@ export default {
             var node = this.path
             return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, node)
         },
-        references(){            
+        references(){
             return $perAdminApp.getView().state.references
         },
     },
@@ -146,9 +146,10 @@ export default {
                 const target = {
                     path: this.path,
                     references: referencesToRepl
-                }                
-                $perAdminApp.stateAction('publish', target)
-            } 
+                }
+                $perAdminApp.stateAction('publish', target, true)
+                $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success")
+            }
             this.close()
         },
         initializePublishActionFlag(reference){
@@ -176,7 +177,7 @@ export default {
                         me.initializePublishActionFlag(ref)
                     })
                 }
-            })        
+            })
         $perAdminApp.getApi().populateReferencedBy(this.path, true)
             .then(function(){
                 me.referencedBy = me.trimReferences($perAdminApp.getView().state.referencedBy.referencedBy)
@@ -187,7 +188,7 @@ export default {
                 }
             })
             .then(()=>this.$refs.materializemodal.open())
-        
+
     }
 }
 </script>

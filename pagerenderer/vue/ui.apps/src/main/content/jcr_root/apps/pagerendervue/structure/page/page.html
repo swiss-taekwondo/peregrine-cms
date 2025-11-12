@@ -14,8 +14,6 @@
     <sly data-sly-list="${helper.model.metanames}"><meta name="${item.key}" content="${item.value}"></sly>
     <sly data-sly-list="${helper.model.metaproperties}"><meta property="${item.key}" content="${item.value}"></sly>
 
-    <link rel="apple-touch-icon" href="/content/example/assets/images/peregrine-logo.png">
-
     <meta data-sly-test="${helper.model.metaRobots}" name="robots" content="${helper.model.metaRobots}"/>
     <meta data-sly-test="${helper.model.ogTitle}" property="og:title" content="${helper.model.ogTitle}"/>
     <meta data-sly-test="${helper.model.ogDescription}" property="og:description" content="${helper.model.ogDescription}"/>
@@ -58,7 +56,8 @@
         <component v-bind:is="page.component" v-bind:model="page"></component>
     </span>
     <span v-cloak class="whilePeregrineLoads">
-        loading: ${resource.jcr:title} ${helper.model.brand ? helper.model.brand : ""}
+        <img style="height:60px" data-sly-test="${helper.model.absOgImage}" src="${helper.model.absOgImage}" alt="${resource.jcr:title} ${helper.model.brand ? helper.model.brand : ''}"/>
+        <span data-sly-test="${!helper.model.absOgImage}">${resource.jcr:title} ${helper.model.brand ? helper.model.brand : ""}</span>
     </span>
 </div>
 

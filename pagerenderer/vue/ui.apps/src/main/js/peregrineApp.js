@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -136,7 +136,7 @@ function getView() {
     try {
         if(window && window.parent && window.parent.$perAdminView && window.parent.$perAdminView.pageView) {
             var mode = window.frameElement.attributes['data-per-mode'] ? window.frameElement.attributes['data-per-mode'].value : null;
-            if(mode === 'tutorial') { 
+            if(mode === 'tutorial') {
                 return view;
             } else {
                 log.fine("getVIEW() - window.parent.perAdminView.pageView");
@@ -237,62 +237,50 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
         }
     }
     processLoaders(data.loaders).then( () => {
-
-        log.fine('first time', firstTime)
+        log.fine('first time', firstTime);
 
         getPerView().page = data;
         getPerView().path = path.slice(0, path.indexOf('.html'));
         getPerView().status = 'loaded';
         if(firstTime) {
-            initPeregrineApp();
+          initPeregrineApp();
         }
 
         if(document.location !== path && !fromPopState) {
-            log.fine("PUSHSTATE : " + path);
-            document.title = getPerView().page.title + ' | ' + getPerView().page.brand  
+          log.fine("PUSHSTATE : " + path);
+          document.title = getPerView().page.title + ' | ' + getPerView().page.brand;
 
-            var canonical = document.querySelector('link[rel="canonical"]')
-            if(canonical) canonical.href = getPerView().page.canonicalUrl
+          var canonical = document.querySelector('link[rel="canonical"]');
+          if(canonical) { canonical.href = getPerView().page.canonicalUrl; }
 
-            updateMetaName("robots", getPerView().page.metaRobots)
-            updateOpenGraph()
+          updateMetaName("robots", getPerView().page.metaRobots);
+          updateOpenGraph();
 
-            var url = document.location.href
-            var domains = (getPerView().page.domains)
-            var newLocation = path
-            if (domains) {
-                for (var i = 0; i < domains.length; i++) {
-                    var domain = domains[i]
-                    // if the URL matches the desired domain, and the domain does not include a path
-                    if (url.startsWith(domain) && !(domain.match(/\w\/\w/) && domain.lastIndexOf('/') > 7)) {
-                        newLocation = '/' + path.split('/').slice(4).join('/')
-                        break
-                    } else if (domain.match(/\w\/\w/) && domain.lastIndexOf('/') > 7) {
-                        // domain contains a path
-                        newLocation = path.replace(/\/content(\/\w+)\/pages(\/.+)/,"$1$2")
-                        break
-                    }
-                }
-            }
-            // hide index.html
-            newLocation = newLocation.replace("/index.html", "")
-            if(firstTime) {
-                history.replaceState({peregrinevue: true, path: path}, path, newLocation)
-            } else {
-                history.pushState({peregrinevue: true, path: path}, path, newLocation)
-            }
-            scroll(0, 0)
+          var newLocation = (peregrineApp.hiddenPaths.includes(path)) ? window.location.pathname : path;
+          if (peregrineApp.isPublicFacingSite() || peregrineApp.isBetaSite() || peregrineApp.isAlphaSite()) {
+            newLocation = newLocation.replace($peregrineSiteRoot, "");
+          }
 
-            // Create the event.
-            var event = document.createEvent('Event')
+          if (window.location.hash) {
+            newLocation += window.location.hash;
+          }
 
-            // Define that the event name is 'build'.
-            event.initEvent('pageRendered', true, true)
-
-            // target can be any Element or other EventTarget.
-            window.dispatchEvent(event)
+          if(firstTime) {
+            history.replaceState({peregrinevue: true, path: path}, path, newLocation);
+          } else {
+            history.pushState({peregrinevue: true, path: path}, path, newLocation);
+          }
+          scroll(0, 0);
         }
 
+        // Create the event.
+        var event = document.createEvent('Event');
+
+        // Define that the event name is 'build'.
+        event.initEvent('pageRendered', true, true);
+
+        // target can be any Element or other EventTarget.
+        window.dispatchEvent(event);
     })
 }
 
@@ -313,10 +301,10 @@ function loadContentImpl(path, firstTime, fromPopState, onPage = false) {
             } else {
                 processLoadedContent(response.data, path, firstTime, fromPopState)
             }
-    
+
         }).catch(function(error) {
             log.error("error getting %s %j", dataUrl, error);
-        });    
+        });
     }
 }
 
@@ -370,7 +358,7 @@ function isAuthorModeImpl() {
         // same origin
     }
     return false
-    
+
 }
 
 function getAdminAppNodeImpl(path) {
@@ -389,6 +377,7 @@ function getAdminAppNodeImpl(path) {
 }
 
 var peregrineApp = {
+    hiddenPaths: [],
 
     registerView: function(view) {
         registerViewImpl(view)
@@ -412,9 +401,9 @@ var peregrineApp = {
 
     getPerVueApp: function() {
         return perVueApp
-    }, 
+    },
     isAuthorMode: function() {
-        return isAuthorModeImpl()        
+        return isAuthorModeImpl()
     },
 
     getView: function() {
@@ -428,9 +417,33 @@ var peregrineApp = {
     isPublicFacingSite() {
         const server = window.location.protocol + '//' + window.location.hostname;
         const domains = getPerView().page.domains || [];
-        return (domains.indexOf(server) >= 0)
-    }
+        return domains[0] === server;
+    },
 
+    isBetaSite() {
+      const server = window.location.protocol + '//' + window.location.hostname;
+      const domains = (getPerView().page.domains || []).slice(1);
+      return (domains.indexOf(server) >= 0);
+    },
+
+    isAlphaSite() {
+      const server = window.location.protocol + '//' + window.location.hostname;
+      const domains = (getPerView().page.domains || []).slice(2);
+      return (domains.indexOf(server) >= 0);
+    },
+
+    setLanguage(lang) {
+      window.localStorage.lang = lang;
+      window.location.reload();
+      // TODO language switch without reload
+      // $peregrineApp.loadContentFrom('perView', window.location.pathname);
+    },
+
+    setTranslateRef(node, ref) {
+      node['per:TranslateRef'] = ref;
+      delete node.experiences;
+      delete node.children;
+    }
 }
 
 /**

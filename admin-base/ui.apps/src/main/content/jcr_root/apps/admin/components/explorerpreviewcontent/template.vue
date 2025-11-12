@@ -764,9 +764,12 @@ export default {
       this.isPublishDialogOpen = true;
     },
     unPublishResource(me, path) {
-      if (me.isReferencedInPublish) {
+      if (me.anyDescendantActivated) {
+          $perAdminApp.toast("One of the children of this resource is still published. Please unpublish all of them first.", "warn", 5000)
+      }
+      else if (me.isReferencedInPublish) {
           $perAdminApp.askUser('Warning',
-              ("Unpublishing may break links. Would you like to continue ?"), {
+              ("Unpublishing may break references. Would you like to continue ?"), {
                   yesText: 'Yes',
                   yes: function yes() {
                       $perAdminApp.stateAction('unreplicate', path);
@@ -785,7 +788,7 @@ export default {
     checkActivationStatusAndPerform(action) {
       if (this.selfOrAnyDescendantActivated) {
         $perAdminApp.toast("You cannot perform this operation yet. The resource or one of its children is still published." +
-                    " Please unpublish all of them first.", "warn", 7500);
+                    " Please unpublish all of them first.", "warn", 5000);
       } else {
         action();
       }
@@ -1110,13 +1113,13 @@ export default {
             max-width: 90vw;
             max-height: 90vh;
             display: block;
-            margin: auto; 
+            margin: auto;
         }
-        
+
         img {
             pointer-events: none;
         }
-        
+
         button {
             position: absolute;
             top: 10px;
@@ -1128,7 +1131,7 @@ export default {
             border-radius: 100%;
             aspect-ratio: 1 / 1;
             align-items: center;
-            
+
             &:hover, &:focus, &:active {
                 background-color: black;
                 color: white;

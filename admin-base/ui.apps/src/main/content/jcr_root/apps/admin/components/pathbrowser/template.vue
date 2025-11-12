@@ -683,7 +683,7 @@ export default {
       return item.name !== 'jcr:content'
     },
     isFile(item) {
-      return ['per:Asset', 'nt:file'].indexOf(item.resourceType) >= 0
+      return ['per:Asset', 'per:Object', 'nt:file'].indexOf(item.resourceType) >= 0
     },
     isFileAllowed() {
       return this.browserType !== PathBrowser.Type.PAGE
@@ -717,7 +717,9 @@ export default {
       if (this.isSelectable(item)) {
         this.previewType = 'selected'
         this.setSelectedPath(item.path)
-        this.setResourceType(item.resourceType)
+        if (item.resourceType && typeof this.setResourceType === 'function') {
+          this.setResourceType(item.resourceType)
+        }
       }
     },
     selectLink(ev) {

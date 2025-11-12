@@ -34,7 +34,8 @@
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
        v-html="value"
-       contenteditable="true"
+       :contenteditable="!(schema && schema.readonly)"
+       :readonly="(schema && schema.readonly)"
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
@@ -129,6 +130,14 @@ export default {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
     },
+  },
+  watch: {
+    value() {
+      if (!this.value) return
+      const textCheckDiv = document.createElement('div')
+      textCheckDiv.innerHTML = this.value
+      if (!textCheckDiv.textContent.trim()) this.value = '';
+    }
   }
 }
 </script>

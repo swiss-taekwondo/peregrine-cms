@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,6 +22,73 @@
  * under the License.
  * #L%
  */
+
+function waitForElement(selector, callback) {
+  const interval = setInterval(() => {
+    const element = document.querySelector(selector);
+    if (element) {
+      clearInterval(interval);
+      callback(element);
+    }
+  }, 100); // Check every 100ms
+
+  setTimeout(() => {
+    clearInterval(interval)
+  }, 10000);
+}
+
+waitForElement('.user-info .username', (el) => {
+  if (el.getAttribute('title') !== 'admin') {
+    document.head.insertAdjacentHTML('beforeend', `
+        <style>
+            .tooling-page .card:has(a[href^="/extension/"]) {
+                display: none;
+            }
+        </style>
+    `);
+  }
+});
+
+window.onmousedown = (event) => {
+  if (event.button === 0) {
+    const dialog = document.querySelector('dialog[open]');
+    if (dialog && event.target) {
+      if (dialog.contains(event.target)) {
+        return;
+      }
+      else {
+        dialog.close();
+      }
+    }
+
+    if (event.target && event.target.closest('.tooling-page .card:has(a[href^="/extension/"])')) {
+      event.preventDefault();
+
+      const link = event.target.closest('.tooling-page .card').querySelector('a[href^="/extension/"]');
+
+      let dialog = document.querySelector(`dialog:has(iframe[src="${link.href}"])`);
+      if (!dialog) {
+        document.body.insertAdjacentHTML('beforeend', `
+                <dialog style="max-width: 1024px; max-height: none;height:90vh; width:90vw;padding:0;"><iframe style="border:none;width:100%;height:99%;" src="${link.href}"></iframe></dialog>
+            `);
+        dialog = document.querySelector(`dialog:has(iframe[src="${link.href}"])`);
+        dialog.onclick = (event) => {
+          const rect = dialog.getBoundingClientRect();
+          const isInDialog = (rect.top <= event.clientY && event.clientY <= rect.top + rect.height &&
+            rect.left <= event.clientX && event.clientX <= rect.left + rect.width);
+          if (!isInDialog) {
+            dialog.close();
+          }
+        };
+      }
+      else {
+        dialog.querySelector('iframe').contentWindow.location.reload();
+      }
+
+      dialog.showModal();
+    }
+  }
+};
 
 const consoleERROR = console.error
 
@@ -391,6 +458,17 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
                   '.html' +
                   suffix;
 
+                if (location.hash.startsWith('#href=')) {
+                  const selector = 'a[href$="' + location.hash.replace('#href=', '') + '"]';
+                  setTimeout(() => {
+                    const link = document.querySelector(selector);
+
+                    if (link) {
+                      link.click();
+                    }
+                  }, 1000);
+                }
+
                 if (document.location !== targetPath) {
                   document.title = getNodeFromImpl(view, '/adminPage/title');
                   history.pushState(
@@ -515,9 +593,10 @@ function exitWaitState() {
  * @private
  * @param name
  * @param target
+ * @param skipWait
  */
-function stateActionImpl(name, target) {
-  enterWaitState();
+function stateActionImpl(name, target, skipWait) {
+  if (!skipWait) enterWaitState();
   return new Promise((resolve, reject) => {
     runBeforeStateActions(name).then(() => {
       try {
@@ -525,7 +604,7 @@ function stateActionImpl(name, target) {
         const action = stateAction($perAdminApp, target);
         Promise.resolve(action)
           .then((result) => {
-            exitWaitState();
+            if (!skipWait) exitWaitState();
             if (
               result &&
               typeof result === 'string' &&
@@ -538,12 +617,12 @@ function stateActionImpl(name, target) {
             }
           })
           .catch((error) => {
-            exitWaitState();
+            if (!skipWait) exitWaitState();
             notifyUserImpl('error', error);
             reject();
           });
       } catch (error) {
-        exitWaitState();
+        if (!skipWait) exitWaitState();
         reject(error);
       }
     });
@@ -820,6 +899,10 @@ function loadi18nImpl() {
  */
 function sessionKeepAlive() {
   setInterval(function() {
+    if (!document.hasFocus()) {
+      return;
+    }
+
     api.populateUser();
   }, 1000 * 60);
 }
@@ -965,9 +1048,10 @@ var PerAdminApp = {
    * @method
    * @param name
    * @param target
+   * @param skipWait
    */
-  stateAction(name, target) {
-    return stateActionImpl(name, target);
+  stateAction(name, target, skipWait) {
+    return stateActionImpl(name, target, skipWait);
   },
 
   /**
