@@ -237,7 +237,6 @@ export default {
   },
 
   mounted() {
-    console.log('mounted', this.$refs.richToolbar)
     this.$nextTick(() => {
       window.addEventListener('resize', this.updateDocElDimensions)
       this.updateDocElDimensions()
@@ -253,7 +252,7 @@ export default {
       const iframeWindow = document.querySelector("iframe#editview")
         .contentWindow;
       const currentInlineEditor = iframeWindow.document.querySelector(
-        '.inline-edit[contenteditable="true"]'
+        '.inline-edit[contenteditable="true"] > *'
       );
       if (!currentInlineEditor) return null;
       const defaultFontSize = iframeWindow.getComputedStyle(currentInlineEditor)
@@ -391,13 +390,15 @@ export default {
       const noHighlight = range.endContainer.isEqualNode(range.startContainer) && range.endOffset === range.startOffset
       if (noHighlight) {
         const parentQuery = 'p, ul, ol, h1, h2, h3, h4, h5, h6'
-        const fontSizeParent = (typeof range.startContainer.closest === 'function')? range.startContainer.closest(parentQuery) : range.startContainer.parentElement.closest(parentQuery)
+        const fontSizeParent = (range.startContainer.contentEditable === 'true' && range.startContainer?.children?.length > 0) ? range.startContainer.children[0] : // if focusing RTE container, goto child <p>
+          typeof range.startContainer.closest === 'function' ? range.startContainer.closest(parentQuery) : range.startContainer.parentElement.closest(parentQuery) // find valid parent
         if (!textEditor.contains(fontSizeParent)) {
-          console.warn('Attempting to change fontsize of paragraph outside of richtext editor')
+          console.warn('Attempting to change fontsize of paragraph outside of richtext editor', fontSizeParent, range.startContainer)
           return
         }
         setFontSizeOfEl(fontSizeParent, fontSize)
         fontSizeParent.style.fontSize = fontSize
+        textEditor.dispatchEvent(new Event('input'))
         return
       }
 
@@ -476,7 +477,6 @@ export default {
           selectionAfter.addRange(newRange)
         })
       })
-      return
     },
 
     pingRichToolbar(vm = this) {

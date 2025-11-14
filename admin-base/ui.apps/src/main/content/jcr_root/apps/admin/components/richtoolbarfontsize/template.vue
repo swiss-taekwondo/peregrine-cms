@@ -1,5 +1,5 @@
 <template>
-  <div class="font-size-wrapper">
+  <div class="font-size-wrapper btn-group">
     <button class="add btn" @click="onAdd">
       <icon icon="add" :lib="iconLib" />
     </button>
@@ -100,14 +100,13 @@ export default {
     // sets fontsize of input to that of selected text
     onSelectionChange(event) {
       // skip if no selection is present or input is being focused
+      const iframeDoc = document.querySelector("iframe#editview").contentDocument
       const currSelection = event.currentTarget.getSelection()
       if (currSelection.rangeCount <= 0) return
       if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
       if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
-      console.log(currSelection)
 
       // remove selection from mirror text editor to avoid issues when finding selection to apply fontsize later
-      const iframeDoc = document.querySelector("iframe#editview").contentDocument
       if (event.currentTarget.isEqualNode(iframeDoc)) document.getSelection().removeAllRanges() // remove selection
       if (event.currentTarget.isEqualNode(document)) iframeDoc.getSelection().removeAllRanges() // remove selection
 
@@ -121,19 +120,18 @@ export default {
         : currRange.startContainer.parentElement;
 
       // checking inline style
-      // const fontSizeParent = htmlEl.closest('[style*="font-size"]');
       if (htmlEl && this.isNodeInEditor(htmlEl)) {
-        const nr = Number(computedStyle(htmlEl).fontSize.replace("px", ""));
-        if (!isNaN(nr)) {
+        const fontSizeParent = htmlEl.closest('[style*="font-size"]');
+        const check = this.isNodeInEditor(fontSizeParent) ? fontSizeParent : htmlEl;
+        const nr = parseInt(check?.style?.fontSize);
+        if (!isNaN(nr) && nr > 0) {
           this.inputValue = nr;
+          return;
         }
-        return;
       }
 
       // getting style from preview computedStyle
-      const defaultFontSize = Number(
-        this.getDefaultFontSize().replace("px", "")
-      );
+      const defaultFontSize = parseInt(this.getDefaultFontSize());
       if (defaultFontSize && !isNaN(defaultFontSize)) {
         this.inputValue = defaultFontSize;
       }
