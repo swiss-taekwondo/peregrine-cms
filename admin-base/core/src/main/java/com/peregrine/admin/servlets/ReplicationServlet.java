@@ -25,6 +25,9 @@ package com.peregrine.admin.servlets;
  * #L%
  */
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.peregrine.admin.resource.AdminResourceHandler;
 import com.peregrine.commons.util.PerConstants;
 import com.peregrine.commons.util.PerUtil;
@@ -36,8 +39,13 @@ import com.peregrine.replication.ReplicationsContainerWithDefault;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.Designate;
+import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +58,10 @@ import javax.jcr.version.VersionHistory;
 import javax.jcr.version.VersionManager;
 import javax.servlet.Servlet;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -82,11 +94,26 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
         SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_DO_REPLICATION
     }
 )
+@Designate(ocd = ReplicationServlet.Configuration.class)
 @SuppressWarnings("serial")
 public final class ReplicationServlet extends ReplicationServletBase {
+    @ObjectClassDefinition(
+            name = "Peregrine: Replication Servlet",
+            description = "Replicates resources via Sling renderers"
+    )
+    @interface Configuration {
+        @AttributeDefinition(
+                name = "Webhook URL",
+                description = "Webhook URL to call after replication",
+                required = false
+        )
+        String webhook() default "";
+    }
 
     public static final String DEACTIVATE = "deactivate";
     public static final String RESOURCES = "resources";
+
+    private String webhook;
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -127,12 +154,14 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
         toBeReplicated = replication.prepare(toBeReplicated);
         List<String> toBeReplicatedPaths = new ArrayList<>();
+        HashSet<String> allReplicatedPaths = new HashSet<>();
         streamReplicableResources(toBeReplicated)
                 .map(Resource::getPath)
                 .forEach(p -> {
                     try {
                         resourceManagement.createVersion(resourceResolver, p, PerConstants.PUBLISHED_LABEL);
                         toBeReplicatedPaths.add(p);
+                        allReplicatedPaths.add(p);
                     } catch (final AdminResourceHandler.ManagementException e) {
                         logger.trace("Unable to create a version for path: {} ", p, e);
                     }
@@ -226,9 +255,17 @@ public final class ReplicationServlet extends ReplicationServletBase {
                     logger.error("Unable to restore a draft version for path: {} ", contentPath, e);
                 }
             }
+
+            // Add all replicated paths
+            allReplicatedPaths.addAll(publishedReferences.stream().map(Resource::getPath).collect(Collectors.toList()));
+            allReplicatedPaths.addAll(draftReferences.stream().map(Resource::getPath).collect(Collectors.toList()));
         }
 
-        return prepareResponse(resource, replication.replicate(toBeReplicated));
+        List<Resource> replicateResponse = replication.replicate(toBeReplicated);
+
+        callWebhook(allReplicatedPaths.toArray(new String[0]));
+
+        return prepareResponse(resource, replicateResponse);
     }
 
     @NotNull
@@ -242,7 +279,53 @@ public final class ReplicationServlet extends ReplicationServletBase {
             resourceManagement.deleteVersionLabel(r, PerConstants.PUBLISHED_LABEL);
         }
 
+        callWebhook(new String[]{resource.getPath()});
+
         return prepareResponse(resource, replicatedStuff);
     }
 
+    private void callWebhook(String[] paths) {
+        try {
+            if (!isEmpty(webhook) && paths.length > 0) {
+                logger.trace("Calling FS Replication Webhook: {}", webhook);
+
+                ObjectMapper objectMapper = new ObjectMapper();
+                ObjectNode payload = objectMapper.createObjectNode();
+
+                ArrayNode arrayNode = payload.putArray("paths");
+                for (String path : paths) {
+                    arrayNode.add(path);
+                }
+
+                String requestBody = objectMapper.writeValueAsString(payload);
+
+                // Webhook request
+                HttpRequest webhookRequest = HttpRequest.newBuilder()
+                        .uri(URI.create(webhook))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                        .build();
+
+                HttpClient httpClient = HttpClient.newHttpClient();
+                HttpResponse<String> httpResponse = httpClient.send(webhookRequest, HttpResponse.BodyHandlers.ofString());;
+
+                logger.trace("FS Replication Webhook Response: " + httpResponse.statusCode());
+            }
+        }
+        catch (Exception e) {
+            logger.error("FS Replication Webhook failed with: " + e.getMessage());
+        }
+    }
+
+    @Activate
+    @SuppressWarnings("unused")
+    void activate(ReplicationServlet.Configuration configuration) { setup(configuration); }
+
+    @Modified
+    @SuppressWarnings("unused")
+    void modified(ReplicationServlet.Configuration configuration) { setup(configuration); }
+
+    private void setup(ReplicationServlet.Configuration configuration) {
+        webhook = configuration.webhook();
+    }
 }
