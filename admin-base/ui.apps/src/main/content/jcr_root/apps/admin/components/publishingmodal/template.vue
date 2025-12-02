@@ -210,7 +210,8 @@ export default {
                 me.referencedBy = me.trimReferences($perAdminApp.getView().state.referencedBy.referencedBy)
                 if(me.referencedBy){
                     me.referencedBy.forEach((ref)=> {
-                        me.initializePublishActionFlag(ref)
+                        // Don't publish referencedBy items by default
+                        Vue.set(ref, 'publish', false);
                     })
                 }
             })
