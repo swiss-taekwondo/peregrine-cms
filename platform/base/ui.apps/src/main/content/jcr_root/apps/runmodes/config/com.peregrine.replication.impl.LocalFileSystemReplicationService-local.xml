@@ -12,9 +12,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
-  
+
   http://www.apache.org/licenses/LICENSE-2.0
-  
+
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,7 +31,7 @@
           targetFolder="${sling.home}/staticreplication"
           creationStrategy="1"
           exportExtensions="[data.json=per:Page|per:Template,infinity.json=per:Object,html=per:Page|per:Template,*~raw=nt:file,css=per:Site|per:FeLib,js=per:Site|per:FeLib]"
-          mandatoryRenditions="thumbnail.png"
+          mandatoryRenditions=""
 >
     <!-- The Export Extensions defines what and how they are exported. The key is the extension of rendering as well as
          the file name. The value is a list of all JCR Primary Types that will be considered to be exported.
@@ -43,5 +43,7 @@
 
          This will export per:Page and per:Template nodes using the .data.json extension, export per:Objects
          using infinity.json and nt:file as themselves (meaning no additional extension) as raw content (~raw).
+
+         mandatoryRenditions="thumbnail.png"
          -->
 </jcr:root>

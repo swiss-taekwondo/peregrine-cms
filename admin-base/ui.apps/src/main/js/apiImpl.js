@@ -1257,8 +1257,10 @@ class PerAdminImpl {
                 return false
               }
 
+              // Use lastResource if any to check replication status
+              const lastResource = resources[resources.length - 1];
               return fetch(
-                  `/admin/listReplicationStatus.json${respData.sourcePath}`)
+                  `/admin/listReplicationStatus.json${respData.sourcePath}${lastResource ? `?lastResource=${lastResource}` : ''}`)
                   .then(data => {
                     if (count++ >= 25) {
                       clearInterval(noticeFunction)
@@ -1272,7 +1274,7 @@ class PerAdminImpl {
                           path.lastIndexOf('/'))
                       $perAdminApp.getApi().populateNodesForBrowser(parentPath)
                       $perAdminApp.notifyUser('Success',
-                          `${data.sourcePath} was successfully ${deactivate
+                          `${respData.sourcePath} was successfully ${deactivate
                               ? 'un' : ''}published.`)
                     }
                   })

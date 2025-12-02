@@ -407,7 +407,7 @@ export default {
             },
 
             replicable(item) {
-                return !this.isFolder(item)
+                return !this.isFolder(item) || item.path.startsWith(`/content/${this.getTenant().name}/assets/`);
             },
 
             onDragRowStart(item, ev) {

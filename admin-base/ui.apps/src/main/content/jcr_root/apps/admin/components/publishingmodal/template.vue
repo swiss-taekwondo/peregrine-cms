@@ -69,6 +69,18 @@
                     <td class="printaction">{{printAction(refed)}}</td>
                 </tr>
             </tbody>
+            <tbody v-if="children && children.length > 0">
+              <tr>
+                <th>Children</th>
+              </tr>
+              <tr v-for="refed in children" v-bind:key="refed.path">
+                <td>{{refed.path}} <span>({{printStatus(refed)}})</span></td>
+                <td class="switch">
+                  <label> <input type="checkbox" v-model="refed.publish"> <span class="lever publishingaction"></span> </label>
+                </td>
+                <td class="printaction">{{printAction(refed)}}</td>
+              </tr>
+            </tbody>
         </table>
 
 
@@ -92,7 +104,8 @@ export default {
     ],
     data(){
         return {
-            'referencedBy':[]
+            'referencedBy':[],
+            'children':[]
         }
     },
     computed: {
@@ -136,12 +149,19 @@ export default {
                         }
                     });
                 }
-                if (this.referencedBy !== undefined){
-                    this.references.references.forEach(ref => {
-                        if (ref.publish){
-                            referencesToRepl.push(ref.path)
-                        }
-                    });
+                this.referencedBy.forEach(ref => {
+                  if (ref.publish && !referencesToRepl.includes(ref.path)){
+                    referencesToRepl.push(ref.path)
+                  }
+                });
+                this.children.forEach(ref => {
+                  if (ref.publish && !referencesToRepl.includes(ref.path)){
+                    referencesToRepl.push(ref.path)
+                  }
+                });
+                if (this.references.is_assets_folder && !referencesToRepl.length) {
+                  $perAdminApp.toast("No items to publish. Please select at least one item.", "error")
+                  return;
                 }
                 const target = {
                     path: this.path,
@@ -171,11 +191,18 @@ export default {
         const me = this
         $perAdminApp.getApi().populateReferences(this.path, true)
             .then(function(){
-                Vue.set(me.references, 'publish', true)
+                Vue.set(me.references, 'publish', !me.references.is_assets_folder)
                 if(me.references.references != undefined){
                     me.references.references.forEach((ref)=> {
                         me.initializePublishActionFlag(ref)
                     })
+                }
+
+                if(me.references.children){
+                  me.children = me.references.children;
+                  me.children.forEach((ref)=> {
+                    me.initializePublishActionFlag(ref)
+                  })
                 }
             })
         $perAdminApp.getApi().populateReferencedBy(this.path, true)

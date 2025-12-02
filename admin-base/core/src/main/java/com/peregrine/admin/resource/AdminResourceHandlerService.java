@@ -62,25 +62,7 @@ import static com.peregrine.commons.util.PerConstants.SITE_TEMPLATES_PATTERN;
 
 import static com.peregrine.commons.util.PerConstants.TITLE;
 
-import static com.peregrine.commons.util.PerUtil.convertToMap;
-import static com.peregrine.commons.util.PerUtil.getBoolean;
-import static com.peregrine.commons.util.PerUtil.getChildIndex;
-import static com.peregrine.commons.util.PerUtil.getClassOrNull;
-import static com.peregrine.commons.util.PerUtil.getComponentVariableNameFromString;
-import static com.peregrine.commons.util.PerUtil.getFirstChild;
-import static com.peregrine.commons.util.PerUtil.getModifiableProperties;
-import static com.peregrine.commons.util.PerUtil.getNode;
-import static com.peregrine.commons.util.PerUtil.getNodeAtPosition;
-import static com.peregrine.commons.util.PerUtil.getPath;
-import static com.peregrine.commons.util.PerUtil.getResource;
-import static com.peregrine.commons.util.PerUtil.getString;
-import static com.peregrine.commons.util.PerUtil.isPrimaryType;
-import static com.peregrine.commons.util.PerUtil.isPropertyPresentAndEqualsTrue;
-import static com.peregrine.commons.util.PerUtil.toStringOrNull;
-import static com.peregrine.commons.util.PerUtil.checkResource;
-import static com.peregrine.commons.util.PerUtil.getTenantVarPath;
-import static com.peregrine.commons.util.PerUtil.getTenantRootResource;
-
+import static com.peregrine.commons.util.PerUtil.*;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
@@ -269,6 +251,15 @@ public class AdminResourceHandlerService
 
     void removeImageMetadataSelector(ImageMetadataSelector selector) {
         imageMetadataSelectors.remove(selector);
+    }
+
+    @Override
+    public boolean isAssetsFolder(final Resource resource) throws RepositoryException {
+        List<String> folderTypes = Arrays.asList("sling:OrderedFolder", "sling:Folder", "nt:folder");
+        String primaryType = resource.adaptTo(Node.class).getPrimaryNodeType().toString();
+
+        String tenant = getTenantNameFromResource(resource);
+        return tenant != null && resource.getPath().startsWith("/content/" + tenant + "/assets/") && folderTypes.contains(primaryType);
     }
 
     @Override
