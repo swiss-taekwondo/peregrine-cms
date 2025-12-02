@@ -71,7 +71,7 @@
             </tbody>
             <tbody v-if="children && children.length > 0">
               <tr>
-                <th>Children</th>
+                <th>Publish items</th>
               </tr>
               <tr v-for="refed in children" v-bind:key="refed.path">
                 <td>{{refed.path}} <span>({{printStatus(refed)}})</span></td>
