@@ -228,6 +228,7 @@ export default {
 .inputWrapper input {
   padding: 2px;
   margin: 0;
+  border: none;
   width: 42px;
   height: 32px;
 }
