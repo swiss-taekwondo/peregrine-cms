@@ -385,7 +385,22 @@ export default {
             },
 
             replicatedClass(item) {
-                if(item.ReplicationStatus) {
+                if (this.isFolder(item)) {
+                    if (!item.hasChildren) {
+                      return 'item-replication-unknown';
+                    }
+
+                    if (item.allDescendantActivated) {
+                        return 'item-activated';
+                    }
+
+                    if (item.anyDescendantActivated) {
+                        return 'item-activated-modified';
+                    }
+
+                    return 'item-replication-unknown';
+                }
+                else if(item.ReplicationStatus) {
                     const modified = item.lastModified || item.created
                     const replicated = item.Replicated
                     return `item-${item.ReplicationStatus}${replicated < modified ? '-modified' : ''}`
@@ -407,7 +422,7 @@ export default {
             },
 
             replicable(item) {
-                return !this.isFolder(item)
+                return !this.isFolder(item) || item.path.startsWith(`/content/${this.getTenant().name}/assets/`);
             },
 
             onDragRowStart(item, ev) {

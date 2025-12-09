@@ -13,9 +13,9 @@ package com.peregrine.admin.servlets;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -107,6 +107,7 @@ public class NodesServlet extends AbstractBaseServlet {
     public static final String DEACTIVATED = "deactivated";
     public static final String REPLICATION_STATUS = "ReplicationStatus";
     public static final String ANY_DESCENDANT_ACTIVATED = "anyDescendantActivated";
+    public static final String ALL_DESCENDANT_ACTIVATED = "allDescendantActivated";
     public static final String IS_REFERENCED = "isReferenced";
     public static final String RESOURCE_TYPE = "resourceType";
     public static final String JCR_PREFIX = "jcr:";
@@ -156,7 +157,7 @@ public class NodesServlet extends AbstractBaseServlet {
         for (Resource child : res.getChildren()) {
             if(!JCR_CONTENT.equals(child.getName())) {
                 return true;
-            }            
+            }
         }
         return false;
     }
@@ -214,7 +215,7 @@ public class NodesServlet extends AbstractBaseServlet {
                             }
                             json.writeClose();
                         }
-                    
+
                     }
                     if(isPrimaryType(child, PAGE_PRIMARY_TYPE)) {
                         Resource content = child.getChild(JCR_CONTENT);
@@ -239,6 +240,7 @@ public class NodesServlet extends AbstractBaseServlet {
                     }
 
                     json.writeAttribute(ANY_DESCENDANT_ACTIVATED, ReplicationUtil.isAnyDescendantReplicated(child));
+                    json.writeAttribute(ALL_DESCENDANT_ACTIVATED, ReplicationUtil.isAllDescendantReplicated(child));
                     json.writeAttribute(IS_REFERENCED, referenceLister.isReferenced(child));
                     json.writeClose();
                 }

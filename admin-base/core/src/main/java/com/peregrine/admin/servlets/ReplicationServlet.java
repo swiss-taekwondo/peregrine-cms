@@ -152,6 +152,11 @@ public final class ReplicationServlet extends ReplicationServletBase {
             listMissingResources(r, tenantChecker, deep, toBeReplicated);
         }
 
+        // Remove source from the list if it's an assets folder
+        if (resourceManagement.isAssetsFolder(resource)) {
+            toBeReplicated.remove(resource);
+        }
+
         toBeReplicated = replication.prepare(toBeReplicated);
         List<String> toBeReplicatedPaths = new ArrayList<>();
         HashSet<String> allReplicatedPaths = new HashSet<>();

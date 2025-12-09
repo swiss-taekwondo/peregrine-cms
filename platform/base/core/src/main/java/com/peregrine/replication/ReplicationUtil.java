@@ -242,6 +242,22 @@ public final class ReplicationUtil {
         return false;
     }
 
+    public static boolean isAllDescendantReplicated(final Resource resource) {
+        if (!resource.hasChildren()) {
+            return false;
+        }
+
+        boolean allDescendantReplicated = true;
+        for (final Resource child : resource.getChildren()) {
+            if (!isJcrContent(child) && !isReplicated(child)) {
+                allDescendantReplicated = false;
+                break;
+            }
+        }
+
+        return allDescendantReplicated;
+    }
+
     public static boolean isSelfOrAnyDescendantReplicated(final Resource resource) {
         return isReplicated(resource) || isAnyDescendantReplicated(resource);
     }
