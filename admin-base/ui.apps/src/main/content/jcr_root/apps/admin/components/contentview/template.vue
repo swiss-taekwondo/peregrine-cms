@@ -539,7 +539,8 @@ export default {
       while (dataInline.length > 1) {
         parentProp = parentProp[dataInline.pop()]
       }
-      parentProp[dataInline.pop()] = content
+      const keyStr = dataInline.pop()
+      parentProp[keyStr] = content;
     },
 
     onInlineEdit(event) {
