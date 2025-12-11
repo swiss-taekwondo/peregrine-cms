@@ -140,7 +140,7 @@ export default {
       for (let i = 0; i < schema.fields.length; i++) {
         const field = schema.fields[i].model
         if (!model[field]) {
-          Vue.set(model, field, '')
+          Vue.set(model, field, schema.fields[i].default ?? '')
         }
       }
       return model
