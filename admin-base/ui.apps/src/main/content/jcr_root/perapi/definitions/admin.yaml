@@ -982,6 +982,11 @@ paths:
           in: formData
           description: flag indicating if page references should be published and drafted
           required: false
+        - name: callback
+          type: boolean
+          in: formData
+          description: flag indicating if webhook should be called after replication
+          required: false
       responses:
         200:
           description: returns the root node name / path and the list of the nodes referenced

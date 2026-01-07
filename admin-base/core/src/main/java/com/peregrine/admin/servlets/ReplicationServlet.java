@@ -140,6 +140,8 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
         final boolean deep = parseBoolean(request.getParameter("deep"));
         final boolean draft = parseBoolean(request.getParameter("draft"));
+        final boolean callback = parseBoolean(request.getParameter("callback"));
+
         final PerUtil.ResourceChecker tenantChecker = new ReplicationUtil.TenantOwnedResourceChecker(resource);
         List<Resource> toBeReplicated = listMissingResources(resource, tenantChecker, deep, new LinkedList<>());
         for (final Resource r : Optional.of(RESOURCES)
@@ -268,7 +270,9 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
         List<Resource> replicateResponse = replication.replicate(toBeReplicated);
 
-        callWebhook(allReplicatedPaths.toArray(new String[0]));
+        if (callback) {
+            callWebhook(allReplicatedPaths.toArray(new String[0]));
+        }
 
         return prepareResponse(resource, replicateResponse);
     }

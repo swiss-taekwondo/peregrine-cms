@@ -1219,7 +1219,7 @@ class PerAdminImpl {
     return updateWithForm('/admin/moveNodeTo.json' + path, formData)
   }
 
-  replicate(path, deep = false, deactivate = false, resources = [], draft = true) {
+  replicate(path, deep = false, deactivate = false, resources = [], draft = true, callback = true) {
     const timeNow = Date.now() - 1000
     let noticeFunction = undefined
     let count = 0
@@ -1229,6 +1229,7 @@ class PerAdminImpl {
       formData.append('deep', deep)
       formData.append('deactivate', deactivate)
       formData.append('draft', draft)
+      formData.append('callback', callback)
       resources.forEach((ref) => formData.append('resources', ref))
       updateWithForm('/admin/repl.json' + path, formData)
           .then(respData => {
