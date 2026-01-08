@@ -97,6 +97,13 @@ public class TranslateNode extends AbstractBaseServlet {
         String gemini_api_key() default "";
 
         @AttributeDefinition(
+                name = "Gemini Model",
+                description = "Gemini Model to use for AI translations",
+                required = false
+        )
+        String gemini_model() default "";
+
+        @AttributeDefinition(
                 name = "Gemini Prompt",
                 description = "Gemini Prompt details to generate AI translations",
                 required = false
@@ -121,10 +128,12 @@ public class TranslateNode extends AbstractBaseServlet {
     private static final String LANGUAGE_ERROR = "Language missing or not supported";
     private static final String PROPERTIES_MISSING = "Properties missing";
     private static final String GEMINI_API_KEY_MISSING = "Gemini API Key missing";
+    private static final String GEMINI_MODEL_MISSING = "Gemini Model missing";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String geminiAPIKey;
+    private String geminiModel;
     private String geminiPrompt;
     private Map<String, String> languageMap;
 
@@ -169,6 +178,12 @@ public class TranslateNode extends AbstractBaseServlet {
                         .setErrorMessage(GEMINI_API_KEY_MISSING);
             }
 
+            if (isEmpty(geminiModel)) {
+                return new ErrorResponse()
+                        .setHttpErrorCode(SC_BAD_REQUEST)
+                        .setErrorMessage(GEMINI_MODEL_MISSING);
+            }
+
             // String translations can map to multiple properties
             Map<String, Set<String>> propertiesToTranslate = new HashMap<>();
             String[] valuesToTranslate;
@@ -205,11 +220,11 @@ public class TranslateNode extends AbstractBaseServlet {
             generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
             // Return a JSON array with translated values to limit output tokens
             generationConfig.put("responseMimeType", "application/json");
-            // TODO this causes infinite line breaks or tabs until max token is reached randomly
-//            generationConfig.putObject("responseSchema")
-//                    .put("type", "array")
-//                    .putObject("items")
-//                    .put("type", "string");
+            // TODO this caused infinite line breaks or tabs until max token is reached randomly with Gemini Flash 2.5
+            generationConfig.putObject("responseSchema")
+                    .put("type", "array")
+                    .putObject("items")
+                    .put("type", "string");
 
             ArrayNode contents = payload.putArray("contents");
             ObjectNode contentItem = contents.addObject();
@@ -225,7 +240,7 @@ public class TranslateNode extends AbstractBaseServlet {
 
             // Gemini request
             HttpRequest geminiRequest = HttpRequest.newBuilder()
-                    .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"))
+                    .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/"+ geminiModel +":generateContent"))
                     .header("x-goog-api-key", geminiAPIKey)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -309,6 +324,7 @@ public class TranslateNode extends AbstractBaseServlet {
 
     private void setup(TranslateNode.Configuration configuration) {
         geminiAPIKey = configuration.gemini_api_key();
+        geminiModel = configuration.gemini_model();
         geminiPrompt = configuration.gemini_prompt();
 
         languageMap = new HashMap<>();
