@@ -124,6 +124,7 @@ public class TranslateNode extends AbstractBaseServlet {
     private static final String OVERRIDE = "override";
     private static final String EXPERIENCES = "experiences";
     private static final String PROPERTIES = "properties";
+    private static final String TRANSLATIONS = "translations";
     private static final String NODE_PATH_NOT_FOUND = "Node path not found";
     private static final String LANGUAGE_ERROR = "Language missing or not supported";
     private static final String PROPERTIES_MISSING = "Properties missing";
@@ -162,27 +163,18 @@ public class TranslateNode extends AbstractBaseServlet {
             }
 
             // Get properties parameters
-            String[] properties = request.getParameterValues(PROPERTIES + "[]", ",");
+            String[] properties = request.getParameterValues(PROPERTIES + "[]");
             if (isNull(properties)) {
                 return new ErrorResponse()
                         .setHttpErrorCode(SC_BAD_REQUEST)
                         .setErrorMessage(PROPERTIES_MISSING);
             }
 
+            // Get optional default translations
+            String[] defaultTranslations = request.getParameterValues(TRANSLATIONS + "[]");
+
             // Get override parameters
             boolean override = parseBoolean(request.getParameter(OVERRIDE, "false"));
-
-            if (isEmpty(geminiAPIKey)) {
-                return new ErrorResponse()
-                        .setHttpErrorCode(SC_BAD_REQUEST)
-                        .setErrorMessage(GEMINI_API_KEY_MISSING);
-            }
-
-            if (isEmpty(geminiModel)) {
-                return new ErrorResponse()
-                        .setHttpErrorCode(SC_BAD_REQUEST)
-                        .setErrorMessage(GEMINI_MODEL_MISSING);
-            }
 
             // String translations can map to multiple properties
             Map<String, Set<String>> propertiesToTranslate = new HashMap<>();
@@ -212,59 +204,78 @@ public class TranslateNode extends AbstractBaseServlet {
             Set<String> keySet = propertiesToTranslate.keySet();
             valuesToTranslate = keySet.toArray(new String[keySet.size()]);
 
-            // Generate Gemini request body
-            ObjectNode payload = objectMapper.createObjectNode();
-
-            ObjectNode generationConfig = payload.putObject("generationConfig");
-            // Request is faster if thinking is disabled
-            generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
-            // Return a JSON array with translated values to limit output tokens
-            generationConfig.put("responseMimeType", "application/json");
-            // TODO this caused infinite line breaks or tabs until max token is reached randomly with Gemini Flash 2.5
-            generationConfig.putObject("responseSchema")
-                    .put("type", "array")
-                    .putObject("items")
-                    .put("type", "string");
-
-            ArrayNode contents = payload.putArray("contents");
-            ObjectNode contentItem = contents.addObject();
-            contentItem.put("role", "user");
-            ArrayNode parts = contentItem.putArray("parts");
-
-            // Prompt
-            String prompt = "Translate the array in \""+ languageMap.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\nReturn the translations as array of strings.If a translation is not possible,use empty string." + geminiPrompt;
-            logger.info("Gemini Prompt: " + prompt);
-            parts.addObject().put("text", prompt);
-
-            String requestBody = objectMapper.writeValueAsString(payload);
-
-            // Gemini request
-            HttpRequest geminiRequest = HttpRequest.newBuilder()
-                    .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/"+ geminiModel +":generateContent"))
-                    .header("x-goog-api-key", geminiAPIKey)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .build();
-
-            HttpClient httpClient = HttpClient.newHttpClient();
-            HttpResponse<String> httpResponse = httpClient.send(geminiRequest, HttpResponse.BodyHandlers.ofString());;
-
-            if (httpResponse.statusCode() != 200) {
-                return new ErrorResponse()
-                        .setHttpErrorCode(SC_BAD_REQUEST)
-                        .setErrorMessage(httpResponse.body());
+            // Holds the translations (either provided by Gemini or by request)
+            String[] translations;
+            if (defaultTranslations != null && defaultTranslations.length > 0) {
+                translations = defaultTranslations;
             }
+            else {
+                if (isEmpty(geminiAPIKey)) {
+                    return new ErrorResponse()
+                            .setHttpErrorCode(SC_BAD_REQUEST)
+                            .setErrorMessage(GEMINI_API_KEY_MISSING);
+                }
 
-            // Parse Gemini translation response
-            JsonNode responseNode = objectMapper.readTree(httpResponse.body());
-            String translationsJsonString = responseNode
-                    .path("candidates").path(0)
-                    .path("content").path("parts").path(0)
-                    .path("text").asText();
+                if (isEmpty(geminiModel)) {
+                    return new ErrorResponse()
+                            .setHttpErrorCode(SC_BAD_REQUEST)
+                            .setErrorMessage(GEMINI_MODEL_MISSING);
+                }
 
-            logger.info("Gemini Response: " + translationsJsonString);
+                // Generate Gemini request body
+                ObjectNode payload = objectMapper.createObjectNode();
 
-            String[] translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
+                ObjectNode generationConfig = payload.putObject("generationConfig");
+                // Request is faster if thinking is disabled
+                generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
+                // Return a JSON array with translated values to limit output tokens
+                generationConfig.put("responseMimeType", "application/json");
+                // TODO this caused infinite line breaks or tabs until max token is reached randomly with Gemini Flash 2.5
+                generationConfig.putObject("responseSchema")
+                        .put("type", "array")
+                        .putObject("items")
+                        .put("type", "string");
+
+                ArrayNode contents = payload.putArray("contents");
+                ObjectNode contentItem = contents.addObject();
+                contentItem.put("role", "user");
+                ArrayNode parts = contentItem.putArray("parts");
+
+                // Prompt
+                String prompt = "Translate the array in \""+ languageMap.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\nReturn the translations as array of strings.If a translation is not possible,use empty string." + geminiPrompt;
+                logger.info("Gemini Prompt: " + prompt);
+                parts.addObject().put("text", prompt);
+
+                String requestBody = objectMapper.writeValueAsString(payload);
+
+                // Gemini request
+                HttpRequest geminiRequest = HttpRequest.newBuilder()
+                        .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/"+ geminiModel +":generateContent"))
+                        .header("x-goog-api-key", geminiAPIKey)
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                        .build();
+
+                HttpClient httpClient = HttpClient.newHttpClient();
+                HttpResponse<String> httpResponse = httpClient.send(geminiRequest, HttpResponse.BodyHandlers.ofString());;
+
+                if (httpResponse.statusCode() != 200) {
+                    return new ErrorResponse()
+                            .setHttpErrorCode(SC_BAD_REQUEST)
+                            .setErrorMessage(httpResponse.body());
+                }
+
+                // Parse Gemini translation response
+                JsonNode responseNode = objectMapper.readTree(httpResponse.body());
+                String translationsJsonString = responseNode
+                        .path("candidates").path(0)
+                        .path("content").path("parts").path(0)
+                        .path("text").asText();
+
+                logger.info("Gemini Response: " + translationsJsonString);
+
+                translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
+            }
 
             // Create translation experiences nodes
             Node experiencesNode = getOrCreateChildNode(resourceResolver, nodeToTranslate, EXPERIENCES);
@@ -293,7 +304,12 @@ public class TranslateNode extends AbstractBaseServlet {
             resourceResolver.adaptTo(Session.class).save();
 
             JsonResponse response = new JsonResponse();
-            response.writeAttribute("path", languageNode.getPath());
+            response.writeAttribute(PATH, languageNode.getPath());
+            response.writeArray(TRANSLATIONS);
+            for (String translation : translations) {
+                response.writeString(translation);
+            }
+            response.writeClose();
             return response;
         }
         catch (RepositoryException | InterruptedException | MismatchedInputException e) {

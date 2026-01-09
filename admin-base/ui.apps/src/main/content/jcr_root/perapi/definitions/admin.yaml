@@ -679,6 +679,11 @@ paths:
           in: formData
           description: Properties to translate
           required: true
+        - name: translations
+          type: array
+          in: formData
+          description: Provided default translations
+          required: false
         - name: override
           type: boolean
           in: formData
@@ -686,12 +691,16 @@ paths:
           default: false
       responses:
         200:
-          description: Returns the experiences translation node path
+          description: Returns the experiences translation node path and translations
           schema:
             type: object
             properties:
               path:
                 type: string
+              translations:
+                type: array
+                items:
+                  type: string
         400:
           description: If the path did not resolve to a Node or if the translation failed
           schema:
