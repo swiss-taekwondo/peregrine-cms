@@ -237,6 +237,10 @@
             <icon icon="external-link" :lib="IconLib.FONT_AWESOME"/>
             Open live version
           </div>
+          <div v-if="allowTranslate" class="action" :title="`translate ${nodeType}`" @click="openTranslationsModal()">
+            <icon icon="translate" />
+            <span>Translate {{ nodeType }}</span>
+          </div>
           <div v-if="allowRename" :class="classForActionDisabledOnActivatedResource" :title="`rename ${nodeType}`" @click="renameNode()">
             <icon :lib="IconLib.MATERIAL_ICONS" icon="text_format"/>
             <span>Rename {{ nodeType }}</span>
@@ -255,6 +259,12 @@
           </div>
         </div>
       </template>
+
+      <admin-components-translationsmodal
+        ref="translationsModal"
+        v-bind:path="this.node.path"
+        v-bind:modalTitle="`Translations: ${nodeName}`">
+      </admin-components-translationsmodal>
 
     </template>
 
@@ -423,6 +433,7 @@ export default {
         allowRename: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
         allowCopy: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
         allowDelete: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
+        allowTranslate: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.OBJECT],
         allowWebPublish: [NodeType.PAGE, NodeType.FILE],
       },
       path: {
@@ -483,6 +494,9 @@ export default {
     },
     allowDelete() {
       return this.nodeTypeGroups.allowDelete.indexOf(this.nodeType) > -1;
+    },
+    allowTranslate() {
+      return this.nodeTypeGroups.allowTranslate.indexOf(this.nodeType) > -1;
     },
     allowWebPublish() {
       return this.nodeTypeGroups.allowWebPublish.indexOf(this.nodeType) > -1;
@@ -840,6 +854,11 @@ export default {
         })
       });
     },
+
+    openTranslationsModal(){
+      this.$refs.translationsModal.open();
+    },
+
     setCurrentPath(path) {
       this.path.current = path;
     },
