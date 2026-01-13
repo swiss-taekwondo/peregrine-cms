@@ -79,29 +79,6 @@
 </template>
 
 <script>
-const translationModel = {
-  "breadcrumb": ["text"],
-  "cards": ["text", "title", "subtitle", "tab", "category", "address", "buttontext"],
-  "carousel": ["buttonlabel", "text"],
-  "contactform": ["formtitle", "formsubtitle", "buttontext", "addresstitle", "contacttitle", "banktitle", "address"],
-  "footer": ["description", "title", "text", "copyright"],
-  "header": ["text", "buttontext", "title"],
-  "listlinks": ["text", "title"],
-  "maps": ["title", "address", "linklabel"],
-  "mediablock": ["mediatitle"],
-  "menubuttons": ["buttontext"],
-  "pager": ["nextlabel", "prevlabel"],
-  "richtext": ["text", "mediatitle"],
-  "simpletext": ["text"],
-  "teaserhorizontal": ["title", "subtitle", "text", "buttontext", "mediatitle"],
-  "teaservertical": ["title", "subtitle", "text", "buttontext", "mediatitle"],
-  "textlinks": ["text"],
-  "viewlink": ["text"],
-  "page": ["jcr:title", "description"],
-  "news": ["text", "title"],
-  "events": ["title", "description", "text", "location", "type", "organisation"]
-};
-
 export default {
   props: [
     'path',
@@ -113,10 +90,11 @@ export default {
       error: null,
       nodes: [],
       languages: ['de', 'fr', 'it'],
+      translationModel: null,
       processingMap: {},
       saveSuccess: {},
       pageLastModified: null,
-      rawPageLastModified: null, // Added to store Date object for comparison
+      rawPageLastModified: null,
       savedScrollTop: 0,
       origin: window.location.origin
     }
@@ -144,6 +122,7 @@ export default {
       this.savedScrollTop = 0;
       this.processingMap = {};
       this.saveSuccess = {};
+      this.translationModel = null;
     },
 
     // --- Helper Methods ---
@@ -165,7 +144,6 @@ export default {
       return new Date(dateString).toLocaleString();
     },
 
-    // New method to check if translation is older than the original content
     isOutdated(translationNode, property) {
       if (!this.rawPageLastModified) return false;
 
@@ -256,6 +234,36 @@ export default {
       }
     },
 
+    // --- Configuration Fetching ---
+
+    async fetchTranslationModel() {
+      if (this.translationModel) return;
+
+      try {
+        // 1. Get current tenant name
+        const tenantName = $perAdminApp.getView().state.tenant.name; //
+        if (!tenantName) throw new Error("Could not determine tenant name.");
+
+        // 2. Fetch tenant config to find sourceSite (template)
+        const tenantRes = await fetch(`/content/${tenantName}.json`); //
+        if (!tenantRes.ok) throw new Error(`Failed to fetch tenant configuration for ${tenantName}`);
+
+        const tenantConfig = await tenantRes.json();
+        // Use tenant as fallback
+        const sourceSite = tenantConfig.sourceSite ?? tenantName;
+
+        // 3. Fetch translation model from the sourceSite theme
+        const modelRes = await fetch(`/apps/${sourceSite}/i18n/model.json`); //
+        if (!modelRes.ok) throw new Error(`Failed to fetch translation model from /apps/${sourceSite}/i18n/model.json`);
+
+        this.translationModel = await modelRes.json();
+
+      } catch (err) {
+        console.error(err);
+        throw new Error(`Configuration Error: ${err.message}`);
+      }
+    },
+
     // --- API Interactions ---
 
     async listTranslations() {
@@ -268,6 +276,10 @@ export default {
       this.rawPageLastModified = null;
 
       try {
+        // Ensure we have the model first
+        await this.fetchTranslationModel();
+
+        // Fetch Page Metadata
         try {
           const pageRes = await fetch(`${this.path}.json`);
           if(pageRes.ok) {
@@ -284,7 +296,7 @@ export default {
         }
 
         const formData = new FormData();
-        formData.append('model', this.json2blob(translationModel));
+        formData.append('model', this.json2blob(this.translationModel));
 
         const response = await fetch(`/perapi/admin/listTranslations.json${this.path}`, {
           body: formData,
@@ -472,7 +484,6 @@ textarea.value:focus {
   font-size: 0.85em;
 }
 
-/* New style for outdated translations */
 .outdated {
   color: #ff9800; /* Orange highlight */
   font-weight: bold;
