@@ -290,6 +290,8 @@ public class TranslateNode extends AbstractBaseServlet {
                         for (String propertyName : propertiesToTranslate.get(key)) {
                             if (!languageNode.hasProperty(propertyName) || override) {
                                 languageNode.setProperty(propertyName, translation);
+                                // Add property timestamp
+                                languageNode.setProperty(PER_TRANSLATED_AT + "_" + propertyName.replaceAll(":", "_"), Calendar.getInstance());
                             }
                         }
                     }
