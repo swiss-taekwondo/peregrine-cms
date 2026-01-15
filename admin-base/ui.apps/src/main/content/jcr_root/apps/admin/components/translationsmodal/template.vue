@@ -1,9 +1,9 @@
 <template>
   <admin-components-materializemodal
-    ref="materializemodal"
-    class="translations-modal"
-    v-on:complete="$emit('complete', $event)"
-    v-bind:modalTitle="computedTitle">
+      ref="materializemodal"
+      class="translations-modal"
+      v-on:complete="$emit('complete', $event)"
+      v-bind:modalTitle="computedTitle">
 
     <div class="translation-content">
       <div v-if="loading" class="loading-message">
@@ -26,7 +26,7 @@
         </tr>
         </thead>
         <tbody>
-        <template v-for="(node, nIndex) in nodes">
+        <template v-for="(node) in nodes">
           <tr v-for="(text, property) in getTranslatableProperties(node)" :key="node.path + ':' + property">
 
             <td class="col-original">
@@ -44,27 +44,38 @@
             <td v-for="lang in languages" :key="lang" class="col-lang">
               <div v-if="node.translations && node.translations[lang] && node.translations[lang][property] !== undefined" class="translation-edit">
                 <textarea
-                  class="value"
-                  rows="3"
-                  v-model="node.translations[lang][property]">
+                    class="value"
+                    rows="3"
+                    v-model="node.translations[lang][property]">
                 </textarea>
                 <div class="date" :class="{ 'outdated': isOutdated(node.translations[lang], property) }">
                   <em>{{ formatDate(node.translations[lang], property) }}</em>
                 </div>
-                <button
-                  class="button cta save"
-                  @click="saveTranslation(node, lang, property)"
-                  :disabled="isDisabled(node.path, lang, property)">
-                  <span v-if="isSuccess(node.path, lang, property)">Saved</span>
-                  <span v-else>{{ isProcessing(node.path, lang, property) ? 'Saving...' : 'Save' }}</span>
-                </button>
+
+                <div class="action-buttons">
+                  <button
+                      class="btn save"
+                      @click="saveTranslation(node, lang, property)"
+                      :disabled="isDisabled(node.path, lang, property)">
+                    <span v-if="isSuccess(node.path, lang, property)">Saved</span>
+                    <span v-else>{{ isProcessing(node.path, lang, property) ? 'Saving...' : 'Save' }}</span>
+                  </button>
+
+                  <button
+                      class="btn btn-icon delete"
+                      @click="deleteTranslation(node, lang, property)"
+                      :disabled="isDisabled(node.path, lang, property)"
+                      title="Delete Translation">
+                    <i class="icon material-icons">delete</i>
+                  </button>
+                </div>
               </div>
 
               <div v-else class="translation-create">
                 <button
-                  class="button cta translate"
-                  @click="translateNode(node, lang, property, text)"
-                  :disabled="isDisabled(node.path, lang, property)">
+                    class="btn translate"
+                    @click="translateNode(node, lang, property, text)"
+                    :disabled="isDisabled(node.path, lang, property)">
                   {{ isProcessing(node.path, lang, property) ? 'Translating...' : `Translate in ${lang.toUpperCase()}` }}
                 </button>
               </div>
@@ -79,6 +90,8 @@
 </template>
 
 <script>
+import {Toast} from "../../../../../../js/constants";
+
 export default {
   props: [
     'path',
@@ -146,12 +159,8 @@ export default {
 
     isOutdated(translationNode, property) {
       if (!this.rawPageLastModified) return false;
-
-      // Logic matches formatDate retrieval
       const dateString = translationNode[`per:TranslatedAt_${this.normalizeProperty(property)}`] ?? translationNode['per:TranslatedAt'];
-
       if (!dateString) return false;
-
       const translationDate = new Date(dateString);
       return translationDate < this.rawPageLastModified;
     },
@@ -179,10 +188,8 @@ export default {
 
     hasTranslatableText(htmlString) {
       if (!htmlString || !htmlString.trim()) return false;
-
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlString, 'text/html');
-
       const walk = (node) => {
         if (node.nodeType === Node.TEXT_NODE) {
           return node.textContent.trim().length > 0;
@@ -214,7 +221,6 @@ export default {
 
     getScrollContainer() {
       if (this.$el) {
-        // Return the modal wrapper that contains the scroll
         return this.$el.closest('.translations-modal');
       }
       return null;
@@ -238,26 +244,16 @@ export default {
 
     async fetchTranslationModel() {
       if (this.translationModel) return;
-
       try {
-        // 1. Get current tenant name
-        const tenantName = $perAdminApp.getView().state.tenant.name; //
+        const tenantName = $perAdminApp.getView().state.tenant.name;
         if (!tenantName) throw new Error("Could not determine tenant name.");
-
-        // 2. Fetch tenant config to find sourceSite (template)
-        const tenantRes = await fetch(`/content/${tenantName}.json`); //
+        const tenantRes = await fetch(`/content/${tenantName}.json`);
         if (!tenantRes.ok) throw new Error(`Failed to fetch tenant configuration for ${tenantName}`);
-
         const tenantConfig = await tenantRes.json();
-        // Use tenant as fallback
         const sourceSite = tenantConfig.sourceSite ?? tenantName;
-
-        // 3. Fetch translation model from the sourceSite theme
-        const modelRes = await fetch(`/apps/${sourceSite}/i18n/model.json`); //
+        const modelRes = await fetch(`/apps/${sourceSite}/i18n/model.json`);
         if (!modelRes.ok) throw new Error(`Failed to fetch translation model from /apps/${sourceSite}/i18n/model.json`);
-
         this.translationModel = await modelRes.json();
-
       } catch (err) {
         console.error(err);
         throw new Error(`Configuration Error: ${err.message}`);
@@ -268,7 +264,6 @@ export default {
 
     async listTranslations() {
       this.saveScroll();
-
       this.loading = true;
       this.error = null;
       this.nodes = [];
@@ -276,18 +271,13 @@ export default {
       this.rawPageLastModified = null;
 
       try {
-        // Ensure we have the model first
         await this.fetchTranslationModel();
-
-        // Fetch Page Metadata
         try {
           const pageRes = await fetch(`${this.path}.json`);
           if(pageRes.ok) {
             const pageJson = await pageRes.json();
             if (pageJson['jcr:lastModified']) {
-              // Store Date object for comparison
               this.rawPageLastModified = new Date(pageJson['jcr:lastModified']);
-              // Store string for display
               this.pageLastModified = this.rawPageLastModified.toLocaleString();
             }
           }
@@ -297,14 +287,11 @@ export default {
 
         const formData = new FormData();
         formData.append('model', this.json2blob(this.translationModel));
-
         const response = await fetch(`/perapi/admin/listTranslations.json${this.path}`, {
           body: formData,
           method: 'POST'
         });
-
         if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
-
         const data = await response.json();
         this.nodes = data.nodes || [];
       } catch (e) {
@@ -324,6 +311,7 @@ export default {
 
       try {
         const formData = new FormData();
+        formData.append('_charset_', 'UTF-8');
         formData.append('lang', lang);
         formData.append('properties[]', property);
         formData.append('translations[]', value);
@@ -340,9 +328,7 @@ export default {
             node.translations[lang][`per:TranslatedAt_${property.replaceAll(':', '_')}`] = date;
             node.translations[lang]['per:TranslatedAt'] = date;
           }
-
           this.$set(this.saveSuccess, key, true);
-
           setTimeout(() => {
             this.$delete(this.saveSuccess, key);
           }, 1500);
@@ -350,17 +336,46 @@ export default {
           throw new Error(await response.text());
         }
       } catch (e) {
-        alert(`Saving failed: ${e}`);
+        $perAdminApp.toast(`Saving failed: ${e}`, Toast.Level.WARNING)
       } finally {
         this.setProcessing(node.path, lang, property, false);
       }
     },
 
+    // Placeholder for deletion logic
+    async deleteTranslation(node, lang, property) {
+      try {
+        $perAdminApp.askUser('Warning',
+            (`This will delete the ${lang} translation. Would you like to continue ?`), {
+              yesText: 'Yes',
+              yes: async () => {
+                const response = await fetch(`/bin/cpm/nodes/property.remove.json${node.path}/experiences/lang_${lang}`, {
+                  "headers": {
+                    "content-type": "text/plain;charset=UTF-8",
+                  },
+                  "body": JSON.stringify({
+                    names: [property]
+                  }),
+                  "method": "DELETE",
+                });
+
+                if (!response.ok) {
+                  throw new Error(await response.text());
+                }
+
+                await this.listTranslations();
+              },
+            });
+      } catch (e) {
+        $perAdminApp.toast(`Delete failed: ${e}`, Toast.Level.WARNING)
+      }
+    },
+
     async translateNode(node, lang, property, originalText) {
       this.setProcessing(node.path, lang, property, true);
-
       try {
         let formData = new FormData();
+        formData.append('_charset_', 'UTF-8');
         formData.append('lang', lang);
         formData.append('properties[]', property);
 
@@ -368,35 +383,19 @@ export default {
           body: formData,
           method: 'POST'
         });
-
         if (!response.ok) {
           throw new Error(await response.text());
         }
-
         const { translations } = await response.json();
 
-        // --- Sibling Logic ---
-        // Find ALL nodes that have matching text, regardless of property name
         const siblings = [];
-
         this.nodes.forEach(otherNode => {
           const translatableProps = this.getTranslatableProperties(otherNode);
           Object.keys(translatableProps).forEach(otherProp => {
             const otherText = translatableProps[otherProp];
-
-            // 1. Text must match exactly
             if (otherText !== originalText) return;
-
-            // 2. Skip the specific item we just translated
             if (otherNode.path === node.path && otherProp === property) return;
-
-            // 3. Skip if already translated
-            if (otherNode.translations &&
-              otherNode.translations[lang] &&
-              otherNode.translations[lang][otherProp]) {
-              return;
-            }
-
+            if (otherNode.translations && otherNode.translations[lang] && otherNode.translations[lang][otherProp]) return;
             siblings.push({
               path: otherNode.path,
               property: otherProp
@@ -404,27 +403,22 @@ export default {
           });
         });
 
-        // Apply translations to siblings
         if (siblings.length && translations) {
           for (const sibling of siblings) {
             const siblingFormData = new FormData();
+            siblingFormData.append('_charset_', 'UTF-8');
             siblingFormData.append('lang', lang);
-            // Use the SIBLING'S property, not the original property
             siblingFormData.append('properties[]', sibling.property);
-
             translations.forEach(t => siblingFormData.append('translations[]', t));
-
             await fetch(`/perapi/admin/translateNode.json${sibling.path}`, {
               body: siblingFormData,
               method: 'POST'
             });
           }
         }
-
         await this.listTranslations();
-
       } catch (e) {
-        alert(`Translation failed: ${e}`);
+        $perAdminApp.toast(`Translation failed: ${e}`, Toast.Level.WARNING)
       } finally {
         this.setProcessing(node.path, lang, property, false);
       }
@@ -445,7 +439,7 @@ table th {
   text-align: left;
   padding: 10px;
   border-bottom: 1px solid #cfd8dc;
-  color: #455a64;
+  color: var(--pcms-blue-grey);
 }
 
 table td {
@@ -454,12 +448,17 @@ table td {
   line-height: 1.5rem;
   border-bottom: 1px solid #cfd8dc;
   text-align: left;
-  color: #455a64;
+  color: var(--pcms-blue-grey);
   font-size: 14px;
 }
 
 table tr:last-child td {
   border-bottom: none;
+}
+
+table .btn {
+  text-transform: none;
+  white-space: nowrap;
 }
 
 textarea.value {
@@ -475,8 +474,8 @@ textarea.value {
 }
 
 textarea.value:focus {
-  border-bottom: 1px solid #607d8b;
-  box-shadow: 0 1px 0 0 #607d8b;
+  border-bottom: 1px solid var(--pcms-blue-grey);
+  box-shadow: 0 1px 0 0 var(--pcms-blue-grey);
 }
 
 .meta-info, .date {
@@ -485,17 +484,17 @@ textarea.value:focus {
 }
 
 .outdated {
-  color: #ff9800; /* Orange highlight */
+  color: var(--pcms-orange);
   font-weight: bold;
 }
 
 a {
-  color: #455a64;
+  color: var(--pcms-blue-grey);
   text-decoration: underline;
 }
 
 .error {
-  color: red;
+  color: var(--error-bg);
   padding: 16px;
 }
 
@@ -505,45 +504,23 @@ a {
   padding: 16px;
 }
 
-.button {
-  box-shadow: none;
-  background-color: transparent;
-  color: #455a64;
-  height: 36px;
-  line-height: 36px;
-  padding: 0 2rem;
-  border: none;
-  border-radius: 2px;
-  transition: .3s ease-out;
-  cursor: pointer;
-  white-space: nowrap;
-  display: inline-block;
-  margin-top: 5px;
-}
-
-.button:hover {
-  background-color: #eceff1;
-}
-
-.button.cta {
-  background-color: #37474f;
-  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
-  color: #fff;
-}
-
-.button.cta:hover {
-  background: #ff9800;
-  box-shadow: 0 3px 3px 0 rgba(0, 0, 0, 0.14), 0 1px 7px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -1px rgba(0, 0, 0, 0.2);
-}
-
-.button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn-icon {
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .translation-edit, .translation-create {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   gap: 8px;
 }
 </style>
