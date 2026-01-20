@@ -6,7 +6,8 @@
       v-bind:modalTitle="computedTitle">
 
     <div class="translation-content">
-      <div v-if="loading" class="loading-message">
+
+      <div v-if="loading && nodes.length === 0" class="loading-message">
         Loading translations...
       </div>
 
@@ -14,76 +15,136 @@
         {{ error }}
       </div>
 
-      <div v-if="!loading && nodes.length === 0" class="empty-message">
+      <div v-if="!loading && nodes.length === 0 && !error" class="empty-message">
         No translatable nodes found for this path.
       </div>
 
-      <table v-if="nodes.length > 0">
-        <thead>
-        <tr>
-          <th>Original</th>
-          <th v-for="lang in languages" :key="lang">{{ lang.toUpperCase() }}</th>
-        </tr>
-        </thead>
-        <tbody>
-        <template v-for="(node) in nodes">
-          <tr v-for="(text, property) in getTranslatableProperties(node)" :key="node.path + ':' + property">
+      <div :class="{ 'is-reloading': loading && nodes.length > 0 }">
 
-            <td class="col-original">
-              <textarea class="value" rows="3" readonly :value="text"></textarea>
-              <div v-if="pageLastModified" class="date">
-                <em>{{ pageLastModified }}</em>
-              </div>
-              <div class="meta-info">
-                <a :href="origin + node.path + '.json'" target="_blank">
-                  <strong>{{ node.reference }}:{{ property }}</strong>
+        <div class="bulk-actions" v-if="nodes.length > 0">
+          <div class="bulk-buttons">
+            <div
+                v-for="lang in languages"
+                :key="lang"
+                class="bulk-dropdown-wrapper">
+
+              <button
+                  class="btn translate dropdown-trigger"
+                  @click.stop="toggleDropdown(lang)"
+                  :disabled="isBulkProcessing">
+                Bulk Translate in {{ lang.toUpperCase() }}
+                <i class="material-icons right">more_vert</i>
+              </button>
+
+              <ul v-if="openDropdown === lang" class="bulk-dropdown-menu">
+                <li @click="selectBulkAction(lang, 'keep')">
+                  <span class="action-title">Keep Existing</span>
+                  <span class="action-desc">Translate only missing texts</span>
+                </li>
+                <li @click="selectBulkAction(lang, 'outdated')">
+                  <span class="action-title">Override Outdated</span>
+                  <span class="action-desc">Update missing and outdated texts</span>
+                </li>
+                <li class="danger" @click="selectBulkAction(lang, 'override')">
+                  <span class="action-title">Override All</span>
+                  <span class="action-desc">Re-translate everything</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div v-if="translationQueue.total > 0" class="bulk-progress">
+            {{ progressMessage }}
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="openDropdown" class="dropdown-backdrop" @click="openDropdown = null"></div>
+
+        <table v-if="nodes.length > 0">
+          <thead>
+          <tr>
+            <th>
+              <div class="action-buttons">
+                Original
+                <a :href="getPreviewUrl('en')" target="_blank" class="btn btn-flat btn-icon" title="View Original Page">
+                  <i class="material-icons">visibility</i>
                 </a>
               </div>
-            </td>
-
-            <td v-for="lang in languages" :key="lang" class="col-lang">
-              <div v-if="node.translations && node.translations[lang] && node.translations[lang][property] !== undefined" class="translation-edit">
-                <textarea
-                    class="value"
-                    rows="3"
-                    v-model="node.translations[lang][property]">
-                </textarea>
-                <div class="date" :class="{ 'outdated': isOutdated(node.translations[lang], property) }">
-                  <em>{{ formatDate(node.translations[lang], property) }}</em>
-                </div>
-
-                <div class="action-buttons">
-                  <button
-                      class="btn save"
-                      @click="saveTranslation(node, lang, property)"
-                      :disabled="isDisabled(node.path, lang, property)">
-                    <span v-if="isSuccess(node.path, lang, property)">Saved</span>
-                    <span v-else>{{ isProcessing(node.path, lang, property) ? 'Saving...' : 'Save' }}</span>
-                  </button>
-
-                  <button
-                      class="btn btn-icon delete"
-                      @click="deleteTranslation(node, lang, property)"
-                      :disabled="isDisabled(node.path, lang, property)"
-                      title="Delete Translation">
-                    <i class="icon material-icons">delete</i>
-                  </button>
-                </div>
+            </th>
+            <th v-for="lang in languages" :key="lang">
+              <div class="action-buttons">
+                {{ lang.toUpperCase() }}
+                <a :href="getPreviewUrl(lang)" target="_blank" class="btn btn-flat btn-icon" :title="'View ' + lang.toUpperCase() + ' Page'">
+                  <i class="material-icons">visibility</i>
+                </a>
               </div>
-
-              <div v-else class="translation-create">
-                <button
-                    class="btn translate"
-                    @click="translateNode(node, lang, property, text)"
-                    :disabled="isDisabled(node.path, lang, property)">
-                  {{ isProcessing(node.path, lang, property) ? 'Translating...' : `Translate in ${lang.toUpperCase()}` }}
-                </button>
-              </div>
-            </td>
+            </th>
           </tr>
-        </template>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+          <template v-for="(node) in nodes">
+            <tr v-for="(text, property) in getTranslatableProperties(node)" :key="node.path + ':' + property">
+
+              <td class="col-original">
+                <textarea class="value" rows="3" readonly :value="text"></textarea>
+                <div v-if="pageLastModified" class="date">
+                  <em>{{ pageLastModified }}</em>
+                </div>
+                <div class="meta-info">
+                  <a :href="origin + node.path + '.json'" target="_blank">
+                    <strong>{{ node.reference }}:{{ property }}</strong>
+                  </a>
+                </div>
+              </td>
+
+              <td v-for="lang in languages" :key="lang" class="col-lang">
+                <div v-if="node.translations && node.translations[lang] && node.translations[lang][property] !== undefined" class="translation-edit">
+                  <textarea
+                      class="value"
+                      rows="3"
+                      v-model="node.translations[lang][property]">
+                  </textarea>
+                  <div class="date" :class="{ 'outdated': isOutdated(node.translations[lang], property) }">
+                    <em>{{ formatDate(node.translations[lang], property) }}</em>
+                  </div>
+
+                  <div class="action-buttons">
+                    <button
+                        class="btn save"
+                        @click="saveTranslation(node, lang, property)"
+                        :disabled="isDisabled(node.path, lang, property)">
+                      <span v-if="isSuccess(node.path, lang, property)">Saved</span>
+                      <span v-else>{{ isProcessing(node.path, lang, property) ? 'Saving...' : 'Save' }}</span>
+                    </button>
+
+                    <button
+                        class="btn btn-icon btn-flat delete"
+                        @click="deleteTranslation(node, lang, property)"
+                        :disabled="isDisabled(node.path, lang, property)"
+                        title="Delete Translation">
+                      <i class="icon material-icons">delete</i>
+                    </button>
+                  </div>
+                </div>
+
+                <div v-else class="translation-create">
+                  <button
+                      class="btn translate"
+                      @click="translateNode(node, lang, property, text)"
+                      :disabled="isDisabled(node.path, lang, property)">
+                    {{ isProcessing(node.path, lang, property) ? 'Translating...' : `Translate in ${lang.toUpperCase()}` }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </template>
+          </tbody>
+        </table>
+      </div>
+
     </div>
 
   </admin-components-materializemodal>
@@ -109,12 +170,28 @@ export default {
       pageLastModified: null,
       rawPageLastModified: null,
       savedScrollTop: 0,
-      origin: window.location.origin
+      origin: window.location.origin,
+      // Bulk State
+      isBulkProcessing: false,
+      openDropdown: null,
+      translationQueue: {
+        total: 0,
+        completed: 0,
+        currentLang: ''
+      }
     }
   },
   computed: {
     computedTitle() {
       return this.modalTitle || `Translations: ${this.path}`;
+    },
+    progressMessage() {
+      if (this.translationQueue.total === 0) return '';
+      return `Translating ${this.translationQueue.currentLang.toUpperCase()}: ${this.translationQueue.completed} / ${this.translationQueue.total}`;
+    },
+    progressPercentage() {
+      if (this.translationQueue.total === 0) return 0;
+      return (this.translationQueue.completed / this.translationQueue.total) * 100;
     }
   },
   methods: {
@@ -136,9 +213,31 @@ export default {
       this.processingMap = {};
       this.saveSuccess = {};
       this.translationModel = null;
+      this.resetBulkState();
+    },
+
+    resetBulkState() {
+      this.isBulkProcessing = false;
+      this.openDropdown = null;
+      this.translationQueue = { total: 0, completed: 0, currentLang: '' };
     },
 
     // --- Helper Methods ---
+
+    getPreviewUrl(lang) {
+      let url = this.path;
+      if (url.startsWith('/content/') && url.includes('/objects/news/')) {
+        url = url.replace('objects/news', 'pages/news-details') + '.html';
+      } else {
+        url = url + '.html';
+      }
+
+      if (lang) {
+        url += `?lang=${lang}`;
+      }
+
+      return this.origin + url;
+    },
 
     json2blob(data) {
       const content = JSON.stringify(data);
@@ -174,7 +273,7 @@ export default {
     },
 
     isDisabled(path, lang, prop) {
-      return this.isProcessing(path, lang, prop) || this.isSuccess(path, lang, prop);
+      return this.isProcessing(path, lang, prop) || this.isSuccess(path, lang, prop) || this.isBulkProcessing;
     },
 
     setProcessing(path, lang, prop, status) {
@@ -266,7 +365,7 @@ export default {
       this.saveScroll();
       this.loading = true;
       this.error = null;
-      this.nodes = [];
+      // Note: We DO NOT clear this.nodes = [] here to allow the table to persist during reload
       this.pageLastModified = null;
       this.rawPageLastModified = null;
 
@@ -296,6 +395,8 @@ export default {
         this.nodes = data.nodes || [];
       } catch (e) {
         this.error = e.toString();
+        // If error occurs, we might want to clear nodes so the error is visible and not confusing
+        if (this.nodes.length === 0) this.nodes = [];
       } finally {
         this.loading = false;
         this.$nextTick(() => {
@@ -342,7 +443,6 @@ export default {
       }
     },
 
-    // Placeholder for deletion logic
     async deleteTranslation(node, lang, property) {
       try {
         $perAdminApp.askUser('Warning',
@@ -404,17 +504,18 @@ export default {
         });
 
         if (siblings.length && translations) {
-          for (const sibling of siblings) {
+          const promises = siblings.map(sibling => {
             const siblingFormData = new FormData();
             siblingFormData.append('_charset_', 'UTF-8');
             siblingFormData.append('lang', lang);
             siblingFormData.append('properties[]', sibling.property);
             translations.forEach(t => siblingFormData.append('translations[]', t));
-            await fetch(`/perapi/admin/translateNode.json${sibling.path}`, {
+            return fetch(`/perapi/admin/translateNode.json${sibling.path}`, {
               body: siblingFormData,
               method: 'POST'
             });
-          }
+          });
+          await Promise.all(promises);
         }
         await this.listTranslations();
       } catch (e) {
@@ -422,12 +523,137 @@ export default {
       } finally {
         this.setProcessing(node.path, lang, property, false);
       }
+    },
+
+    // --- Bulk Translation Logic ---
+
+    toggleDropdown(lang) {
+      if (this.openDropdown === lang) {
+        this.openDropdown = null;
+      } else {
+        this.openDropdown = lang;
+      }
+    },
+
+    selectBulkAction(lang, mode) {
+      this.openDropdown = null;
+      this.executeBulk(lang, mode);
+    },
+
+    async executeBulk(lang, mode) {
+      this.isBulkProcessing = true;
+      this.translationQueue.currentLang = lang;
+      this.translationQueue.total = 0;
+      this.translationQueue.completed = 0;
+
+      // 1. Identify items to translate based on mode
+      const nodeBuckets = {};
+
+      this.nodes.forEach(node => {
+        const translatableProps = this.getTranslatableProperties(node);
+        Object.keys(translatableProps).forEach(property => {
+
+          const hasTranslation = node.translations &&
+              node.translations[lang] &&
+              node.translations[lang][property] !== undefined;
+
+          let shouldTranslate = false;
+
+          if (mode === 'override') {
+            shouldTranslate = true;
+          } else if (mode === 'outdated') {
+            if (!hasTranslation) {
+              shouldTranslate = true;
+            } else {
+              // CLIENT-SIDE CHECK: Only translate if it is actually outdated
+              if (this.isOutdated(node.translations[lang], property)) {
+                shouldTranslate = true;
+              }
+            }
+          } else { // mode === 'keep'
+            if (!hasTranslation) {
+              shouldTranslate = true;
+            }
+          }
+
+          if (shouldTranslate) {
+            if (!nodeBuckets[node.path]) {
+              nodeBuckets[node.path] = [];
+            }
+            nodeBuckets[node.path].push(property);
+          }
+        });
+      });
+
+      this.translationQueue.total = Object.keys(nodeBuckets).length;
+
+      if (this.translationQueue.total === 0) {
+        $perAdminApp.toast(`No items found for ${lang.toUpperCase()} translation with mode: ${mode}`, Toast.Level.INFO);
+        this.resetBulkState();
+        return;
+      }
+
+      // 2. Create parallel requests
+      const requests = Object.entries(nodeBuckets).map(async ([path, properties]) => {
+        const formData = new FormData();
+        formData.append('_charset_', 'UTF-8');
+        formData.append('lang', lang);
+
+        // Append override if necessary
+        if (mode === 'override' || mode === 'outdated') {
+          formData.append('override', 'true');
+        }
+
+        properties.forEach(prop => {
+          formData.append('properties[]', prop);
+        });
+
+        try {
+          const response = await fetch(`/perapi/admin/translateNode.json${path}`, {
+            body: formData,
+            method: 'POST'
+          });
+
+          if (!response.ok) throw new Error(await response.text());
+
+          this.translationQueue.completed++;
+        } catch (e) {
+          console.error(`Failed to bulk translate ${path}:`, e);
+          this.translationQueue.completed++;
+        }
+      });
+
+      // 3. Execute in parallel
+      try {
+        await Promise.all(requests);
+        $perAdminApp.toast(`Bulk translation for ${lang.toUpperCase()} complete.`, Toast.Level.SUCCESS);
+      } catch (e) {
+        $perAdminApp.toast(`Some translations failed during bulk operation.`, Toast.Level.WARNING);
+      } finally {
+        await this.listTranslations();
+        setTimeout(() => {
+          this.resetBulkState();
+        }, 1000);
+      }
     }
   }
 }
 </script>
 
 <style scoped>
+/* Modal Resizing */
+.translations-modal {
+  width: 80% !important;
+  max-height: 80% !important;
+}
+
+/* Reloading State: Semi-transparent and disabled interactions */
+.is-reloading {
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -509,6 +735,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
 }
 
 .translation-edit, .translation-create {
@@ -522,5 +749,118 @@ a {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+}
+
+/* Bulk Actions Styling */
+.bulk-actions {
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.bulk-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Dropdown styling */
+.bulk-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 12px;
+}
+
+.dropdown-trigger i {
+  font-size: 18px;
+}
+
+.bulk-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 220px;
+  background-color: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  border-radius: 4px;
+  margin: 5px 0 0 0;
+  padding: 5px 0;
+  list-style: none;
+}
+
+.bulk-dropdown-menu li {
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #eee;
+}
+
+.bulk-dropdown-menu li:last-child {
+  border-bottom: none;
+}
+
+.bulk-dropdown-menu li:hover {
+  background-color: #f5f5f5;
+}
+
+.bulk-dropdown-menu li.danger {
+  color: #d32f2f;
+}
+
+.bulk-dropdown-menu li.danger:hover {
+  background-color: #ffebee;
+}
+
+.action-title {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.action-desc {
+  display: block;
+  font-size: 12px;
+  color: #757575;
+}
+
+/* Backdrop for dropdown */
+.dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999;
+  background: transparent;
+}
+
+.bulk-progress {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: var(--pcms-blue-grey);
+  font-weight: bold;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #cfd8dc;
+  border-radius: 4px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--pcms-primary, #37474f);
+  transition: width 0.3s ease;
 }
 </style>
