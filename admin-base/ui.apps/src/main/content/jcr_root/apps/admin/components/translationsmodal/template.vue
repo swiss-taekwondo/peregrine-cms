@@ -643,6 +643,13 @@ export default {
 <style scoped>
 /* Modal Resizing */
 .translations-modal {
+  --border-color: #cfd8dc;
+  --text-color: #555;
+  --text-color-light: #757575;
+  --bg-color: #f5f5f5;
+  --bg-color-hover: #ffebee;
+  --text-color-error: #d32f2f;
+
   width: 80% !important;
   max-height: 80% !important;
 }
@@ -664,7 +671,7 @@ table th {
   text-transform: uppercase;
   text-align: left;
   padding: 10px;
-  border-bottom: 1px solid #cfd8dc;
+  border-bottom: 1px solid var(--border-color);
   color: var(--pcms-blue-grey);
 }
 
@@ -672,7 +679,7 @@ table td {
   vertical-align: top;
   padding: 10px;
   line-height: 1.5rem;
-  border-bottom: 1px solid #cfd8dc;
+  border-bottom: 1px solid var(--border-color);
   text-align: left;
   color: var(--pcms-blue-grey);
   font-size: 14px;
@@ -689,12 +696,12 @@ table .btn {
 
 textarea.value {
   width: 100%;
-  border: 1px solid #cfd8dc;
+  border: 1px solid var(--border-color);
   font-size: 1rem;
   padding: 0.5rem;
   transition: all 0.3s;
   line-height: 1.4;
-  color: #555;
+  color: var(--text-color);
   box-sizing: border-box;
   resize: vertical;
 }
@@ -755,7 +762,7 @@ a {
 .bulk-actions {
   margin-bottom: 20px;
   padding: 10px;
-  background-color: #f5f5f5;
+  background-color: var(--bg-color);
   border-radius: 4px;
 }
 
@@ -800,7 +807,7 @@ a {
   padding: 10px 15px;
   cursor: pointer;
   transition: background 0.2s;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .bulk-dropdown-menu li:last-child {
@@ -808,15 +815,15 @@ a {
 }
 
 .bulk-dropdown-menu li:hover {
-  background-color: #f5f5f5;
+  background-color: var(--bg-color);
 }
 
 .bulk-dropdown-menu li.danger {
-  color: #d32f2f;
+  color: var(--text-color-error);
 }
 
 .bulk-dropdown-menu li.danger:hover {
-  background-color: #ffebee;
+  background-color: var(--bg-color-hover);
 }
 
 .action-title {
@@ -828,7 +835,7 @@ a {
 .action-desc {
   display: block;
   font-size: 12px;
-  color: #757575;
+  color: var(--text-color-light)
 }
 
 /* Backdrop for dropdown */
@@ -852,7 +859,7 @@ a {
 .progress-bar {
   width: 100%;
   height: 8px;
-  background-color: #cfd8dc;
+  background-color: var(--border-color);
   border-radius: 4px;
   margin-top: 5px;
   overflow: hidden;
@@ -860,7 +867,7 @@ a {
 
 .progress-fill {
   height: 100%;
-  background-color: var(--pcms-primary, #37474f);
+  background-color: var(--pcms-blue-grey-darken-3);
   transition: width 0.3s ease;
 }
 </style>
