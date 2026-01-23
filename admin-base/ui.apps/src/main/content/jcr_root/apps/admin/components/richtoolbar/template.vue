@@ -256,9 +256,6 @@ export default {
       this.updateDocElDimensions()
     })
 		this.saveSnapshot();
-		// this.debouncedSave = this.debounce(() => {
-		// 	this.saveSnapshot();
-		// }, 500);
 		this.$watch('editorContent', (newValue) => {
 			if (this.isUndoing) {
 				this.isUndoing = false;
@@ -279,13 +276,6 @@ export default {
 			if (this.onSubNav) return;
 		  this[event.detail.cmd]()
 	  },
-		// debounce(func, wait) {
-		// 	let timeout;
-		// 	return function(...args) {
-		// 		clearTimeout(timeout);
-		// 		timeout = setTimeout(() => func.apply(this, args), wait);
-		// 	};
-		// },
 		saveSnapshot() {
 			const content = this.editorContent;
 			if (this.historyIndex > -1 && this.historyStack[this.historyIndex] === content) {
