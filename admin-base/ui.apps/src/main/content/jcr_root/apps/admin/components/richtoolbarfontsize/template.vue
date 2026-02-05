@@ -82,11 +82,11 @@ export default {
     // this is bad, but it doesn't work with on load/DOMContentLoaded or readystate, the listener just doesn't get triggered for the sub-nav input
     // because it loads before the iframe.
     // this is the most reliable thing I could come up with to circumvent this BS
-    document.querySelector("iframe#editview").contentDocument.addEventListener("selectionchange", this.onSelectionChange);
+    document.querySelector("iframe#editview")?.contentDocument.addEventListener("selectionchange", this.onSelectionChange);
     this.inlineListenerInterval = setInterval(() => {
       // Must queryselect each time, it seems the iframe rerenders sometimes causing event listeners to be lost
-      document.querySelector("iframe#editview").contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
-      document.querySelector("iframe#editview").contentDocument.addEventListener("selectionchange", this.onSelectionChange);
+      document.querySelector("iframe#editview")?.contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
+      document.querySelector("iframe#editview")?.contentDocument.addEventListener("selectionchange", this.onSelectionChange);
     }, 1000)
   },
   onBeforeUnmount() {
@@ -100,7 +100,7 @@ export default {
     // sets fontsize of input to that of selected text
     onSelectionChange(event) {
       // skip if no selection is present or input is being focused
-      const iframeDoc = document.querySelector("iframe#editview").contentDocument
+      const iframeDoc = document.querySelector("iframe#editview")?.contentDocument
       const currSelection = event.currentTarget.getSelection()
       if (currSelection.rangeCount <= 0) return
       if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
@@ -108,7 +108,7 @@ export default {
 
       // remove selection from mirror text editor to avoid issues when finding selection to apply fontsize later
       if (event.currentTarget.isEqualNode(iframeDoc)) document.getSelection().removeAllRanges() // remove selection
-      if (event.currentTarget.isEqualNode(document)) iframeDoc.getSelection().removeAllRanges() // remove selection
+      if (event.currentTarget.isEqualNode(document)) iframeDoc?.getSelection().removeAllRanges() // remove selection
 
 
       const currRange = currSelection.getRangeAt(0);

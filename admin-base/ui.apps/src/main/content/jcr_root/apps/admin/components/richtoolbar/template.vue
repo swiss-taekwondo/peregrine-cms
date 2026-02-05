@@ -325,8 +325,8 @@ export default {
     },
 
     getDefaultFontSize() {
-      const iframeWindow = document.querySelector("iframe#editview")
-        .contentWindow;
+      const iframeWindow = document.querySelector("iframe#editview")?.contentWindow;
+      if (!iframeWindow) return 16; // RTE not in page editor
       const currentInlineEditor = iframeWindow.document.querySelector(
         '.inline-edit[contenteditable="true"] > *'
       );
@@ -391,14 +391,14 @@ export default {
 
     getEditorSelection(returnRange = true) {
       const selection = window.getSelection()
-      const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
+      const iframeSelection = document.querySelector('iframe#editview')?.contentDocument.getSelection()
 
-      if (selection.rangeCount > 0) {
+      if (selection?.rangeCount > 0) {
         const range = selection.getRangeAt(0)
         if (this.isRangeInEditor(range)) return returnRange ? range : selection
       }
 
-      if (iframeSelection.rangeCount > 0) {
+      if (iframeSelection?.rangeCount > 0) {
         const iframeRange = iframeSelection.getRangeAt(0)
         if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
       }
