@@ -111,6 +111,14 @@ export default {
       type: Boolean,
       default: true
     },
+    editorContent: {
+      type: String,
+      default: '',
+    },
+    onSubNav: {
+    	type: Boolean,
+    	default: false,
+  	},
   },
 
   data() {
@@ -154,7 +162,11 @@ export default {
         button: 34,
         group: 4
       },
-      hiddenGroups: {}
+			hiddenGroups: {},
+
+			historyStack: [],
+			historyIndex: -1,
+			isUndoing: false,
     }
   },
 
@@ -212,6 +224,8 @@ export default {
         preview: this.togglePreview,
         previewInNewTab: this.previewInNewTab,
         updateFontSize: this.updateFontSize,
+        undo: this.undo,
+        redo: this.redo,
       }
     },
     formattingItems() {
@@ -241,16 +255,78 @@ export default {
       window.addEventListener('resize', this.updateDocElDimensions)
       this.updateDocElDimensions()
     })
+		this.saveSnapshot();
+		this.$watch('editorContent', (newValue) => {
+			if (this.isUndoing) {
+				this.isUndoing = false;
+			}
+			this.saveSnapshot();
+		});
+		if (!this.onSubNav) {
+			window.addEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
+		}
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.updateDocElDimensions)
+    window.removeEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
   },
 
   methods: {
+	 	inlineCmdHandler(event) {
+			if (this.onSubNav) return;
+		  this[event.detail.cmd]()
+	  },
+		saveSnapshot() {
+			const content = this.editorContent;
+			if (this.historyIndex > -1 && this.historyStack[this.historyIndex] === content) {
+				return;
+			}
+			// If we are in the middle of stack and change something, remove future states
+			if (this.historyIndex < this.historyStack.length - 1) {
+				this.historyStack = this.historyStack.slice(0, this.historyIndex + 1);
+			}
+			this.historyStack.push(content);
+			this.historyIndex++;
+			// limit stack size
+			if (this.historyStack.length > 50) {
+				this.historyStack.shift();
+				this.historyIndex--;
+			}
+	  },
+			
+		undo() {
+			if (this.onSubNav) {
+				window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+				return;
+			}
+	    if (this.historyIndex > 0) {
+	      this.isUndoing = true;
+	      this.historyIndex--;
+	      const content = this.historyStack[this.historyIndex];
+				this.$el.nextElementSibling.innerHTML = content;
+				$perAdminApp.action(this, 'textEditorWriteToModel')
+	      // Restore focus/model
+	      this.$nextTick(() => this.isUndoing = false);
+	    }
+	  },
+	  redo() {
+			if (this.onSubNav) {
+				window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
+				return;
+			}
+      if (this.historyIndex < this.historyStack.length - 1) {
+        this.isUndoing = true;
+        this.historyIndex++;
+        const content = this.historyStack[this.historyIndex];
+        this.$el.nextElementSibling.innerHTML = content;
+        $perAdminApp.action(this, 'textEditorWriteToModel')
+        this.$nextTick(() => this.isUndoing = false);
+      }
+    },
 
     getDefaultFontSize() {
-      const iframeWindow = document.querySelector("iframe#editview")
-        .contentWindow;
+      const iframeWindow = document.querySelector("iframe#editview")?.contentWindow;
+      if (!iframeWindow) return 16; // RTE not in page editor
       const currentInlineEditor = iframeWindow.document.querySelector(
         '.inline-edit[contenteditable="true"] > *'
       );
@@ -315,14 +391,14 @@ export default {
 
     getEditorSelection(returnRange = true) {
       const selection = window.getSelection()
-      const iframeSelection = document.querySelector('iframe#editview').contentDocument.getSelection()
+      const iframeSelection = document.querySelector('iframe#editview')?.contentDocument.getSelection()
 
-      if (selection.rangeCount > 0) {
+      if (selection?.rangeCount > 0) {
         const range = selection.getRangeAt(0)
         if (this.isRangeInEditor(range)) return returnRange ? range : selection
       }
 
-      if (iframeSelection.rangeCount > 0) {
+      if (iframeSelection?.rangeCount > 0) {
         const iframeRange = iframeSelection.getRangeAt(0)
         if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
       }
@@ -891,7 +967,7 @@ export default {
       } else {
         return group.items.filter((item) => item.isActive && item.isActive()).length > 0
       }
-    }
+		},
   }
 }
 </script>

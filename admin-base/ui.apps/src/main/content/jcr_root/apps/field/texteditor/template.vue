@@ -28,6 +28,7 @@
       class="on-right-panel"
       :show-always-active="false"
       :responsive="false"
+      :editorContent="value"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
     />
     <p class="text-editor inline-edit"

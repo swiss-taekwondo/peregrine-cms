@@ -24,7 +24,7 @@
   -->
 <template>
     <div class="nav-content sub-nav" :class="classes">
-        <richtoolbar v-if="renderRichToolbar" class="on-sub-nav"/>
+        <richtoolbar v-if="renderRichToolbar" class="on-sub-nav" :onSubNav="true"/>
         <div v-if="showNodeTree" class="page-tree">
             <admin-components-materializedropdown
                 ref="dropdown"
@@ -150,4 +150,3 @@ export default {
     }
 }
 </script>
-
