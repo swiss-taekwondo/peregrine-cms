@@ -24,6 +24,9 @@
           border-bottom: 1px solid #adadad;
           text-align: center;
           color: var(--pcms-blue-grey);
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
         }
 
         .pathbrowser-tabs {
@@ -137,6 +140,7 @@
               .modal-content-section {
                 display: inline-block;
                 vertical-align: top;
+                width: 100%;
 
                 .current-folder {
                   display: inline-block;
@@ -145,6 +149,10 @@
                   color: customColor("blue-grey", "darken-2");
                   padding-right: 0.75rem;
                   vertical-align: top;
+                  overflow: hidden;
+                  white-space: nowrap;
+                  text-overflow: ellipsis;
+                  width: 100%;
 
                   a {
                     display: inline-block;
@@ -462,11 +470,22 @@
           justify-content: space-between;
           background-color: #fff;
           color: customColor("blue-grey", "darken-2");
+
+          .pathbrowser-selected-path {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
         }
+      }
+
+      .pathbrowser-buttons {
+        display: flex;
       }
 
       .pathbrowser-footer-details {
         flex-grow: 1;
+        min-width: 0;
         padding-right: 10px;
         padding-left: 5px;
         display: flex;
