@@ -35,6 +35,6 @@
     sling:resourceType="admin/components/toolingpage"
     jcr:title="admin root template"
     siteCSS="[/etc/felibs/admin/dependencies/material-design-icons/material-icons.css,/etc/felibs/materialize/materialize.css]"
-    siteJS="[/etc/felibs/admin/dependencies/jquery/jquery.js,/etc/felibs/admin/dependencies/materialize-css/js/materialize.min.js]"/>
+    siteJS="[/etc/felibs/admin/dependencies/jquery/jquery.js,/etc/felibs/admin/dependencies/materialize-css/js/materialize.min.js,/etc/felibs/admin/dependencies/customElements.js]"/>
 
 </jcr:root>
