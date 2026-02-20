@@ -713,14 +713,7 @@ export default {
     },
     insertIcon(imgPath) {
       console.log('imgPath: ', imgPath);
-      const range = document.getSelection().getRangeAt(0);
-      const icon = document.createElement('peregrine-icon');
-      icon.style.display = 'inline-block';
-      icon.setAttribute('contenteditable', 'false');
-      // icon.tabindex = '-1';
-      icon.setAttribute('img', imgPath);
-      range.insertNode(icon);
-      // this.execCmd('insertHTML', `<peregrine-icon style="display: inline-block;" contenteditable="false" tabindex="-1" img="${imgPath}"></peregrine-icon>`);
+      this.execCmd('insertHTML', `<img class="peregrine-icon" style="display: inline-block; width: 1.2rem;" src="${imgPath}"></img>`);
     },
     setViewport(viewport) {
       set($perAdminApp.getView(), '/state/tools/workspace/view', viewport)

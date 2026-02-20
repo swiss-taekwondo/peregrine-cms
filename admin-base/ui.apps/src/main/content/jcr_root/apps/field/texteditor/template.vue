@@ -59,7 +59,6 @@ const allowedStylesMap = {
 };
 const allowedStylesElementsMap = {
   IMG: true,
-  'PEREGRINE-ICON': true,
 }
 function removeUnwantedStyles(htmlText) {
   const tempDiv = document.createElement('div')
