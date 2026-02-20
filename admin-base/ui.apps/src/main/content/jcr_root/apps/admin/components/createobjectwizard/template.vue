@@ -133,6 +133,9 @@
                 this.selectItem(null, this.objects[0].path)
             }
         },
+        updated: function() {
+            this._setupLocationAutocomplete()
+        },
         methods: {
             findAllowedObjects(path) {
 
@@ -188,7 +191,140 @@
             },
             leaveTabTwo: function() {
                 return this.$refs.nameTab.validate()
-            }
+            },
+
+            _setupLocationAutocomplete() {
+                const locationSelectors = ['.vue-form-generator #event-location', '.vue-form-generator #club-address']
+                locationSelectors.forEach((selector) => {
+                    const input = this.$el.querySelector(selector)
+                    if (!input || input._autocompleteAttached) return
+                    this._attachAddressAutocomplete(input)
+                })
+            },
+
+            _attachAddressAutocomplete(input) {
+                input._autocompleteAttached = true
+
+                const listboxId = `location-autocomplete-listbox-${Math.random().toString(36).slice(2)}`
+                input.setAttribute('role', 'combobox')
+                input.setAttribute('aria-autocomplete', 'list')
+                input.setAttribute('aria-expanded', 'false')
+                input.setAttribute('aria-controls', listboxId)
+                input.setAttribute('aria-haspopup', 'listbox')
+
+                const dropdown = document.createElement('ul')
+                dropdown.id = listboxId
+                dropdown.setAttribute('role', 'listbox')
+                Object.assign(dropdown.style, {
+                    background: '#fff',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                    display: 'none',
+                    listStyle: 'none',
+                    margin: '0',
+                    padding: '0',
+                    position: 'absolute',
+                    zIndex: '9999',
+                })
+                input.parentElement.style.position = 'relative'
+                input.insertAdjacentElement('afterend', dropdown)
+
+                let activeIndex = -1
+                let featureList = []
+
+                const setActiveItem = (index) => {
+                    const items = dropdown.querySelectorAll('[role="option"]')
+                    items.forEach((item, i) => {
+                        const isActive = i === index
+                        item.setAttribute('aria-selected', String(isActive))
+                        item.style.background = isActive ? '#f5f5f5' : ''
+                    })
+                    activeIndex = index
+                    if (index >= 0 && items[index]) {
+                        input.setAttribute('aria-activedescendant', items[index].id)
+                    } else {
+                        input.removeAttribute('aria-activedescendant')
+                    }
+                }
+
+                const hideDropdown = () => {
+                    dropdown.style.display = 'none'
+                    dropdown.innerHTML = ''
+                    activeIndex = -1
+                    input.setAttribute('aria-expanded', 'false')
+                    input.removeAttribute('aria-activedescendant')
+                }
+
+                const formatAddress = ({ street, housenumber, postcode, city }) => {
+                    const streetPart = [street, housenumber].filter(Boolean).join(' ')
+                    const cityPart = [postcode, city].filter(Boolean).join(' ')
+                    return [streetPart, cityPart].filter(Boolean).join(', ')
+                }
+
+                const selectFeature = (feature) => {
+                    input.value = formatAddress(feature.properties)
+                    input.dispatchEvent(new Event('input', { bubbles: true }))
+                    input.dispatchEvent(new Event('change', { bubbles: true }))
+                    hideDropdown()
+                    input.focus()
+                }
+
+                const showSuggestions = (features) => {
+                    featureList = features.filter((f) => f.properties.street)
+                    dropdown.innerHTML = ''
+                    if (!featureList.length) { hideDropdown(); return }
+                    featureList.forEach((feature, i) => {
+                        const label = formatAddress(feature.properties)
+                        const li = document.createElement('li')
+                        li.textContent = label
+                        li.id = `location-option-${i}`
+                        li.setAttribute('role', 'option')
+                        li.setAttribute('aria-selected', 'false')
+                        Object.assign(li.style, {
+                            borderBottom: '1px solid #eee',
+                            cursor: 'pointer',
+                            padding: '8px 12px',
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
+                        })
+                        li.addEventListener('mouseenter', () => setActiveItem(i))
+                        li.addEventListener('mouseleave', () => setActiveItem(-1))
+                        li.addEventListener('mousedown', (e) => { e.preventDefault(); selectFeature(feature) })
+                        dropdown.append(li)
+                    })
+                    activeIndex = -1
+                    dropdown.style.display = 'block'
+                    dropdown.style.width = input.offsetWidth + 'px'
+                    input.setAttribute('aria-expanded', 'true')
+                }
+
+                input.addEventListener('keydown', (e) => {
+                    if (dropdown.style.display === 'none') return
+                    const items = dropdown.querySelectorAll('[role="option"]')
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveItem(Math.min(activeIndex + 1, items.length - 1)) }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveItem(Math.max(activeIndex - 1, -1)) }
+                    else if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); selectFeature(featureList[activeIndex]) }
+                    else if (e.key === 'Escape') { hideDropdown() }
+                })
+
+                let debounceTimer
+                input.addEventListener('input', () => {
+                    clearTimeout(debounceTimer)
+                    const val = input.value.trim()
+                    if (val.length < 3) { hideDropdown(); return }
+                    debounceTimer = setTimeout(async () => {
+                        try {
+                            const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val)}&limit=6&lang=en&bbox=5.9,45.8,10.5,47.8`)
+                            if (!res.ok) return
+                            const data = await res.json()
+                            showSuggestions(data.features || [])
+                        } catch { /* Do nothing */ }
+                    }, 300)
+                })
+
+                input.addEventListener('blur', hideDropdown)
+            },
 
         }
     }
