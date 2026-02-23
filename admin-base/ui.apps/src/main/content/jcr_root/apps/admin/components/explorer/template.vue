@@ -45,6 +45,19 @@
                         }"><i class="material-icons">folder_open</i><i class="material-icons">arrow_upward</i>
                     </admin-components-action>
                 </li>
+            <li class="sort-controls">
+                <span class="sort-label">Sort by:</span>
+                <button
+                    v-for="option in sortOptions"
+                    :key="option.value"
+                    :class="['sort-btn', { active: sortBy === option.value }]"
+                    @click="toggleSort(option.value)">
+                    {{ option.label }}
+                </button>
+                <button class="sort-direction-btn" @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'" :title="sortOrder === 'asc' ? 'Ascending' : 'Descending'">
+                    <i class="material-icons" :style="sortOrder === 'asc' ? 'transform: rotateX(180deg);' : ''">sort</i>
+                </button>
+            </li>
                 <li
                     v-for ="child in children"
                     v-bind:key="child.path"
@@ -295,7 +308,14 @@ export default {
                 isFileUploadVisible: false,
                 uploadProgress: 0,
                 filter: true,
-                publishDialogPath: null
+                publishDialogPath: null,
+                sortBy: 'name',
+                sortOrder: 'desc',
+                sortOptions: [
+                    { value: 'name', label: 'Name' },
+                    { value: 'date', label: 'Date' },
+                    { value: 'lastChanged', label: 'Last Changed' },
+                ]
             }
         },
 
@@ -314,7 +334,8 @@ export default {
             },
             children: function() {
                 if ( this.pt.children ) {
-                    return this.pt.children.filter( child => this.checkIfAllowed(child) )
+                    let filtered = this.pt.children.filter( child => this.checkIfAllowed(child) )
+                    return this.sortChildren(filtered)
                 }
             },
             parentPath: function() {
@@ -343,6 +364,39 @@ export default {
         methods: {
             getTenant() {
               return $perAdminApp.getView().state.tenant || {name: 'example'}
+            },
+
+            toggleSort(value) {
+                if (this.sortBy === value) {
+                    this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc'
+                } else {
+                    this.sortBy = value
+                }
+            },
+
+            sortChildren(children) {
+                const sorted = [...children]
+                const order = this.sortOrder === 'asc' ? 1 : -1
+                switch(this.sortBy) {
+                    case 'name':
+                        sorted.sort((a, b) => (a.name || '').localeCompare(b.name || '') * order)
+                        break
+                    case 'date':
+                        sorted.sort((a, b) => {
+                            const dateA = new Date(a['jcr:created'] || a.created || 0)
+                            const dateB = new Date(b['jcr:created'] || b.created || 0)
+                            return (dateB - dateA) * order
+                        })
+                        break
+                    case 'lastChanged':
+                        sorted.sort((a, b) => {
+                            const dateA = new Date(a['jcr:lastModified'] || a.lastModified || 0)
+                            const dateB = new Date(b['jcr:lastModified'] || b.lastModified || 0)
+                            return (dateB - dateA) * order
+                        })
+                        break
+                }
+                return sorted
             },
 
             isAssets(path) {
@@ -854,6 +908,57 @@ export default {
         display: flex;
         justify-content: center;
         align-items: center;
+    }
+
+    .sort-controls {
+        padding: 0.4rem 1rem;
+        background: #f9f9f9;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .sort-label {
+        font-size: 0.85rem;
+        color: #666;
+        margin-right: 0.5rem;
+    }
+
+    .sort-direction-btn,
+    .sort-direction-btn:focus {
+        background: transparent;
+        border: 1px solid #ccc;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        cursor: pointer;
+        border-radius: 3px;
+        margin-left: 0.5rem;
+        font-size: 1.1rem;
+        line-height: 26px;
+    }
+
+    .sort-btn {
+        background: transparent;
+        border: none;
+        padding: 0.25rem 0.5rem;
+        cursor: pointer;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        color: #555;
+        transition: all 0.15s;
+    }
+
+    .sort-direction-btn:hover,
+    .sort-btn:hover {
+        background: #e8e8e8;
+    }
+
+    .sort-btn.active {
+        background: #ddd;
+        font-weight: 500;
+        color: #333;
     }
 </style>
 
