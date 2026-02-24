@@ -59,9 +59,7 @@
 </template>
 
 <script>
-import { attachAddressAutocomplete } from '../../../../js/utils'
-
-export default {
+    export default {
         props: ['model'],
         data:
             function() {
@@ -135,9 +133,6 @@ export default {
                 this.selectItem(null, this.objects[0].path)
             }
         },
-        updated: function() {
-            this._setupLocationAutocomplete()
-        },
         methods: {
             findAllowedObjects(path) {
 
@@ -193,17 +188,7 @@ export default {
             },
             leaveTabTwo: function() {
                 return this.$refs.nameTab.validate()
-            },
-
-            _setupLocationAutocomplete() {
-                const locationSelectors = ['.vue-form-generator #event-location', '.vue-form-generator #club-address']
-                locationSelectors.forEach((selector) => {
-                    const input = this.$el.querySelector(selector)
-                    if (input) {
-                        attachAddressAutocomplete(input)
-                    }
-                })
-            },
+            }
 
         }
     }

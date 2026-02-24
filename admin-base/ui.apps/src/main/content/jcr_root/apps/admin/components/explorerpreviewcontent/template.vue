@@ -332,7 +332,7 @@
 
 <script>
 import {IconLib, MimeType, NodeType, SUFFIX_PARAM_SEPARATOR} from '../../../../../../js/constants'
-import {deepClone, get, set, attachAddressAutocomplete} from '../../../../../../js/utils'
+import {deepClone, get, set} from '../../../../../../js/utils'
 import NodeNameValidation from '../../../../../../js/mixins/NodeNameValidation'
 import ReferenceUtil from '../../../../../../js/mixins/ReferenceUtil'
 import Icon from '../icon/template.vue'
@@ -577,9 +577,6 @@ export default {
   watch: {
     edit(val) {
       $perAdminApp.getNodeFromViewOrNull('/state/tools').edit = val
-      if (val) {
-        this.$nextTick(() => this._setupLocationAutocomplete())
-      }
     },
     activeTab : function(tab) {
       if (tab === 'versions') {
@@ -612,16 +609,6 @@ export default {
     this.path.current = this.currentPath
   },
   methods: {
-    _setupLocationAutocomplete() {
-      const locationSelectors = ['.vue-form-generator #event-location', '.vue-form-generator #club-address']
-      locationSelectors.forEach((selector) => {
-        const input = this.$el.querySelector(selector)
-        if (input) {
-          attachAddressAutocomplete(input)
-        }
-      })
-    },
-
     itemToTarget(path) {
       const ret = { path, target: path }
       const tenant = $perAdminApp.getNodeFromViewOrNull('/state/tenant')
