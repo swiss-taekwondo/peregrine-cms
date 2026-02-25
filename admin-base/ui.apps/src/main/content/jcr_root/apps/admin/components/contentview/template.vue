@@ -112,6 +112,8 @@ const allowedStylesMap = {
   // bold, italic, etc handled by html tags
   'text-align':true,
   'font-size':true,
+  'width':true,
+  'height':true,
 }
 function removeUnwantedStyles(htmlText) {
   const tempDiv = document.createElement('div')
@@ -543,6 +545,19 @@ export default {
       parentProp[keyStr] = content;
     },
 
+    writeElementToModel(vm = this, element) {
+      let content = element.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
+      content = removeUnwantedStyles(content)
+      const dataInline = (element.getAttribute('data-per-inline') || '').split('.').slice(1)
+      dataInline.reverse()
+      let parentProp = vm.node
+      while (dataInline.length > 1) {
+        parentProp = parentProp[dataInline.pop()]
+      }
+      const keyStr = dataInline.pop()
+      if (keyStr) parentProp[keyStr] = content
+    },
+
     onInlineEdit(event) {
       if (!this.inlineEdit.firstTime.includes(event.target)) {
         this.inlineEdit.firstTime.push(event.target)
@@ -662,7 +677,8 @@ export default {
 
     onInlineDblClick(event) {
       if (event.target.tagName === 'IMG') {
-        $perAdminApp.action(this, 'editImage', event.target)
+        const action = event.target.classList.contains('peregrine-icon') ? 'editIcon' : 'editImage'
+        $perAdminApp.action(this, action, event.target)
       }
     },
 

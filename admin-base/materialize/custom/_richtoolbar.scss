@@ -324,44 +324,56 @@
       border: 1px solid #ccc;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
       flex-direction: column;
-      min-width: 150px;
       white-space: nowrap;
 
       &--open {
         display: flex;
       }
 
-      // Buttons inside the dropdown menu
-      button {
+      // List layout for dropdown groups (text-format, link, etc.)
+      .rtb-dropdown-items-list {
+        display: flex;
+        flex-direction: column;
+        min-width: 150px;
+      }
+
+      // Dropdown menu items — use .rtb-menu-item (not .btn) to avoid toolbar style conflicts
+      .rtb-menu-item {
         display: flex;
         align-items: center;
+        justify-content: flex-start;
         width: 100%;
-        height: 2rem;
-        padding: 0 10px !important;
+        height: 35px;
+        padding: 0 10px;
         gap: 8px;
         border: none;
-        border-radius: 0;
         background: transparent;
         color: #222;
         cursor: pointer;
-        font-size: 0.9rem;
-        text-align: left;
-        box-shadow: none !important;
+        box-shadow: none;
+        white-space: nowrap;
 
         .fa,
         .material-icons {
-          color: #222;
-          width: 16px;
-          height: auto;
-          flex-shrink: 0;
+          color: #444;
           font-size: 14px;
           line-height: 1;
+          flex-shrink: 0;
+          width: auto;
+          height: auto;
         }
 
-        &.active,
+        &.active {
+          background: var(--pcms-orange-hover, rgba(255, 152, 0, 0.15));
+
+          .fa,
+          .material-icons {
+            color: var(--pcms-orange, #ff9800);
+          }
+        }
+
         &:hover {
           background: var(--pcms-orange-hover, rgba(255, 152, 0, 0.15));
-          color: #222;
         }
 
         &:focus-visible {

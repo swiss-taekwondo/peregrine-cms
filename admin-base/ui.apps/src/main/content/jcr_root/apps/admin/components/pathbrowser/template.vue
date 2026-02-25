@@ -49,6 +49,11 @@
                 <i class="material-icons">link</i>
               </a>
             </li>
+            <li v-if="withImageTab" class="tab">
+              <a href="#" :class="tab === 'image' ? 'active' : ''" v-on:click="select('image')">
+                <i class="material-icons">image</i>
+              </a>
+            </li>
             <li
                 class="indicator"
                 :style="`transform: translateX(${tabIndicatorPosition}px)`">
@@ -371,6 +376,37 @@
                   </div>
                 </div>
               </template>
+              <template v-if="withImageTab && tab === 'image'">
+                <div class="form-group" v-if="altText !== undefined">
+                  <label for="imageTabAltText">Image Alternate Text</label>
+                  <input
+                      id="imageTabAltText"
+                      type="text"
+                      placeholder="Alt Text"
+                      :value="altText"
+                      @input="setAltText"/>
+                </div>
+                <div class="img-group">
+                  <div class="form-group">
+                    <label for="imageTabWidth">Width (px)</label>
+                    <input
+                        id="imageTabWidth"
+                        type="number"
+                        placeholder="Width"
+                        :value="imgWidth"
+                        @input="onUpdateImgDimension('width', $event)"/>
+                  </div>
+                  <div class="form-group">
+                    <label for="imageTabHeight">Height (px)</label>
+                    <input
+                        id="imageTabHeight"
+                        type="number"
+                        placeholder="Height"
+                        :value="imgHeight"
+                        @input="onUpdateImgDimension('height', $event)"/>
+                  </div>
+                </div>
+              </template>
             </div>
             <div class="col-preview">
               <template v-if="preview">
@@ -445,6 +481,7 @@ export default {
     currentPath: String,
     selectedPath: String,
     withLinkTab: Boolean,
+    withImageTab: Boolean,
     newWindow: {
       type: Boolean,
       default: false
@@ -476,7 +513,9 @@ export default {
   },
   mounted() {
     // set initial tab
-    if (this.withLinkTab && this.selectedPath && this.selectedPath.match(/^(https?:)?\/\//)) {
+    if (this.withImageTab) {
+      this.tab = 'image'
+    } else if (this.withLinkTab && this.selectedPath && this.selectedPath.match(/^(https?:)?\/\//)) {
       this.tab = 'link'
     } else {
       this.tab = 'browse'
@@ -538,6 +577,9 @@ export default {
         case ('link'):
           position = 144
           break
+        case ('image'):
+          position = this.withLinkTab ? 216 : 144
+          break
         default:
           position = 0
           break
@@ -545,7 +587,9 @@ export default {
       return position
     },
     searchTabOffset() {
-      if (this.withLinkTab) {
+      if (this.withLinkTab && this.withImageTab) {
+        return 288
+      } else if (this.withLinkTab || this.withImageTab) {
         return 216
       } else {
         return 144
@@ -763,6 +807,20 @@ export default {
 <style scoped>
 .browse-list li i.material-icons {
   cursor: pointer;
+}
+
+.form-group label,
+.form-group input {
+  color: #222;
+}
+
+.img-group {
+  display: flex;
+  gap: 8px;
+}
+
+.img-group .form-group {
+  flex: 1;
 }
 
 .browse-list .icon {

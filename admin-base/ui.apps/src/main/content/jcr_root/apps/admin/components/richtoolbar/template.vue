@@ -41,6 +41,7 @@ import {
 import {get, restoreSelection, saveSelection, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
+import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
 
 // ---------------------------------------------------------------------------
@@ -62,19 +63,20 @@ function resolveClass(cls) {
   return cls || ''
 }
 
-function renderBtn(h, btn, vm, keyPrefix, index) {
+function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false) {
   const isActive = btn.isActive ? btn.isActive() : false
   const extraClass = resolveClass(btn.class)
   const uniqueKey = keyPrefix != null
     ? (index != null ? `${keyPrefix}-${index}` : `${keyPrefix}-${btn.label}`)
     : btn.label
+  const classes = inDropdown
+    ? ['rtb-menu-item', { active: isActive }, extraClass]
+    : ['rtb-btn', 'btn', { active: isActive }, extraClass]
+  const label = btn.title ? vm.$i18n(btn.title) : vm.$i18n(btn.label)
   return h('button', {
     key: uniqueKey,
-    class: ['rtb-btn', 'btn', { active: isActive }, extraClass],
-    attrs: {
-      title: btn.title ? vm.$i18n(btn.title) : vm.$i18n(btn.label),
-      type: 'button',
-    },
+    class: classes,
+    attrs: { title: label, type: 'button' },
     on: {
       mousedown: e => e.preventDefault(),
       click: () => btn.click ? btn.click() : vm.exec(btn.cmd),
@@ -86,7 +88,7 @@ function renderBtn(h, btn, vm, keyPrefix, index) {
 
 export default {
   name: 'RichToolbar',
-  components: { RichtoolbarFontSize, Pathbrowser },
+  components: { RichtoolbarFontSize, RichtoolbarGroup, Pathbrowser },
   props: {
     showAlwaysActive: {
       type: Boolean,
@@ -127,8 +129,10 @@ export default {
         root: '',
         type: 'image',
         withLinkTab: false,
+        withImageTab: false,
         newWindow: false,
         linkTitle: '',
+        altText: undefined,
         path: {
           current: '',
           selected: null,
@@ -209,6 +213,7 @@ export default {
         link: this.insertLink,
         insertImage: this.insertImage,
         editImage: this.editImage,
+        editIcon: this.editIcon,
         preview: this.togglePreview,
         previewInNewTab: this.previewInNewTab,
         updateFontSize: this.updateFontSize,
@@ -284,9 +289,12 @@ export default {
           browserRoot: this.browser.root,
           browserType: this.browser.type,
           withLinkTab: this.browser.withLinkTab,
+          withImageTab: this.browser.withImageTab,
           newWindow: this.browser.newWindow,
           linkTitle: this.browser.linkTitle,
           setLinkTitle: this.setBrowserLinkTitle,
+          altText: this.browser.altText,
+          setAltText: this.setBrowserAltText,
           currentPath: this.browser.path.current,
           setCurrentPath: this.setBrowserPathCurrent,
           selectedPath: this.browser.path.selected,
@@ -326,6 +334,26 @@ export default {
       const icon = typeof group.icon === 'function' ? group.icon() : group.icon
       const iconLib = group.iconLib || IconLib.FONT_AWESOME
       const groupClass = resolveClass(group.class)
+
+      // Searchable groups (icons, special-characters) use the legacy MaterializeDropDown path
+      if (group.searchable) {
+        return h(RichtoolbarGroup, {
+          key: `group-${label}`,
+          props: {
+            icon,
+            iconLib,
+            collapse: !!group.collapse,
+            label,
+            active: this.groupIsActive(group),
+            items,
+            searchable: true,
+          },
+          on: {
+            'toggle-click': () => { if (group.toggleClick) group.toggleClick() },
+            click: ({ btn }) => { if (btn.click) btn.click(); else this.exec(btn.cmd) },
+          },
+        })
+      }
 
       // Filter out dividers (string sentinels) and apply per-item rules if defined
       const itemRules = group.itemRules || null
@@ -374,12 +402,12 @@ export default {
           if (btn.items && btn.items.length > 0) {
             return this._renderGroup(h, btn, false)
           }
-          return renderBtn(h, btn, this, label, i)
+          return renderBtn(h, btn, this, label, i, true)
         })
 
         const menu = h('div', {
           class: ['rtb-dropdown-menu', { 'rtb-dropdown-menu--open': isOpen }],
-        }, menuItems)
+        }, [h('div', { class: 'rtb-dropdown-items-list' }, menuItems)])
 
         return h('div', {
           key: `group-${label}`,
@@ -676,6 +704,12 @@ export default {
 
     pingRichToolbar(vm = this) {
       vm.$emit('ping')
+      const view = $perAdminApp.getView()
+      if (view) {
+        const state = view.state || (view.state = {})
+        const inline = state.inline || (state.inline = {})
+        inline.ping = (inline.ping || 0) + 1
+      }
       $perAdminApp.action(vm, 'reWrapEditable')
     },
 
@@ -797,12 +831,31 @@ export default {
       this.browser.type = PathBrowser.Type.PAGE
 
       let startPath
-      const isExternal = /^https?:\/\//.test(href)
+      let resolvedHref = href
+
+      // If the href is absolute, check if it's same-origin (browser resolves relative hrefs
+      // to absolute when pasting, so a pasted internal link like /events/foo.html becomes
+      // https://admin-host/events/foo.html)
+      if (/^https?:\/\//.test(href)) {
+        try {
+          const url = new URL(href)
+          if (url.hostname === window.location.hostname) {
+            // Same origin — treat as internal, use just the pathname
+            resolvedHref = url.pathname
+          }
+        } catch (e) { /* Do nothing */ }
+      }
+
+      const isExternal = /^https?:\/\//.test(resolvedHref)
       if (isExternal) {
-        this.browser.path.selected = href
+        this.browser.path.selected = resolvedHref
         startPath = this.roots.pages || '/'
       } else {
-        const hrefPath = href.replace(/\.html$/, '')
+        let hrefPath = resolvedHref.replace(/\.html$/, '')
+        // If the path is a publish-side relative path (not a JCR path), prepend the pages root
+        if (!hrefPath.startsWith('/content/')) {
+          hrefPath = (this.roots.pages || '') + hrefPath
+        }
         const lastSlash = hrefPath.lastIndexOf('/')
         startPath = lastSlash > 0 ? hrefPath.substring(0, lastSlash) : (this.roots.pages || '/')
         this.browser.path.selected = hrefPath
@@ -871,7 +924,48 @@ export default {
     },
 
     insertIcon(imgPath) {
-      this.execCmd('insertHTML', `<peregrine-icon img="${imgPath}"></peregrine-icon>`)
+      const doc = this.selection.doc
+      const container = this.selection.container
+      const buffer = this.selection.buffer
+      if (!doc || !container || !buffer) return
+      container.focus()
+      this.$nextTick(() => {
+        restoreSelection(container, buffer, doc)
+        doc.execCommand('insertHTML', true, `<img src="${imgPath}" class="peregrine-icon" alt=""/>`)
+        // execCommand may strip style attributes — find the inserted img and set size via DOM
+        const inserted = container.querySelector(`img.peregrine-icon[src="${imgPath}"]:not([style])`)
+        if (inserted) {
+          inserted.style.width = '20px'
+          inserted.style.height = '20px'
+        }
+        $perAdminApp.action(this, 'writeElementToModel', container)
+        this.pingRichToolbar()
+      })
+    },
+
+    editIcon(vm = this, target) {
+      const alt = target.getAttribute('alt') || ''
+      const src = target.getAttribute('src') || ''
+      const img = {
+        width: target.style.width ? parseInt(target.style.width) : 20,
+        height: target.style.height ? parseInt(target.style.height) : 20,
+      }
+      vm.param.cmd = 'editIcon'
+      vm.browser.header = vm.$i18n('Edit Icon')
+      vm.browser.withLinkTab = false
+      vm.browser.withImageTab = true
+      vm.browser.path.selected = src
+      vm.browser.path.current = src
+      vm.browser.type = PathBrowser.Type.ASSET
+      vm.browser.altText = alt
+      vm.browser.linkTitle = undefined
+      vm.browser.newWindow = undefined
+      vm.browser.element = target
+      vm.browser.img.width = img.width
+      vm.browser.img.height = img.height
+      vm.saveSelection()
+      vm.selection.restore = true
+      vm.startBrowsing(src.substring(0, src.lastIndexOf('/')))
     },
 
     setViewport(viewport) {
@@ -893,10 +987,13 @@ export default {
     itemIsTag(tagName) {
       const selection = this.getSelection(0)
       if (selection) {
-        const start = selection.startContainer
-        const end = selection.endContainer
-        return (start && start.parentNode.tagName === tagName) ||
-          (end && end.parentNode.tagName === tagName)
+        const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
+        const start = toEl(selection.startContainer)
+        const end = toEl(selection.endContainer)
+        return !!(
+          (start && start.closest(tagName)) ||
+          (end && end.closest(tagName))
+        )
       }
       return false
     },
@@ -927,6 +1024,7 @@ export default {
 
     onBrowserCancel() {
       this.browser.open = false
+      this.browser.withImageTab = false
       if (this.selection.restore) {
         this.restoreSelection()
         this.selection.restore = false
@@ -944,8 +1042,9 @@ export default {
         if (['editLink', 'insertLink'].includes(this.param.cmd)) {
           this.onLinkSelect()
           return
-        } else if (['insertImage', 'editImage'].includes(this.param.cmd)) {
+        } else if (['insertImage', 'editImage', 'editIcon'].includes(this.param.cmd)) {
           this.onImageSelect()
+          return
         }
 
         this.execCmd(this.param.cmd, this.param.value)
@@ -1049,6 +1148,20 @@ export default {
     },
 
     onImageSelect() {
+      if (this.param.cmd === 'editIcon') {
+        const imgEl = this.browser.element
+        const styles = []
+        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+        imgEl.setAttribute('alt', this.browser.altText || '')
+        imgEl.setAttribute('style', styles.join(';'))
+        const container = imgEl.closest('[data-per-inline]')
+        if (container) $perAdminApp.action(this, 'writeElementToModel', container)
+        this.browser.element = null
+        this.browser.altText = undefined
+        this.browser.withImageTab = false
+        return
+      }
       if (this.param.cmd === 'editImage') {
         const imgEl = this.browser.element
         const linkTitle = this.browser.linkTitle
@@ -1096,6 +1209,10 @@ export default {
 
     setBrowserLinkTitle(event) {
       this.browser.linkTitle = event.target.value
+    },
+
+    setBrowserAltText(event) {
+      this.browser.altText = event.target.value
     },
 
     getSelection(index = null) {
