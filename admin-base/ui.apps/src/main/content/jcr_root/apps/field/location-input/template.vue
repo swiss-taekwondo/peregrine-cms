@@ -2,7 +2,7 @@
   #%L
   admin base - UI Apps
   %%
-  Copyright (C) 2017 headwire inc.
+  Copyright (C) 2026 headwire inc.
   %%
   Licensed to the Apache Software Foundation (ASF) under one
   or more contributor license agreements.  See the NOTICE file
@@ -47,7 +47,7 @@ export default {
 
         input._autocompleteAttached = true;
 
-        const listboxId = `location-autocomplete-listbox-${Math.random().toString(36).slice(2)}`;
+        const listboxId = `location-autocomplete-listbox-${crypto.randomUUID()}`;
         input.setAttribute('role', 'combobox');
         input.setAttribute('aria-autocomplete', 'list');
         input.setAttribute('aria-expanded', 'false');
@@ -153,6 +153,10 @@ export default {
             if (dropdown.style.display !== 'none' && !dropdown.contains(e.target)) hideDropdown();
         };
         window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+
+        this.$once('hook:beforeDestroy', () => {
+            window.removeEventListener('scroll', onScroll, { capture: true });
+        });
     }
 }
 </script>
