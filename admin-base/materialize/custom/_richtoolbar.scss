@@ -292,3 +292,237 @@
 .readonly .richtoolbar.on-right-panel {
     display: none;
 }
+
+// Render-function toolbar additions
+.richtoolbar {
+  // All rtb groups sit inline
+  .rtb-group {
+    display: flex;
+    align-items: center;
+  }
+
+  // Dropdown toggle: auto-width to fit icon + caret
+  .rtb-dropdown-toggle {
+    width: auto !important;
+    padding: 0 4px !important;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  // Dropdown container
+  .rtb-group--dropdown {
+    position: relative;
+
+    .rtb-dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      z-index: 9000;
+      background: #fff;
+      border: 1px solid #ccc;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      flex-direction: column;
+      min-width: 150px;
+      white-space: nowrap;
+
+      &--open {
+        display: flex;
+      }
+
+      // Buttons inside the dropdown menu
+      button {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        height: 2rem;
+        padding: 0 10px !important;
+        gap: 8px;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        color: #222;
+        cursor: pointer;
+        font-size: 0.9rem;
+        text-align: left;
+        box-shadow: none !important;
+
+        .fa,
+        .material-icons {
+          color: #222;
+          width: 16px;
+          height: auto;
+          flex-shrink: 0;
+          font-size: 14px;
+          line-height: 1;
+        }
+
+        &.active,
+        &:hover {
+          background: var(--pcms-orange-hover, rgba(255, 152, 0, 0.15));
+          color: #222;
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--pcms-orange, #ff9800);
+          outline-offset: -2px;
+        }
+      }
+    }
+
+    .rtb-caret {
+      font-size: 8px;
+      line-height: 1;
+      flex-shrink: 0;
+
+      &::after {
+        content: '▼';
+      }
+    }
+  }
+
+  // Focus ring for all rtb buttons in the toolbar bar itself
+  .rtb-btn:focus-visible {
+    outline: 2px solid var(--pcms-orange, #ff9800);
+    outline-offset: -2px;
+    border-radius: 2px;
+  }
+}
+
+// Floating inline toolbar (appears above selected text)
+.richtoolbar-inline {
+  position: fixed;
+  z-index: 9999;
+  background: #333;
+  border-radius: 4px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transform: translateX(-50%);
+  pointer-events: all;
+
+  // Downward-pointing arrow
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+  }
+
+  button {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    &.active {
+      background: #ff9800;
+    }
+
+    .fa,
+    .material-icons {
+      font-size: 14px;
+      color: #fff;
+      line-height: 1;
+    }
+  }
+
+  .richtoolbar-inline-separator {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.3);
+    margin: 0 2px;
+  }
+
+  // Link dropdown group
+  .richtoolbar-inline-link-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .richtoolbar-inline-dropdown-toggle {
+      width: auto;
+      padding: 0 4px !important;
+      gap: 2px;
+    }
+
+    .richtoolbar-inline-caret {
+      font-size: 7px;
+      line-height: 1;
+
+      &::after {
+        content: '▼';
+      }
+    }
+
+    .richtoolbar-inline-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      min-width: 140px;
+      z-index: 10000;
+      overflow: hidden;
+
+      button {
+        width: 100%;
+        height: 30px;
+        justify-content: flex-start;
+        padding: 0 10px !important;
+        gap: 8px;
+        border-radius: 0;
+        white-space: nowrap;
+
+        .fa {
+          width: 14px;
+          text-align: center;
+          flex-shrink: 0;
+        }
+
+        span {
+          font-size: 13px;
+        }
+      }
+    }
+  }
+}
+
+.inline-toolbar-fade-enter-active,
+.inline-toolbar-fade-leave-active {
+  transition: opacity 0.1s, transform 0.1s;
+}
+
+.inline-toolbar-fade-enter,
+.inline-toolbar-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+}
+
+// Keyboard focus ring for inline toolbar buttons
+.richtoolbar-inline button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: -2px;
+  border-radius: 3px;
+}

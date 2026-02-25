@@ -729,6 +729,8 @@ export default {
       } else {
         this.iframePreviewMode()
       }
+      // Notify the inline toolbar about the iframe so it can track selections inside it
+      window.dispatchEvent(new CustomEvent('peregrine:iframe-loaded', { detail: { iframeEl: this.$refs.editview } }))
     },
 
     onIframeClick(ev) {

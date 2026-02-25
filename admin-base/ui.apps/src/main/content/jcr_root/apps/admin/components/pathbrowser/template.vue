@@ -109,7 +109,7 @@
                 <ul class="browse-list" v-if="list.length > 0">
                   <template v-for="item in list">
                     <li v-if="isFolder(item)"
-                        v-on:click.stop.prevent="navigateFolder(item)"
+                        v-on:click.stop.prevent="isBrowserTypePage ? selectItem(item) : navigateFolder(item)"
                         :class="isSelected(item.path) ? 'selected' : ''">
                       <template v-if="allowFolderSelection">
                         <input name="selectedItem"
@@ -118,7 +118,9 @@
                                :checked="isSelected(item.path)"/>
                         <label v-on:click.stop.prevent="selectItem(item)"></label>
                       </template>
-                      <i class="material-icons">{{ getFolderIcon(item) }}</i>
+                      <i class="material-icons"
+                         v-on:click.stop.prevent="navigateFolder(item)"
+                         :title="isBrowserTypePage ? 'Open' : ''">{{ getFolderIcon(item) }}</i>
                       <span>{{ item.name }}</span>
                     </li>
                     <li v-if="isFile(item) && isFileAllowed()"
@@ -552,6 +554,9 @@ export default {
     allowFolderSelection() {
       return !this.isBrowserTypeImage && !this.isBrowserTypeObjectDefinition
     },
+    isBrowserTypePage() {
+      return this.isType(PathBrowser.Type.PAGE)
+    },
     isBrowserTypeImage() {
       return this.isType(PathBrowser.Type.IMAGE)
     },
@@ -686,7 +691,7 @@ export default {
       return ['per:Asset', 'per:Object', 'nt:file'].indexOf(item.resourceType) >= 0
     },
     isFileAllowed() {
-      return this.browserType !== PathBrowser.Type.PAGE
+      return true
     },
     isFolder(item) {
       return [
@@ -710,7 +715,6 @@ export default {
             this.previewType = 'current'
             this.setCurrentPath(item.path)
             if (this.tab === 'cards' && this.list.length > 0) this.updateIsotopeLayout('masonry')
-            this.selectItem(item)
           })
     },
     selectItem(item) {
@@ -729,7 +733,7 @@ export default {
       this.setSelectedPath(ev.target.value)
     },
     isType(browserType) {
-      return this.browserType === browserType
+      return this.browserType?.toLowerCase() === browserType?.toLowerCase()
     },
     isSelectable(item) {
       if (!this.isBrowserTypeImage) {
@@ -757,6 +761,10 @@ export default {
 </script>
 
 <style scoped>
+.browse-list li i.material-icons {
+  cursor: pointer;
+}
+
 .browse-list .icon {
   height:36px;
   width: 36px;
