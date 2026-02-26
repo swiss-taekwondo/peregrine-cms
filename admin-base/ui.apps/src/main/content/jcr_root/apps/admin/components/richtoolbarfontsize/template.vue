@@ -1,7 +1,7 @@
 <template>
   <div class="font-size-wrapper btn-group">
-    <button class="add btn" @click="onAdd">
-      <icon icon="add" :lib="iconLib" />
+    <button class="subtract btn" @click="onSubtract">
+      <icon icon="remove" :lib="iconLib" />
     </button>
 
     <div class="inputWrapper" @focusin="onFocusIn" @focusout="onFocusOut">
@@ -24,8 +24,8 @@
       </ul>
     </div>
 
-    <button class="subtract btn" @click="onSubtract">
-      <icon icon="remove" :lib="iconLib" />
+    <button class="add btn" @click="onAdd">
+      <icon icon="add" :lib="iconLib" />
     </button>
   </div>
 </template>

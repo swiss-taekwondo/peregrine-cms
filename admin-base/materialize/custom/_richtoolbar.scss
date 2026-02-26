@@ -383,13 +383,39 @@
       }
     }
 
-    .rtb-caret {
-      font-size: 8px;
-      line-height: 1;
-      flex-shrink: 0;
+    // Dropdown toggle button: constrain icon so caret sits beside it
+    .rtb-dropdown-toggle {
+      .fa,
+      .material-icons {
+        height: auto;
+        width: auto;
+      }
 
-      &::after {
-        content: '▼';
+      .caret-down {
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+
+        &:before {
+          content: '▼';
+          font-size: 8px;
+          line-height: 1;
+          color: #222222;
+        }
+      }
+
+      // Active: tint icon + caret orange, no full orange background
+      &.active {
+        background-color: transparent !important;
+
+        .fa,
+        .material-icons {
+          color: var(--pcms-orange, #ff9800) !important;
+        }
+
+        .caret-down:before {
+          color: var(--pcms-orange, #ff9800);
+        }
       }
     }
   }

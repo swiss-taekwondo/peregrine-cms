@@ -52,7 +52,7 @@
 </template>
 
 <script>
-import {set} from '../../../../../js/utils'
+import {saveSelection, set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 import RichtoolbarInline from '../../admin/components/richtoolbarinline/template.vue'
 
@@ -127,6 +127,7 @@ export default {
       set(view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/lastDoc', this.doc)
+      set(view, '/state/inline/lastSelectionBuffer', saveSelection(this.$refs.textEditor, this.doc))
       set(view, '/state/inline/doc', null)
       this.editing = false
       this.pingToolbar()
@@ -152,7 +153,11 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
-      vm.model.text = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
+      const content = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
+      // Patch the vnode domProps so Vue's next render doesn't overwrite the DOM with the old value
+      const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
+      if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
+      vm.model.text = content;
     },
     pingToolbar() {
       this.key = this.key === 'foo' ? 'bar' : 'foo'

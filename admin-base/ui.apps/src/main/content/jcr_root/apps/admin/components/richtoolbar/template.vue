@@ -395,7 +395,7 @@ export default {
           },
         }, [
           renderIcon(h, icon, iconLib),
-          h('span', { class: 'rtb-caret' }),
+          h('span', { class: 'caret-down' }),
         ])
 
         const menuItems = realItems.map((btn, i) => {
@@ -773,7 +773,8 @@ export default {
     insertLink() {
       const doc = this.getInlineDoc() || this.getLastDoc()
       const container = this.getInlineContainer() || this.getLastContainer()
-      if (!doc || !container) return
+      console.log('[insertLink] doc:', doc, 'container:', container)
+      if (!doc || !container) { console.log('[insertLink] ABORT: no doc or container'); return }
 
       const startPath = this.roots.pages
       this.param.cmd = 'insertLink'
@@ -787,8 +788,24 @@ export default {
       this.browser.type = PathBrowser.Type.PAGE
       this.selection.doc = doc
       this.selection.container = container
-      this.selection.buffer = saveSelection(container, doc)
-      this.selection.restore = true
+
+      // Clone the Range now while the selection is still live and correct.
+      // This is more reliable than character-offset save/restore which can
+      // mis-count across element boundaries or when the DOM changes.
+      const win = doc.defaultView
+      const liveSel = win && win.getSelection && win.getSelection()
+      const liveRange = liveSel && liveSel.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
+      console.log('[insertLink] liveRange:', liveRange, 'container tagName:', container.tagName, 'container textContent:', container.textContent?.slice(0, 80))
+      if (!liveRange) { console.log('[insertLink] ABORT: no liveRange'); return }
+      // Store the Range directly on the instance (not in reactive data) to
+      // avoid Vue's Observer wrapping a live DOM Range object.
+      this._savedRange = liveRange
+
+      // Keep buffer/restore for the cancel/image paths that still use restoreSelection
+      const savedSel = saveSelection(container, doc)
+        || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
+      this.selection.buffer = savedSel
+      this.selection.restore = false
       this.startBrowsing(startPath)
     },
 
@@ -810,6 +827,7 @@ export default {
       this.selection.doc = doc
       this.selection.container = container
       this.selection.buffer = saveSelection(container, doc)
+        || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
       this.selection.restore = true
 
       // Save anchor to view state so onLinkSelect can use it after pathbrowser closes
@@ -1015,9 +1033,11 @@ export default {
     },
 
     restoreSelection() {
+      console.log('[restoreSelection] doc:', this.selection.doc, 'container:', this.selection.container, 'buffer:', this.selection.buffer)
       this.selection.doc.body.focus()
       this.selection.container.focus()
       this.$nextTick(() => {
+        console.log('[restoreSelection $nextTick] calling restoreSelection')
         restoreSelection(this.selection.container, this.selection.buffer, this.selection.doc)
       })
     },
@@ -1096,47 +1116,49 @@ export default {
         const link = this.selection.doc.createElement('a')
         applyLinkAttributes(link)
 
-        this.restoreSelection()
+        // Use the cloned Range captured at insertLink() time — this is the exact
+        // selection the user made, with no character-offset round-trip needed.
+        const range = this._savedRange
+        console.log('[onLinkSelect] using saved range:', range)
+        if (!range) { console.log('[onLinkSelect] ABORT: no saved range'); return }
+
+        const editorEl = this.getEditorFrom(range)
+        console.log('[onLinkSelect] editorEl:', editorEl)
+        if (!editorEl) { console.log('[onLinkSelect] ABORT: no editorEl'); return }
+        const textEditor = editorEl.closest('.inline-edit[contenteditable="true"]')
+        console.log('[onLinkSelect] textEditor:', textEditor)
+        if (!textEditor) { console.log('[onLinkSelect] ABORT: no textEditor'); return }
+
+        let rangeIsInListItem = false
+        if (!range.startContainer.isEqualNode(range.endContainer)) {
+          const listItems = Array.from(textEditor.querySelectorAll('li')).reverse()
+          for (const li of listItems) {
+            if (range.intersectsNode(li)) {
+              rangeIsInListItem = li
+              break
+            }
+          }
+        }
+
+        if (rangeIsInListItem) {
+          range.setStart(rangeIsInListItem, 0)
+          if (rangeIsInListItem.isEqualNode(range.endContainer)) {
+            range.setEnd(range.endContainer, range.endOffset)
+          } else {
+            range.setEnd(rangeIsInListItem, rangeIsInListItem.childNodes.length)
+          }
+        }
+
+        link.appendChild(range.extractContents())
+        if (link.textContent.trim().length < 1) {
+          link.textContent = href
+        }
+        range.insertNode(link)
+        this._savedRange = null
+        $perAdminApp.action(this, 'reWrapEditable')
+        $perAdminApp.action(this, 'writeInlineToModel')
         this.$nextTick(() => {
-          // Use saved selection.doc — inline.doc may be null after pathbrowser interaction
-          const selectionDoc = this.selection.doc
-          const selectionWin = selectionDoc.defaultView
-          const range = selectionWin && selectionWin.getSelection && selectionWin.getSelection().rangeCount > 0
-            ? selectionWin.getSelection().getRangeAt(0)
-            : this.getSelection(0)
-          if (!range) return
-          const textEditor = this.getEditorFrom(range).closest('.inline-edit[contenteditable="true"]')
-
-          let rangeIsInListItem = false
-          if (!range.startContainer.isEqualNode(range.endContainer)) {
-            const listItems = Array.from(textEditor.querySelectorAll('li')).reverse()
-            for (const li of listItems) {
-              if (range.intersectsNode(li)) {
-                rangeIsInListItem = li
-                break
-              }
-            }
-          }
-
-          if (rangeIsInListItem) {
-            range.setStart(rangeIsInListItem, 0)
-            if (rangeIsInListItem.isEqualNode(range.endContainer)) {
-              range.setEnd(range.endContainer, range.endOffset)
-            } else {
-              range.setEnd(rangeIsInListItem, rangeIsInListItem.childNodes.length)
-            }
-          }
-
-          link.appendChild(range.extractContents())
-          if (link.textContent.trim().length < 1) {
-            link.textContent = href
-          }
-          range.insertNode(link)
-          $perAdminApp.action(this, 'reWrapEditable')
-          $perAdminApp.action(this, 'writeInlineToModel')
-          this.$nextTick(() => {
-            $perAdminApp.action(this, 'textEditorWriteToModel')
-          })
+          $perAdminApp.action(this, 'textEditorWriteToModel')
         })
       } else {
         // editLink

@@ -186,7 +186,9 @@ export const getCaretCharacterOffsetWithin = (element) => {
 export const saveSelection = (containerEl, document = document) => {
   const window = document.defaultView;
   if (window.getSelection && document.createRange) {
-    const range = window.getSelection().getRangeAt(0);
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
     const preSelectionRange = range.cloneRange();
     preSelectionRange.selectNodeContents(containerEl);
     preSelectionRange.setEnd(range.startContainer, range.startOffset);

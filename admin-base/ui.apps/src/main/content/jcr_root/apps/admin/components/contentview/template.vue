@@ -630,6 +630,18 @@ export default {
     onInlineFocusOut(event) {
       event.target.classList.remove('inline-editing')
       this.editing = false
+      // Save last container, doc and selection buffer so the richtoolbar can still access them
+      // via getLastContainer() / getLastDoc() after inline.doc is cleared below.
+      // This also allows insertLink() to restore the selection even if rangeCount drops to 0.
+      const iframeSel = this.iframe.doc ? this.iframe.doc.defaultView.getSelection() : null
+      const anchorNode = iframeSel && iframeSel.rangeCount > 0 ? iframeSel.anchorNode : null
+      const el = anchorNode
+        ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode)
+        : null
+      set(this.view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
+      set(this.view, '/state/inline/lastContainer', event.target)
+      set(this.view, '/state/inline/lastDoc', this.iframe.doc)
+      set(this.view, '/state/inline/lastSelectionBuffer', saveSelection(event.target, this.iframe.doc))
       set(this.view, '/state/inline/doc', null)
       if (!isChromeBrowser() && event.target.innerHTML) {
         event.target.innerHTML = event.target.innerHTML.trim()
