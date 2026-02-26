@@ -363,4 +363,3 @@ export function asyncLoadJsScript(src) {
 export function isMac() {
   return window.navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 }
-
