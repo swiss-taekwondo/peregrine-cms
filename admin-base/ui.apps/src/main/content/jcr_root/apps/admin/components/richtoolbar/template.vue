@@ -942,23 +942,15 @@ export default {
     },
 
     insertIcon(imgPath) {
-      const doc = this.selection.doc
-      const container = this.selection.container
-      const buffer = this.selection.buffer
-      if (!doc || !container || !buffer) return
-      container.focus()
-      this.$nextTick(() => {
-        restoreSelection(container, buffer, doc)
-        doc.execCommand('insertHTML', true, `<img src="${imgPath}" class="peregrine-icon" alt=""/>`)
-        // execCommand may strip style attributes — find the inserted img and set size via DOM
-        const inserted = container.querySelector(`img.peregrine-icon[src="${imgPath}"]:not([style])`)
-        if (inserted) {
-          inserted.style.width = '20px'
-          inserted.style.height = '20px'
-        }
-        $perAdminApp.action(this, 'writeElementToModel', container)
-        this.pingRichToolbar()
-      })
+      console.log('imgPath: ', imgPath);
+      const range = window.getSelection()?.getRangeAt(0);
+      range.deleteContents()
+      const fragment = range.createContextualFragment(`<img class="peregrine-icon" style="font-size: inherit; display: inline; width: auto; height: 1em; vertical-align: -0.125em;" src="${imgPath}"></img>`)
+      const lastChild = fragment.lastChild;
+      range.insertNode(fragment)
+      range.setStartAfter(lastChild)
+      range.collapse(true)
+      this.getEditorFrom(range).dispatchEvent(new Event('input'))
     },
 
     editIcon(vm = this, target) {

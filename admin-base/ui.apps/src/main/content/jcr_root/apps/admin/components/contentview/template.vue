@@ -115,11 +115,15 @@ const allowedStylesMap = {
   'width':true,
   'height':true,
 }
+const allowedStylesElementsMap = {
+  IMG: true,
+}
 function removeUnwantedStyles(htmlText) {
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = htmlText
 
   tempDiv.querySelectorAll('[style]').forEach((span) => {
+    if (allowedStylesElementsMap[span.nodeName]) return;
     const propertiesToRemove = []
     for (let i = 0; i < span.style.length; i++) {
       const property = span.style.item(i);
