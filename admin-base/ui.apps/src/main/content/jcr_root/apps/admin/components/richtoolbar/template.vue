@@ -713,7 +713,14 @@ export default {
     },
     insertIcon(imgPath) {
       console.log('imgPath: ', imgPath);
-      this.execCmd('insertHTML', `<img class="peregrine-icon" style="display: inline-block; width: 1.2rem;" src="${imgPath}"></img>`);
+      const range = window.getSelection()?.getRangeAt(0);
+      range.deleteContents()
+      const fragment = range.createContextualFragment(`<img class="peregrine-icon" style="font-size: inherit; display: inline; width: auto; height: 1em; vertical-align: -0.125em;" src="${imgPath}"></img>`)
+      const lastChild = fragment.lastChild;
+      range.insertNode(fragment)
+      range.setStartAfter(lastChild)
+      range.collapse(true)
+      this.getEditorFrom(range).dispatchEvent(new Event('input'))
     },
     setViewport(viewport) {
       set($perAdminApp.getView(), '/state/tools/workspace/view', viewport)
