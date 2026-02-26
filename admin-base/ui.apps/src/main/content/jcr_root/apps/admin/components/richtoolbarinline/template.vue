@@ -166,27 +166,29 @@ export default {
 
           const sep1 = h('div', { class: 'richtoolbar-inline-separator' })
 
-          // Link toggle button — always opens a dropdown
+          // Link button: direct action when no link, dropdown with Edit/Remove when in a link
           const linkToggleIdx = idx++
-          const linkToggle = h('button', {
-            class: { active: this.isInLink, 'richtoolbar-inline-dropdown-toggle': true },
-            attrs: {
-              title: this.isInLink ? 'Link options' : 'Insert Link',
-              tabindex: linkToggleIdx === this.focusedIndex ? '0' : '-1',
-            },
-            on: {
-              mousedown: e => e.preventDefault(),
-              click: () => this.toggleLinkDropdown(),
-              focus: () => { this.focusedIndex = linkToggleIdx },
-            },
-          }, [
-            h('i', { class: 'fa fa-link' }),
-            h('span', { class: 'richtoolbar-inline-caret' }),
-          ])
+          const linkToggle = this.isInLink
+            ? h('button', {
+                class: { active: true, 'richtoolbar-inline-dropdown-toggle': true },
+                attrs: {
+                  title: 'Link options',
+                  tabindex: linkToggleIdx === this.focusedIndex ? '0' : '-1',
+                },
+                on: {
+                  mousedown: e => e.preventDefault(),
+                  click: () => this.toggleLinkDropdown(),
+                  focus: () => { this.focusedIndex = linkToggleIdx },
+                },
+              }, [
+                h('i', { class: 'fa fa-link' }),
+                h('span', { class: 'richtoolbar-inline-caret' }),
+              ])
+            : mkBtn('Insert Link', () => self.execInsertLink(),
+                h('i', { class: 'fa fa-link' }), { idx: linkToggleIdx })
 
-          // Dropdown menu: Insert Link when not in a link; Edit + Remove when in a link
-          const linkDropdownItems = this.isInLink
-            ? [
+          const linkDropdown = this.isInLink && this.linkDropdownOpen
+            ? h('div', { class: 'richtoolbar-inline-dropdown' }, [
                 h('button', {
                   attrs: { title: 'Edit Link', tabindex: '-1' },
                   on: {
@@ -201,19 +203,7 @@ export default {
                     click: () => { this.closeLinkDropdown(); self.execRemoveLink() },
                   },
                 }, [h('i', { class: 'fa fa-chain-broken' }), h('span', ' Remove Link')]),
-              ]
-            : [
-                h('button', {
-                  attrs: { title: 'Insert Link', tabindex: '-1' },
-                  on: {
-                    mousedown: e => e.preventDefault(),
-                    click: () => { this.closeLinkDropdown(); self.execInsertLink() },
-                  },
-                }, [h('i', { class: 'fa fa-link' }), h('span', ' Insert Link')]),
-              ]
-
-          const linkDropdown = this.linkDropdownOpen
-            ? h('div', { class: 'richtoolbar-inline-dropdown' }, linkDropdownItems)
+              ])
             : null
 
           const linkGroup = h('div', { class: 'richtoolbar-inline-link-group' }, [

@@ -12,6 +12,11 @@
         &:not(.group-always-active) {
           .btn {
             background-color: #9e9e9e !important;
+
+            .material-icons,
+            .fa {
+              color: var(--pcms-blue-grey-darken-3) !important;
+            }
           }
         }
       }
@@ -53,7 +58,7 @@
         font-size: 16px;
       }
 
-      .caret-down:before {
+      &:not(.rtb-dropdown-toggle) .caret-down:before {
         top: 9px;
         right: 1px;
       }
@@ -114,7 +119,7 @@
         font-size: 1rem;
       }
 
-      .caret-down:before {
+      &:not(.rtb-dropdown-toggle) .caret-down:before {
         bottom: 0;
         right: 2px;
         color: #222222;
