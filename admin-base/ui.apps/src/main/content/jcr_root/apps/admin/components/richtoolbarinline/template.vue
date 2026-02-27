@@ -47,6 +47,7 @@ export default {
   mounted() {
     document.addEventListener('selectionchange', this.onSelectionChange)
     document.addEventListener('mousedown', this._onDocMouseDown)
+    document.addEventListener('keydown', this._onDocKeyDown)
     window.addEventListener('peregrine:iframe-loaded', this._onIframeLoaded)
     window.addEventListener('peregrine:iframe-unloaded', this._onIframeUnloaded)
     this._mountPortal()
@@ -54,6 +55,7 @@ export default {
   beforeDestroy() {
     document.removeEventListener('selectionchange', this.onSelectionChange)
     document.removeEventListener('mousedown', this._onDocMouseDown)
+    document.removeEventListener('keydown', this._onDocKeyDown)
     window.removeEventListener('peregrine:iframe-loaded', this._onIframeLoaded)
     window.removeEventListener('peregrine:iframe-unloaded', this._onIframeUnloaded)
     this._detachIframeListener()
@@ -218,6 +220,15 @@ export default {
             h('i', { class: 'material-icons', domProps: { textContent: 'format_clear' } }),
             { idx: removeFormatIdx })
 
+          const closeBtn = h('button', {
+            class: 'richtoolbar-inline-close',
+            attrs: { title: 'Close (Esc)', tabindex: '-1', type: 'button', 'aria-label': 'Close toolbar' },
+            on: {
+              mousedown: e => e.preventDefault(),
+              click: () => self.hide(),
+            },
+          }, [h('i', { class: 'fa fa-times' })])
+
           return h('div', {
             class: 'richtoolbar-inline',
             style: this.positionStyle,
@@ -231,7 +242,7 @@ export default {
               focus: this.onContainerFocus,
               keydown: this.onKeydown,
             },
-          }, [boldBtn, italicBtn, sep1, linkGroup, sep2, removeFormatBtn])
+          }, [boldBtn, italicBtn, sep1, linkGroup, sep2, removeFormatBtn, closeBtn])
         }
       })
 
@@ -283,6 +294,7 @@ export default {
       this.iframeDoc = iframeEl ? iframeEl.contentDocument : null
       if (this.iframeDoc) {
         this.iframeDoc.addEventListener('selectionchange', this.onSelectionChange)
+        this.iframeDoc.addEventListener('keydown', this._onIframeKeyDown)
       }
     },
 
@@ -298,9 +310,22 @@ export default {
       this.hide()
     },
 
+    _onDocKeyDown(e) {
+      if (e.key === 'Escape' && this.visible) {
+        this.hide()
+      }
+    },
+
+    _onIframeKeyDown(e) {
+      if (e.key === 'Escape' && this.visible) {
+        this.hide()
+      }
+    },
+
     _detachIframeListener() {
       if (this.iframeDoc) {
         this.iframeDoc.removeEventListener('selectionchange', this.onSelectionChange)
+        this.iframeDoc.removeEventListener('keydown', this._onIframeKeyDown)
         this.iframeDoc = null
         this.iframeEl = null
       }

@@ -73,6 +73,10 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false) {
     ? ['rtb-menu-item', { active: isActive }, extraClass]
     : ['rtb-btn', 'btn', { active: isActive }, extraClass]
   const label = btn.title ? vm.$i18n(btn.title) : vm.$i18n(btn.label)
+  const children = [renderIcon(h, btn.icon, btn.iconLib || IconLib.FONT_AWESOME)]
+  if (inDropdown) {
+    children.push(h('span', { class: 'rtb-menu-item-label' }, [label]))
+  }
   return h('button', {
     key: uniqueKey,
     class: classes,
@@ -81,7 +85,7 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false) {
       mousedown: e => e.preventDefault(),
       click: () => btn.click ? btn.click() : vm.exec(btn.cmd),
     },
-  }, [renderIcon(h, btn.icon, btn.iconLib || IconLib.FONT_AWESOME)])
+  }, children)
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +145,7 @@ export default {
         img: {
           width: null,
           height: null,
+          objectFit: null,
         },
       },
       docEl: {
@@ -219,6 +224,8 @@ export default {
         updateFontSize: this.updateFontSize,
         undo: this.undo,
         redo: this.redo,
+        superscript: this.toggleSuperscript,
+        subscript: this.toggleSubscript,
       }
     },
   },
@@ -303,6 +310,7 @@ export default {
           rel: this.browser.rel,
           imgWidth: this.browser.img.width,
           imgHeight: this.browser.img.height,
+          imgObjectFit: this.browser.img.objectFit,
           onCancel: this.onBrowserCancel,
         },
         on: {
@@ -310,6 +318,7 @@ export default {
           'toggle-rel': () => { this.browser.rel = !this.browser.rel },
           'update-img-width': v => { this.browser.img.width = v },
           'update-img-height': v => { this.browser.img.height = v },
+          'update-img-objectFit': v => { this.browser.img.objectFit = v },
           select: this.onBrowserSelect,
         },
       }))
@@ -386,17 +395,6 @@ export default {
 
         // 2+ visible items — render as dropdown
         const isOpen = !!this.openGroups[label]
-        const toggleBtn = h('button', {
-          class: ['rtb-btn', 'btn', 'rtb-dropdown-toggle', { active: groupIsActive }, groupClass],
-          attrs: { title: this.$i18n(label), type: 'button' },
-          on: {
-            mousedown: e => e.preventDefault(),
-            click: () => this._toggleGroup(label),
-          },
-        }, [
-          renderIcon(h, icon, iconLib),
-          h('span', { class: 'caret-down' }),
-        ])
 
         const menuItems = realItems.map((btn, i) => {
           if (btn.items && btn.items.length > 0) {
@@ -407,11 +405,54 @@ export default {
 
         const menu = h('div', {
           class: ['rtb-dropdown-menu', { 'rtb-dropdown-menu--open': isOpen }],
+          style: { backgroundColor: '#fff' },
         }, [h('div', { class: 'rtb-dropdown-items-list' }, menuItems)])
+
+        if (group.toggleClick && group.splitButton !== false) {
+          // Split button: action button (icon) + separate caret button (opens dropdown)
+          const actionBtn = h('button', {
+            class: ['rtb-btn', 'btn', 'rtb-split-action', { active: groupIsActive }, groupClass],
+            attrs: { title: this.$i18n(label), type: 'button' },
+            on: {
+              mousedown: e => e.preventDefault(),
+              click: () => group.toggleClick(),
+            },
+          }, [renderIcon(h, icon, iconLib)])
+
+          const caretBtn = h('button', {
+            class: ['rtb-btn', 'btn', 'rtb-split-caret', { active: groupIsActive && !isOpen }, groupClass],
+            attrs: { title: this.$i18n(label), type: 'button' },
+            on: {
+              mousedown: e => e.preventDefault(),
+              click: () => this._toggleGroup(label),
+            },
+          }, [h('span', { class: 'caret-down' })])
+
+          return h('div', {
+            key: `group-${label}`,
+            class: ['btn-group', 'rtb-group', 'rtb-group--dropdown', 'rtb-group--split', `group-${label}`, { 'rtb-group--open': isOpen }],
+          }, [actionBtn, caretBtn, menu])
+        }
+
+        // Dropdown button: single unified button (icon + caret) opens dropdown
+        const toggleBtnChildren = [renderIcon(h, icon, iconLib)]
+        if (group.showLabel) {
+          toggleBtnChildren.push(h('span', { class: 'rtb-dropdown-label' }, [label]))
+        }
+        toggleBtnChildren.push(h('span', { class: 'caret-down' }))
+
+        const toggleBtn = h('button', {
+          class: ['rtb-btn', 'btn', 'rtb-dropdown-toggle', { active: groupIsActive && !isOpen }, groupClass],
+          attrs: { title: this.$i18n(label), type: 'button' },
+          on: {
+            mousedown: e => e.preventDefault(),
+            click: () => this._toggleGroup(label),
+          },
+        }, toggleBtnChildren)
 
         return h('div', {
           key: `group-${label}`,
-          class: ['btn-group', 'rtb-group', 'rtb-group--dropdown', `group-${label}`],
+          class: ['btn-group', 'rtb-group', 'rtb-group--dropdown', `group-${label}`, { 'rtb-group--open': isOpen }],
         }, [toggleBtn, menu])
       }
 
@@ -445,7 +486,11 @@ export default {
 
     inlineCmdHandler(event) {
       if (this.onSubNav) return
-      this[event.detail.cmd]()
+      if (typeof this[event.detail.cmd] === 'function') {
+        this[event.detail.cmd]()
+      } else {
+        this.exec(event.detail.cmd, event.detail.value || null)
+      }
     },
 
     saveSnapshot() {
@@ -473,12 +518,20 @@ export default {
         this.isUndoing = true
         this.historyIndex--
         const content = this.historyStack[this.historyIndex]
+        const container = this.getInlineContainer()
+        const doc = this.getInlineDoc()
+        const savedSel = container && doc ? saveSelection(container, doc) : null
         const textEditor = this.$el.closest('.text-editor-wrapper')
           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
           : this.$el.nextElementSibling
         textEditor.innerHTML = content
         $perAdminApp.action(this, 'textEditorWriteToModel')
-        this.$nextTick(() => this.isUndoing = false)
+        this.$nextTick(() => {
+          this.isUndoing = false
+          if (savedSel && container && doc) {
+            restoreSelection(container, savedSel, doc)
+          }
+        })
       }
     },
 
@@ -491,13 +544,65 @@ export default {
         this.isUndoing = true
         this.historyIndex++
         const content = this.historyStack[this.historyIndex]
+        const container = this.getInlineContainer()
+        const doc = this.getInlineDoc()
+        const savedSel = container && doc ? saveSelection(container, doc) : null
         const textEditor = this.$el.closest('.text-editor-wrapper')
           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
           : this.$el.nextElementSibling
         textEditor.innerHTML = content
         $perAdminApp.action(this, 'textEditorWriteToModel')
-        this.$nextTick(() => this.isUndoing = false)
+        this.$nextTick(() => {
+          this.isUndoing = false
+          if (savedSel && container && doc) {
+            restoreSelection(container, savedSel, doc)
+          }
+        })
       }
+    },
+
+    toggleScriptTag(tagName, cmd) {
+      if (this.itemIsTag(tagName)) {
+        const doc = this.getInlineDoc()
+        if (!doc) return
+        const win = doc.defaultView
+        const selection = win && win.getSelection()
+        if (!selection || selection.rangeCount === 0) return
+        const range = selection.getRangeAt(0)
+        const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
+        const el = toEl(range.startContainer)
+        const tag = el && el.closest(tagName)
+        if (tag) {
+          // Save selection boundaries relative to the tag's text content
+          const startContainer = range.startContainer
+          const startOffset = range.startOffset
+          const endContainer = range.endContainer
+          const endOffset = range.endOffset
+
+          const parent = tag.parentNode
+          while (tag.firstChild) {
+            parent.insertBefore(tag.firstChild, tag)
+          }
+          parent.removeChild(tag)
+
+          // Restore selection
+          const newRange = doc.createRange()
+          newRange.setStart(startContainer, startOffset)
+          newRange.setEnd(endContainer, endOffset)
+          selection.removeAllRanges()
+          selection.addRange(newRange)
+        }
+      } else {
+        this.execCmd(cmd)
+      }
+    },
+
+    toggleSuperscript() {
+      this.toggleScriptTag('SUP', 'superscript')
+    },
+
+    toggleSubscript() {
+      this.toggleScriptTag('SUB', 'subscript')
     },
 
     getDefaultFontSize() {
@@ -773,8 +878,9 @@ export default {
     insertLink() {
       const doc = this.getInlineDoc() || this.getLastDoc()
       const container = this.getInlineContainer() || this.getLastContainer()
-      console.log('[insertLink] doc:', doc, 'container:', container)
-      if (!doc || !container) { console.log('[insertLink] ABORT: no doc or container'); return }
+      if (!doc || !container) {
+        return
+      }
 
       const startPath = this.roots.pages
       this.param.cmd = 'insertLink'
@@ -795,8 +901,9 @@ export default {
       const win = doc.defaultView
       const liveSel = win && win.getSelection && win.getSelection()
       const liveRange = liveSel && liveSel.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
-      console.log('[insertLink] liveRange:', liveRange, 'container tagName:', container.tagName, 'container textContent:', container.textContent?.slice(0, 80))
-      if (!liveRange) { console.log('[insertLink] ABORT: no liveRange'); return }
+      if (!liveRange) {
+        return
+      }
       // Store the Range directly on the instance (not in reactive data) to
       // avoid Vue's Observer wrapping a live DOM Range object.
       this._savedRange = liveRange
@@ -913,6 +1020,9 @@ export default {
       this.browser.newWindow = undefined
       this.browser.type = PathBrowser.Type.ASSET
       this.browser.path.suffix = ''
+      this.browser.img.width = null
+      this.browser.img.height = null
+      this.browser.img.objectFit = null
       this.saveSelection()
       this.selection.restore = true
       this.startBrowsing()
@@ -925,6 +1035,7 @@ export default {
       const img = {
         width: target.style.width ? parseInt(target.style.width) : null,
         height: target.style.height ? parseInt(target.style.height) : null,
+        objectFit: target.style.objectFit || null,
       }
       vm.param.cmd = 'editImage'
       vm.browser.header = vm.$i18n('Edit Image')
@@ -938,6 +1049,7 @@ export default {
       vm.browser.element = target
       vm.browser.img.width = img.width
       vm.browser.img.height = img.height
+      vm.browser.img.objectFit = img.objectFit
       vm.startBrowsing()
     },
 
@@ -959,6 +1071,7 @@ export default {
       const img = {
         width: target.style.width ? parseInt(target.style.width) : 20,
         height: target.style.height ? parseInt(target.style.height) : 20,
+        objectFit: target.style.objectFit || null,
       }
       vm.param.cmd = 'editIcon'
       vm.browser.header = vm.$i18n('Edit Icon')
@@ -973,6 +1086,7 @@ export default {
       vm.browser.element = target
       vm.browser.img.width = img.width
       vm.browser.img.height = img.height
+      vm.browser.img.objectFit = img.objectFit
       vm.saveSelection()
       vm.selection.restore = true
       vm.startBrowsing(src.substring(0, src.lastIndexOf('/')))
@@ -1167,6 +1281,7 @@ export default {
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
         imgEl.setAttribute('alt', this.browser.altText || '')
         imgEl.setAttribute('style', styles.join(';'))
         const container = imgEl.closest('[data-per-inline]')
@@ -1182,6 +1297,7 @@ export default {
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
         imgEl.setAttribute('src', this.browser.path.selected)
         imgEl.setAttribute('alt', linkTitle ? linkTitle : '')
         imgEl.setAttribute('title', linkTitle ? linkTitle : '')
@@ -1196,8 +1312,14 @@ export default {
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-        this.param.cmd = 'insertHTML'
-        this.param.value = `<img src="${this.browser.path.selected}" alt="${this.browser.linkTitle}" title="${this.browser.linkTitle}" style="${styles.join(';')}"/>`
+        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+        const styleAttr = styles.length ? ` style="${styles.join(';')}"` : ''
+        const html = `<img src="${this.browser.path.selected}" alt="${this.browser.linkTitle || ''}" title="${this.browser.linkTitle || ''}"${styleAttr}/>`
+        this.execCmd('insertHTML', html)
+        $perAdminApp.action(this, 'writeInlineToModel')
+        this.$nextTick(() => {
+          $perAdminApp.action(this, 'textEditorWriteToModel')
+        })
       }
     },
 

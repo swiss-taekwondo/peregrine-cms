@@ -667,8 +667,30 @@ export default {
       const backspaceOrDelete = key === Key.BACKSPACE || key === Key.DELETE
       const arrowKey = key >= Key.ARROW_LEFT && key <= Key.ARROW_DOWN
 
-      if (key === Key.A && ctrlOrCmd) {
+      if (key === Key.ESC) {
+        event.target.blur()
+      } else if (key === Key.A && ctrlOrCmd) {
         this.onInlineSelectAll(event)
+      } else if (key === Key.B && ctrlOrCmd) {
+        event.preventDefault()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'bold' } }))
+      } else if (key === Key.I && ctrlOrCmd) {
+        event.preventDefault()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'italic' } }))
+      } else if (key === Key.U && ctrlOrCmd) {
+        event.preventDefault()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
+      } else if (ctrlOrCmd && event.altKey && ((key >= 48 && key <= 54) || (key >= 96 && key <= 102))) {
+        event.preventDefault()
+        const digit = key >= 96 ? key - 96 : key - 48
+        const value = digit === 0 ? 'p' : `h${digit}`
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
+      } else if (key === Key.Z && ctrlOrCmd) {
+        event.preventDefault()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+      } else if (key === Key.Y && ctrlOrCmd) {
+        event.preventDefault()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
       } else if (backspaceOrDelete) {
         this.onInlineDelete(event)
       } else if (arrowKey && !shift) {

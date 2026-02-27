@@ -45,21 +45,15 @@ export default (vm) => {
     }
   ]
 
+  const getCurrentItem = () => items.find(item => item.id === vm.viewport) || items[items.length - 1]
+
   return {
-    label: 'change viewport',
+    label: () => getCurrentItem().label,
     iconLib: 'material-icons',
     class: 'always-active separate',
     collapse: true,
-    isActive: () =>  false,
-    icon() {
-      let currentItem = {}
-      items.some((item) => {
-        if (item.id === vm.viewport) {
-          return currentItem = item
-        }
-      })
-      return currentItem.icon || 'desktop_windows'
-    },
+    isActive: () => false,
+    icon: () => getCurrentItem().icon,
     items
   }
 }
