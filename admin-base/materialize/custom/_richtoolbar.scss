@@ -59,6 +59,10 @@
         font-size: 16px;
       }
 
+      .fa-paragraph {
+        margin-top: 3px;
+      }
+
       &:not(.rtb-dropdown-toggle) .caret-down:before {
         top: 9px;
         right: 1px;
@@ -67,7 +71,10 @@
   }
 
   &.on-right-panel {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 2rem);
+    grid-auto-rows: 2rem;
+    justify-content: center;
     padding: 1px;
     border-bottom: 2px solid var(--pcms-blue-grey);
     background-color: #fff;
@@ -82,17 +89,90 @@
       }
     }
 
-    .btn-group {
-      border-left: 1px solid var(--pcms-gray);
+    // ALL non-dropdown groups (including font-size-wrapper) are display:contents —
+    // their child buttons become direct 2rem grid cells, guaranteeing pixel-perfect
+    // alignment with the toolbar column grid. No inner grid needed.
+    > .btn-group:not(.rtb-group--dropdown) {
+      display: contents;
+    }
+
+    // Dropdown groups: real 2rem × 2rem grid item.
+    // padding:0 overrides the general .btn-group:not(:first-child){padding:0 2px}
+    // which would shift the toggle button off the column boundary.
+    > .btn-group.rtb-group--dropdown {
+      position: relative;
+      width: 2rem;
+      height: 2rem;
+      padding: 0;
+    }
+
+    // ── Group separators ─────────────────────────────────────────────────────────
+    // Every group gets a left (::before) and right (::after) separator line.
+    //
+    // KEY: ::after uses right:-1px, extending 1px past the button's right edge.
+    // This makes it overlap pixel-perfectly with the next group's ::before left:0,
+    // so adjacent groups on the same row share exactly ONE visible separator line.
+    // On a wrap boundary the two pseudo-elements appear independently on separate
+    // rows — correctly closing the current row and opening the next one.
+    //
+    // Flat groups (display:contents — DOM selectors still match)
+    > .btn-group:not(.rtb-group--dropdown) {
+      > .btn:first-child::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background-color: var(--pcms-gray);
+      }
+
+      > .btn:last-child::after {
+        content: '';
+        position: absolute;
+        right: -1px;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background-color: var(--pcms-gray);
+      }
+    }
+
+    // Dropdown groups: same logic on the wrapper element (real box, position:relative)
+    > .btn-group.rtb-group--dropdown {
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background-color: var(--pcms-gray);
+        z-index: 1;
+      }
+
+      &::after {
+        content: '';
+        position: absolute;
+        right: -1px;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background-color: var(--pcms-gray);
+        z-index: 1;
+      }
     }
 
     .btn {
       width: 2rem;
       height: 2rem;
-      border-left: 1px solid transparent;
-      border-right: 1px solid transparent;
-      border-top: none;
-      border-bottom: none;
+      // No horizontal borders — buttons fill their grid cells edge-to-edge.
+      // This lets the ::after right:-1px separator of group A overlap pixel-perfectly
+      // with the ::before left:0 of group B's first button (one line, not two).
+      border: none;
+      // Override .vue-form-generator .field-wrap button:not(:last-child) { margin-right: 4px }
+      // which adds 4px of extra space to non-last buttons (e.g. the text-format toggle).
+      margin-right: 0 !important;
       color: #222222;
       box-shadow: unset;
       background-color: unset;
@@ -124,6 +204,33 @@
         bottom: 0;
         right: 2px;
         color: #222222;
+      }
+
+      &.rtb-dropdown-toggle {
+        display: flex !important;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        width: 2rem !important;
+        padding: 0 !important;
+
+        .fa,
+        .material-icons {
+          display: block;
+          line-height: 1;
+        }
+
+        .caret-down:before {
+          color: #222222;
+        }
+
+        &.active .caret-down:before {
+          color: #ffffff;
+        }
+
+        &:hover:not(.active) {
+          border: none;
+        }
       }
     }
   }

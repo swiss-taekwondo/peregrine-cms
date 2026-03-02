@@ -1,6 +1,6 @@
 <template>
   <div class="font-size-wrapper btn-group">
-    <button class="subtract btn" @click="onSubtract">
+    <button class="subtract btn" @click="onSubtract" title="Decrease font size">
       <icon icon="remove" :lib="iconLib" />
     </button>
 
@@ -24,7 +24,7 @@
       </ul>
     </div>
 
-    <button class="add btn" @click="onAdd">
+    <button class="add btn" @click="onAdd" title="Increase font size">
       <icon icon="add" :lib="iconLib" />
     </button>
   </div>
@@ -213,24 +213,38 @@ export default {
   display: flex;
 }
 
-.on-right-panel .font-size-wrapper {
-  border-left: 1px solid var(--pcms-gray);
-}
-
 .inputWrapper {
   position: relative;
-  margin: 0 2px;
+  /* Fills its 2rem grid cell; input is visually narrower (3ch) via width below */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
   padding: 0;
   background-color: white;
   color: black;
 }
 
 .inputWrapper input {
-  padding: 2px;
+  padding: 0;
   margin: 0;
   border: none;
-  width: 42px;
-  height: 32px;
+  width: 3ch;
+  height: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+/* Hide the browser's number-input spinner arrows visually
+   while keeping keyboard arrow-key increment/decrement intact */
+.inputWrapper input::-webkit-outer-spin-button,
+.inputWrapper input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.inputWrapper input[type="number"] {
+  -moz-appearance: textfield;
 }
 
 .inputWrapper ul {
