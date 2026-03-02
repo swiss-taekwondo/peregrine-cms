@@ -176,8 +176,7 @@ export default {
       try {
         if (this.mode?.json) {
           JSON.parse(this.content.client);
-        }
-        if (this.mode === 'xml') {
+        } else if (this.mode === 'xml') {
           const parser = new DOMParser();
           const xmlDoc = parser.parseFromString(this.content.client, 'text/xml');
           if (!xmlDoc || xmlDoc.querySelector('parsererror')) {
