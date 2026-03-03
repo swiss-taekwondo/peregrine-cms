@@ -192,7 +192,8 @@ export default {
       dynWatchers: [],
       toast: {
         templateComponent: null,
-        missingEventPath: null
+        missingEventPath: null,
+        invalidDrop: null,
       },
       pingDebouncer: {
         id: null,
@@ -322,11 +323,13 @@ export default {
       this.previousTarget = oldVal
       if (val) {
         this.selectComponent(this)
+        console.log('target watch')
       } else {
         this.unselect(this)
       }
     },
     scrollTop() {
+      console.log('scrolltop watch')
       if (this.target) {
         this.wrapEditableAroundSelected()
       } else {
@@ -335,6 +338,7 @@ export default {
     },
     'view.state.tools.workspace.view'() {
       this.$nextTick(() => {
+        console.log('workspace view watch')
         this.wrapEditableAroundSelected()
       })
     },
@@ -346,6 +350,8 @@ export default {
       handler(val) {
         if (!this.component) return
         this.wrapEditableAroundSelected()
+        
+        console.log('node watch')
         this.$nextTick(() => {
           this.refreshIframeElements()
         })
@@ -362,6 +368,7 @@ export default {
           this.editable.timer = setTimeout(() => {
             this.editable.class = 'selected'
             this.wrapEditableAroundSelected()
+            console.log('previewmode watch')
           }, this.editable.delay)
         }
       }
@@ -369,6 +376,7 @@ export default {
     'iframe.dimension': {
       deep: true,
       handler() {
+        console.log('iframe dimension watch')
         if (this.target) {
           this.wrapEditableAroundSelected()
         } else {
@@ -437,6 +445,7 @@ export default {
             Toast.Level.WARNING)
       } else {
         if (vm.dragging || vm.path !== '/jcr:content') {
+          console.warn('select component', el, vm.dragging)
           vm.wrapEditableAroundSelected()
         }
         if (!vm.dragging) {
@@ -737,6 +746,7 @@ export default {
 
     onIframeClick(ev) {
       if (!this.isContentEditableOrNested(ev.target)) {
+        this.editable.class = ''
         this.target = ev.target
       }
       if (this.target !== ev.target) {
@@ -785,6 +795,7 @@ export default {
     },
 
     onIframeDragOver(event) {
+      console.clear()
       event.preventDefault()
       this.dragging = true
       this.target = event.target
@@ -792,6 +803,7 @@ export default {
       const previousSibling = this.sibling.previous
       let locked = false
 
+      console.log('iframe drag', this.target, this.component)
       if (this.component) {
         if (!this.dropTarget && this.isTemplateNode) {
           if (!((this.isFromTemplate(previousSibling) || previousSibling === null)
@@ -809,6 +821,7 @@ export default {
           let dropLocation = this.dropLocation
 
           if (this.isTemplateNode) {
+            console.log('istemplatenode')
             if (dropLocation) {
               this.dropPosition = 'into-' + dropLocation
               this.editable.class = 'selected'
@@ -817,21 +830,30 @@ export default {
               event.dataTransfer.effectAllowed = ''
             }
           } else {
+            console.log('not template node',
+              this.dropLocation,
+              this.editable.class,
+              event.dataTransfer.effectAllowed,
+              relMousePos,
+            )
             if (relMousePos['y%'] <= 10 && dropLocation === 'before' && !isRoot) {
               this.dropPosition = 'before'
               this.editable.class = 'drop-top'
-            } else if (relMousePos['y%'] >= 90 && dropLocation === 'after' && !isRoot) {
+            } else if (relMousePos['y%'] >= 70 && dropLocation === 'after' && !isRoot) {
               this.dropPosition = 'after'
               this.editable.class = 'drop-bottom'
             } else if (dropLocation) {
               this.dropPosition = 'into-' + dropLocation
               this.editable.class = 'selected'
             } else {
+              // invalid drop position
               this.dropPosition = 'none'
+              this.editable.class = 'mouseover-orange'
               event.dataTransfer.effectAllowed = ''
             }
           }
         } else if (!isRoot && !locked) {
+          console.log('not root-not locked')
           if (relMousePos['y%'] <= 43.5) {
             this.dropPosition = 'before'
             this.editable.class = 'drop-top'
@@ -839,13 +861,17 @@ export default {
             this.dropPosition = 'after'
             this.editable.class = 'drop-bottom'
           }
+          return
         } else {
+          console.log('isroot or locked')
           this.editable.class = ''
           this.dropPosition = 'none'
           event.dataTransfer.effectAllowed = ''
         }
       } else {
         this.dropPosition = 'none'
+        this.editable.class = ''
+        console.log('no-component')
         event.dataTransfer.dropEffect = 'none'
       }
     },
@@ -857,7 +883,10 @@ export default {
         this.selected.draggable = false
       }
       if (typeof this.component === 'undefined' || this.component === null) return false
-      if (this.dropPosition === 'none') return false
+      if (this.dropPosition === 'none') {
+        this.toast.invalidDrop = $perAdminApp.toast(this.$i18n('invalidIframeDropNotifyMsg'), Toast.Level.WARNING)
+        return false
+      }
 
       const componentPath = event.dataTransfer.getData('text')
 
@@ -888,6 +917,8 @@ export default {
         }
         this.cleanUpAfterDelete(componentPath)
       }
+      // debugger
+      console.log(this.$refs.editable, payload)
       $perAdminApp.stateAction(addOrMove, payload).then((data) => {
         this.refreshIframeElements()
       })
@@ -896,7 +927,8 @@ export default {
     },
 
     onIframeMouseOver(event) {
-      if (this.editable.class === 'selected') return
+      // if (this.editable.class === 'selected') return
+      if (this.enableEditableFeatures) return
 
       const cmpEl = this.findComponentEl(event.target)
 
@@ -913,6 +945,7 @@ export default {
       } else {
         this.editable.class = 'mouseover-green'
       }
+       console.log('this.editable.class', this.editable.class) 
 
       this.editable.visible = true
     },
@@ -1041,14 +1074,16 @@ export default {
       if (!el) return
 
       this.$nextTick(() => {
-        const {top, left, width, height} = this.getBoundingClientRect(el)
-        const offset = this.getBoundingClientRect(this.$refs.editview)
+        const {top, left, width, height} = this.dragging ? el.getBoundingClientRect() : this.getBoundingClientRectWithMargin(el)
+        const offset = this.getBoundingClientRectWithMargin(this.$refs.editview)
 
         this.editable.styles.top = `${top}px`
         this.editable.styles.left = `${left + offset.left}px`
         this.editable.styles.width = `${width}px`
         this.editable.styles.height = `${height}px`
-        this.editable.class = 'selected'
+        if (!this.dragging && !this.editable.class) { // prevent breaking oniframedrag setup classes
+          this.editable.class = 'selected'
+        }
       })
     },
 
@@ -1076,7 +1111,7 @@ export default {
       return styleValue
     },
 
-    getBoundingClientRect(e) {
+    getBoundingClientRectWithMargin(e) {
       const rect = e.getBoundingClientRect()
       const marginTop = parseFloat(this.getElementStyle(e, 'margin-top'))
       const marginLeft = parseFloat(this.getElementStyle(e, 'margin-left'))
@@ -1102,7 +1137,7 @@ export default {
     },
 
     getRelativeMousePosition(event) {
-      const offset = this.getBoundingClientRect(this.component)
+      const offset = this.getBoundingClientRectWithMargin(this.component)
       return {
         width: offset.width,
         x: event.pageX - offset.left,
@@ -1165,7 +1200,10 @@ export default {
           this.refreshIframeElements()
         })
       }
-      this.unselect(this)
+      this.unselect(this) 
+      // setTimeout(() => {
+      //   this.unselect(this)
+      // }, 1)
     },
 
     cleanUpAfterDelete(path) {

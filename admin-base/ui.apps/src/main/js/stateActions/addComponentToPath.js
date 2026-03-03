@@ -29,6 +29,7 @@ let log = LoggerFactory.logger('addComponentToPath').setLevelDebug()
 
 export default function(me, target) {
 
+    debugger
     log.fine('addComponentToPath()',target)
 
     let view = me.getView()
