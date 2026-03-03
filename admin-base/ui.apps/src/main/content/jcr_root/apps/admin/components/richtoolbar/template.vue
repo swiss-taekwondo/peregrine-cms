@@ -63,7 +63,7 @@ function resolveClass(cls) {
   return cls || ''
 }
 
-function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false) {
+function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdown = null) {
   const isActive = btn.isActive ? btn.isActive() : false
   const extraClass = resolveClass(btn.class)
   const uniqueKey = keyPrefix != null
@@ -83,7 +83,10 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false) {
     attrs: { title: label, type: 'button' },
     on: {
       mousedown: e => e.preventDefault(),
-      click: () => btn.click ? btn.click() : vm.exec(btn.cmd),
+      click: () => {
+        if (closeDropdown) closeDropdown()
+        if (btn.click) btn.click(); else vm.exec(btn.cmd)
+      },
     },
   }, children)
 }
@@ -396,11 +399,12 @@ export default {
         // 2+ visible items — render as dropdown
         const isOpen = !!this.openGroups[label]
 
+        const closeThisDropdown = () => this.$set(this.openGroups, label, false)
         const menuItems = realItems.map((btn, i) => {
           if (btn.items && btn.items.length > 0) {
             return this._renderGroup(h, btn, false)
           }
-          return renderBtn(h, btn, this, label, i, true)
+          return renderBtn(h, btn, this, label, i, true, closeThisDropdown)
         })
 
         const menu = h('div', {

@@ -118,7 +118,7 @@
     // Flat groups (display:contents — DOM selectors still match)
     > .btn-group:not(.rtb-group--dropdown) {
       > .btn:first-child::before {
-        content: '';
+        content: "";
         position: absolute;
         left: 0;
         top: 0;
@@ -128,7 +128,7 @@
       }
 
       > .btn:last-child::after {
-        content: '';
+        content: "";
         position: absolute;
         right: -1px;
         top: 0;
@@ -141,7 +141,7 @@
     // Dropdown groups: same logic on the wrapper element (real box, position:relative)
     > .btn-group.rtb-group--dropdown {
       &::before {
-        content: '';
+        content: "";
         position: absolute;
         left: 0;
         top: 0;
@@ -152,7 +152,7 @@
       }
 
       &::after {
-        content: '';
+        content: "";
         position: absolute;
         right: -1px;
         top: 0;
@@ -231,6 +231,24 @@
         &:hover:not(.active) {
           border: none;
         }
+      }
+    }
+
+    // Dropdowns on the right panel open to the left so they don't overflow the panel edge.
+    // The extra selectors (.btn-group.rtb-group--dropdown) raise specificity above the general
+    // .richtoolbar .rtb-group--dropdown .rtb-dropdown-menu rule that sets left:0.
+    > .btn-group.rtb-group--dropdown .rtb-dropdown-menu {
+      left: auto;
+      right: 0;
+      background: #fff;
+    }
+
+    // Keep the toggle button white when its dropdown is open (overrides the general
+    // rgba(0,0,0,0.15) tint which is meant for dark toolbars, not the white right panel).
+    > .btn-group.rtb-group--dropdown.rtb-group--open {
+      .rtb-dropdown-toggle,
+      .rtb-split-caret {
+        background-color: #fff !important;
       }
     }
   }
@@ -467,7 +485,7 @@
         padding: 0 10px;
         gap: 8px;
         border: none;
-        background: transparent;
+        background: #fff;
         color: #222;
         cursor: pointer;
         box-shadow: none;
@@ -483,12 +501,9 @@
           height: auto;
         }
 
-        &.active {
-          background: rgba(0, 0, 0, 0.07);
-        }
-
         &:hover {
-          background: rgba(0, 0, 0, 0.07);
+          background: rgba(0, 0, 0, 0.12);
+          border-radius: 0 !important;
         }
 
         &:focus-visible {
@@ -554,13 +569,13 @@
       }
     }
 
-  // Dropdown button label (shown when group.showLabel = true)
-  .rtb-dropdown-label {
-    font-size: 12px;
-    line-height: 1;
-    white-space: nowrap;
-    margin: 0 2px;
-  }
+    // Dropdown button label (shown when group.showLabel = true)
+    .rtb-dropdown-label {
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+      margin: 0 2px;
+    }
 
     // Dropdown toggle button: constrain icon so caret sits beside it
     .rtb-dropdown-toggle {

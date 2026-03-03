@@ -215,21 +215,22 @@ export default {
 
 .inputWrapper {
   position: relative;
-  /* Fills its 2rem grid cell; input is visually narrower (3ch) via width below */
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 2rem;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background-color: white;
   color: black;
+  border-bottom: 1px solid var(--pcms-blue-grey);
 }
 
 .inputWrapper input {
   padding: 0;
   margin: 0;
   border: none;
-  width: 3ch;
+  width: 100%;
   height: 100%;
   box-sizing: border-box;
   text-align: center;
