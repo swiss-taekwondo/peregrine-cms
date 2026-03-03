@@ -65,6 +65,7 @@ function resolveClass(cls) {
 
 function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdown = null) {
   const isActive = btn.isActive ? btn.isActive() : false
+  const isDisabled = btn.isDisabled ? btn.isDisabled() : false
   const extraClass = resolveClass(btn.class)
   const uniqueKey = keyPrefix != null
     ? (index != null ? `${keyPrefix}-${index}` : `${keyPrefix}-${btn.label}`)
@@ -81,9 +82,11 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
     key: uniqueKey,
     class: classes,
     attrs: { title: label, type: 'button' },
+    domProps: { disabled: isDisabled },
     on: {
       mousedown: e => e.preventDefault(),
       click: () => {
+        if (isDisabled) return
         if (closeDropdown) closeDropdown()
         if (btn.click) btn.click(); else vm.exec(btn.cmd)
       },
@@ -1143,13 +1146,9 @@ export default {
     },
 
     restoreSelection() {
-      console.log('[restoreSelection] doc:', this.selection.doc, 'container:', this.selection.container, 'buffer:', this.selection.buffer)
-      this.selection.doc.body.focus()
+      if (!this.selection.container || !this.selection.buffer || !this.selection.doc) return
       this.selection.container.focus()
-      this.$nextTick(() => {
-        console.log('[restoreSelection $nextTick] calling restoreSelection')
-        restoreSelection(this.selection.container, this.selection.buffer, this.selection.doc)
-      })
+      restoreSelection(this.selection.container, this.selection.buffer, this.selection.doc)
     },
 
     onBrowserCancel() {

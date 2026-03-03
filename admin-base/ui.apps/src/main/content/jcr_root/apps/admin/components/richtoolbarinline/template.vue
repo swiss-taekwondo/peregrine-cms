@@ -46,18 +46,21 @@ export default {
   },
   mounted() {
     document.addEventListener('selectionchange', this.onSelectionChange)
-    document.addEventListener('mousedown', this._onDocMouseDown)
+    document.addEventListener('mousedown', this._onDocMouseDown, true)
     document.addEventListener('keydown', this._onDocKeyDown)
     window.addEventListener('peregrine:iframe-loaded', this._onIframeLoaded)
     window.addEventListener('peregrine:iframe-unloaded', this._onIframeUnloaded)
+    // Capture phase catches scroll on any nested element (e.g. the texteditor overflow container)
+    window.addEventListener('scroll', this._onScroll, true)
     this._mountPortal()
   },
   beforeDestroy() {
     document.removeEventListener('selectionchange', this.onSelectionChange)
-    document.removeEventListener('mousedown', this._onDocMouseDown)
+    document.removeEventListener('mousedown', this._onDocMouseDown, true)
     document.removeEventListener('keydown', this._onDocKeyDown)
     window.removeEventListener('peregrine:iframe-loaded', this._onIframeLoaded)
     window.removeEventListener('peregrine:iframe-unloaded', this._onIframeUnloaded)
+    window.removeEventListener('scroll', this._onScroll, true)
     this._detachIframeListener()
     this._destroyPortal()
   },
@@ -295,6 +298,8 @@ export default {
       if (this.iframeDoc) {
         this.iframeDoc.addEventListener('selectionchange', this.onSelectionChange)
         this.iframeDoc.addEventListener('keydown', this._onIframeKeyDown)
+        this.iframeDoc.addEventListener('mousedown', this._onIframeMouseDown, true)
+        this.iframeDoc.defaultView.addEventListener('scroll', this._onScroll)
       }
     },
 
@@ -326,12 +331,32 @@ export default {
       if (this.iframeDoc) {
         this.iframeDoc.removeEventListener('selectionchange', this.onSelectionChange)
         this.iframeDoc.removeEventListener('keydown', this._onIframeKeyDown)
+        this.iframeDoc.removeEventListener('mousedown', this._onIframeMouseDown, true)
+        this.iframeDoc.defaultView.removeEventListener('scroll', this._onScroll)
         this.iframeDoc = null
         this.iframeEl = null
       }
     },
 
+    _getTopClip() {
+      const subnav = document.querySelector('.sub-nav')
+      return subnav ? subnav.getBoundingClientRect().bottom : 0
+    },
+
+    _onScroll() {
+      // Any scroll hides the toolbar immediately — user can re-select to bring it back.
+      if (this.visible) this.hide()
+    },
+
     onSelectionChange() {
+      // If the toolbar was just hidden by an explicit click outside, skip this
+      // selectionchange — it may be triggered by the same click that hid the toolbar
+      // (e.g. admin-doc click while iframe selection is still non-collapsed), which
+      // would otherwise cause updateState() to immediately re-show the toolbar.
+      if (this._hiddenByClick) {
+        this._hiddenByClick = false
+        return
+      }
       this.updateState()
     },
 
@@ -382,8 +407,28 @@ export default {
       const offsetTop = iframeOffset ? iframeOffset.top : 0
       const offsetLeft = iframeOffset ? iframeOffset.left : 0
 
-      let top = (rect.top + offsetTop) - TOOLBAR_HEIGHT - GAP
-      if (top < 0) top = (rect.bottom + offsetTop) + GAP
+      // Hide if the selection has scrolled out of the visible area.
+      // Use the subnav bottom as the top clip boundary so the toolbar also
+      // closes when text scrolls behind the top toolbar.
+      const topClip = this._getTopClip()
+      const adjustedTop = rect.top + offsetTop
+      const adjustedBottom = rect.bottom + offsetTop
+      if (adjustedBottom < topClip || adjustedTop > window.innerHeight) {
+        this.visible = false
+        this._syncPortal()
+        return
+      }
+
+      // For iframe: also hide if the text has scrolled outside the iframe's own viewport
+      if (iframeOffset && this.iframeEl &&
+          (rect.bottom < 0 || rect.top > this.iframeEl.clientHeight)) {
+        this.visible = false
+        this._syncPortal()
+        return
+      }
+
+      let top = adjustedTop - TOOLBAR_HEIGHT - GAP
+      if (top < 0) top = adjustedBottom + GAP
 
       let left = (rect.left + offsetLeft) + rect.width / 2
       left = Math.max(60, Math.min(left, window.innerWidth - 60))
@@ -418,7 +463,16 @@ export default {
       // Hide the toolbar when clicking outside of it
       if (this._portalEl && !this._portalEl.contains(e.target)) {
         this.hide()
+        // Set flag so the selectionchange that fires from this same click
+        // does not immediately re-show the toolbar (iframe selection stays
+        // non-collapsed even when the user clicks in the admin doc).
+        this._hiddenByClick = true
       }
+    },
+
+    _onIframeMouseDown() {
+      // Any click inside the iframe is outside the portal — always hide
+      this.hide()
     },
 
     _execDoc() {
