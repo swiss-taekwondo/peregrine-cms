@@ -168,6 +168,9 @@ export default {
       historyStack: [],
       historyIndex: -1,
       isUndoing: false,
+
+      sharedHistoryIndex: -1,
+      sharedHistoryLength: 0,
     }
   },
 
@@ -250,6 +253,12 @@ export default {
     })
     if (!this.onSubNav) {
       window.addEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
+    } else {
+      this._historyHandler = (e) => {
+        this.sharedHistoryIndex = e.detail.historyIndex
+        this.sharedHistoryLength = e.detail.historyLength
+      }
+      window.addEventListener('richtoolbar:history', this._historyHandler)
     }
     document.addEventListener('mousedown', this._closeDropdowns)
   },
@@ -257,6 +266,9 @@ export default {
   beforeDestroy() {
     window.removeEventListener('resize', this.updateDocElDimensions)
     window.removeEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
+    if (this._historyHandler) {
+      window.removeEventListener('richtoolbar:history', this._historyHandler)
+    }
     document.removeEventListener('mousedown', this._closeDropdowns)
   },
 
@@ -514,6 +526,11 @@ export default {
         this.historyStack.shift()
         this.historyIndex--
       }
+      if (!this.onSubNav) {
+        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+          detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
+        }))
+      }
     },
 
     undo() {
@@ -524,6 +541,9 @@ export default {
       if (this.historyIndex > 0) {
         this.isUndoing = true
         this.historyIndex--
+        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+          detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
+        }))
         const content = this.historyStack[this.historyIndex]
         const container = this.getInlineContainer()
         const doc = this.getInlineDoc()
@@ -550,6 +570,9 @@ export default {
       if (this.historyIndex < this.historyStack.length - 1) {
         this.isUndoing = true
         this.historyIndex++
+        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+          detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
+        }))
         const content = this.historyStack[this.historyIndex]
         const container = this.getInlineContainer()
         const doc = this.getInlineDoc()

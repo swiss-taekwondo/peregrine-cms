@@ -23,6 +23,17 @@
       }
     }
 
+    .btn:disabled {
+      pointer-events: none;
+      background-color: #9e9e9e !important;
+      box-shadow: none !important;
+
+      .material-icons,
+      .fa {
+        color: var(--pcms-blue-grey-darken-3) !important;
+      }
+    }
+
     .btn {
       width: 32px;
       height: 32px;
