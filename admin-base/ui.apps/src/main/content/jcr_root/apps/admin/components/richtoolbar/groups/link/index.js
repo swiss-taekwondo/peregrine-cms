@@ -11,6 +11,7 @@ export default (vm) => {
     collapse: true,
     splitButton: false,
     isActive: () => isATag,
+    isDisabled: () => !vm.hasEditorSelection,
     toggleClick: () => { if (!isATag) vm.exec('link') },
     rules: () => !vm.responsive || !vm.hiddenGroups.link,
     items: [

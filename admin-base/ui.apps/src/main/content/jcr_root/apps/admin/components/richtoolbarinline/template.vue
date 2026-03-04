@@ -53,6 +53,16 @@ export default {
     // Capture phase catches scroll on any nested element (e.g. the texteditor overflow container)
     window.addEventListener('scroll', this._onScroll, true)
     this._mountPortal()
+    // If this instance handles the iframe (no editorRef) and the iframe is already
+    // loaded (e.g. component re-created after navigation missed peregrine:iframe-loaded),
+    // pick it up immediately so the selection listener is always attached.
+    if (!this.editorRef) {
+      const editviewEl = document.getElementById('editview')
+      if (editviewEl && editviewEl.contentDocument &&
+          editviewEl.contentDocument.readyState === 'complete') {
+        this.setIframeRef(editviewEl)
+      }
+    }
   },
   beforeDestroy() {
     document.removeEventListener('selectionchange', this.onSelectionChange)
@@ -250,6 +260,11 @@ export default {
       })
 
       this._portalVm = new PortalComponent().$mount(portalEl)
+      // $mount(portalEl) replaces portalEl in the DOM with the component's rendered root
+      // element. Update _portalEl to the live element so _onDocMouseDown's contains() check
+      // and _destroyPortal's removeChild() operate on the actual DOM node, not the detached
+      // placeholder that was replaced during mounting.
+      this._portalEl = this._portalVm.$el
     },
 
     _destroyPortal() {
@@ -332,7 +347,7 @@ export default {
         this.iframeDoc.removeEventListener('selectionchange', this.onSelectionChange)
         this.iframeDoc.removeEventListener('keydown', this._onIframeKeyDown)
         this.iframeDoc.removeEventListener('mousedown', this._onIframeMouseDown, true)
-        this.iframeDoc.defaultView.removeEventListener('scroll', this._onScroll)
+        this.iframeDoc?.defaultView?.removeEventListener('scroll', this._onScroll)
         this.iframeDoc = null
         this.iframeEl = null
       }

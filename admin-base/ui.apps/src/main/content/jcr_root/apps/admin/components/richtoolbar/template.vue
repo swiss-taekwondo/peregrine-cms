@@ -171,6 +171,8 @@ export default {
 
       sharedHistoryIndex: -1,
       sharedHistoryLength: 0,
+
+      hasEditorSelection: false,
     }
   },
 
@@ -235,6 +237,8 @@ export default {
         redo: this.redo,
         superscript: this.toggleSuperscript,
         subscript: this.toggleSubscript,
+        insertOrderedList: () => this.toggleList('insertOrderedList'),
+        insertUnorderedList: () => this.toggleList('insertUnorderedList'),
       }
     },
   },
@@ -253,12 +257,41 @@ export default {
     })
     if (!this.onSubNav) {
       window.addEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
+
+      this._updateEditorSelection = () => {
+        const hasSelection = !!this.getEditorSelection()
+        this.hasEditorSelection = hasSelection
+        window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
+          detail: { hasEditorSelection: hasSelection },
+        }))
+      }
+      document.addEventListener('selectionchange', this._updateEditorSelection)
+
+      this.$watch('inline', (val) => {
+        if (!val) {
+          this.hasEditorSelection = false
+          window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
+            detail: { hasEditorSelection: false },
+          }))
+        } else {
+          const iframe = document.querySelector('iframe#editview')
+          if (iframe?.contentDocument && !this._iframeSelectionListenerRegistered) {
+            iframe.contentDocument.addEventListener('selectionchange', this._updateEditorSelection)
+            this._iframeSelectionListenerRegistered = true
+          }
+        }
+      })
     } else {
       this._historyHandler = (e) => {
         this.sharedHistoryIndex = e.detail.historyIndex
         this.sharedHistoryLength = e.detail.historyLength
       }
       window.addEventListener('richtoolbar:history', this._historyHandler)
+
+      this._selectionHandler = (e) => {
+        this.hasEditorSelection = e.detail.hasEditorSelection
+      }
+      window.addEventListener('richtoolbar:selection', this._selectionHandler)
     }
     document.addEventListener('mousedown', this._closeDropdowns)
   },
@@ -268,6 +301,16 @@ export default {
     window.removeEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
     if (this._historyHandler) {
       window.removeEventListener('richtoolbar:history', this._historyHandler)
+    }
+    if (this._selectionHandler) {
+      window.removeEventListener('richtoolbar:selection', this._selectionHandler)
+    }
+    if (this._updateEditorSelection) {
+      document.removeEventListener('selectionchange', this._updateEditorSelection)
+      const iframe = document.querySelector('iframe#editview')
+      if (iframe?.contentDocument && this._iframeSelectionListenerRegistered) {
+        iframe.contentDocument.removeEventListener('selectionchange', this._updateEditorSelection)
+      }
     }
     document.removeEventListener('mousedown', this._closeDropdowns)
   },
@@ -301,6 +344,7 @@ export default {
         getDefaultFontSize: this.getDefaultFontSize,
         getSelection: this.getSelection,
         getEditorSelection: this.getEditorSelection,
+        disabled: !this.hasEditorSelection,
       },
     }))
 
@@ -361,6 +405,7 @@ export default {
       const icon = typeof group.icon === 'function' ? group.icon() : group.icon
       const iconLib = group.iconLib || IconLib.FONT_AWESOME
       const groupClass = resolveClass(group.class)
+      const groupIsDisabled = group.isDisabled ? group.isDisabled() : false
 
       // Searchable groups (icons, special-characters) use the legacy MaterializeDropDown path
       if (group.searchable) {
@@ -374,6 +419,7 @@ export default {
             active: this.groupIsActive(group),
             items,
             searchable: true,
+            disabled: groupIsDisabled,
           },
           on: {
             'toggle-click': () => { if (group.toggleClick) group.toggleClick() },
@@ -407,7 +453,8 @@ export default {
           }, [h('button', {
             class: ['rtb-btn', 'btn', { active: groupIsActive }, groupClass],
             attrs: { title: this.$i18n(label), type: 'button' },
-            on: { mousedown: e => e.preventDefault(), click: clickFn },
+            domProps: { disabled: groupIsDisabled },
+            on: { mousedown: e => e.preventDefault(), click: () => { if (!groupIsDisabled) clickFn() } },
           }, [renderIcon(h, icon, iconLib)])])
         }
 
@@ -432,18 +479,20 @@ export default {
           const actionBtn = h('button', {
             class: ['rtb-btn', 'btn', 'rtb-split-action', { active: groupIsActive }, groupClass],
             attrs: { title: this.$i18n(label), type: 'button' },
+            domProps: { disabled: groupIsDisabled },
             on: {
               mousedown: e => e.preventDefault(),
-              click: () => group.toggleClick(),
+              click: () => { if (!groupIsDisabled) group.toggleClick() },
             },
           }, [renderIcon(h, icon, iconLib)])
 
           const caretBtn = h('button', {
             class: ['rtb-btn', 'btn', 'rtb-split-caret', { active: groupIsActive && !isOpen }, groupClass],
             attrs: { title: this.$i18n(label), type: 'button' },
+            domProps: { disabled: groupIsDisabled },
             on: {
               mousedown: e => e.preventDefault(),
-              click: () => this._toggleGroup(label),
+              click: () => { if (!groupIsDisabled) this._toggleGroup(label) },
             },
           }, [h('span', { class: 'caret-down' })])
 
@@ -463,9 +512,10 @@ export default {
         const toggleBtn = h('button', {
           class: ['rtb-btn', 'btn', 'rtb-dropdown-toggle', { active: groupIsActive && !isOpen }, groupClass],
           attrs: { title: this.$i18n(label), type: 'button' },
+          domProps: { disabled: groupIsDisabled },
           on: {
             mousedown: e => e.preventDefault(),
-            click: () => this._toggleGroup(label),
+            click: () => { if (!groupIsDisabled) this._toggleGroup(label) },
           },
         }, toggleBtnChildren)
 
@@ -633,6 +683,40 @@ export default {
 
     toggleSubscript() {
       this.toggleScriptTag('SUB', 'subscript')
+    },
+
+    toggleList(cmd) {
+      const doc = this.getInlineDoc()
+      const container = this.getInlineContainer()
+      if (!doc || !container) return
+
+      // Save cursor as character offset relative to the container.
+      // Character offsets survive two things that invalidate a cloned Range node-reference:
+      //   1. DOM restructuring: insertOrderedList replaces <p> wrappers with <ol><li> but
+      //      keeps the same text content and order, so character counts stay identical.
+      //   2. Vue innerHTML replacement: onInput → textEditorWriteToModel calls
+      //      removeUnwantedStyles(), which may strip Chrome-added style attrs from the new
+      //      list HTML. The stripped string differs from the raw DOM innerHTML, so Vue detects
+      //      a mismatch on its next render and calls element.innerHTML = strippedHTML — this
+      //      destroys all existing text nodes, invalidating any cloned Range. Character offsets
+      //      are recomputed against the new text nodes in $nextTick and still land correctly.
+      const savedSel = saveSelection(container, doc)
+
+      container.focus()
+      doc.execCommand(cmd, false, null)
+
+      // Restore in $nextTick: runs after Vue has flushed its render queue. If
+      // removeUnwantedStyles changed the HTML, Vue will have already replaced innerHTML by
+      // then, so we restore against the final DOM rather than an intermediate state.
+      this.$nextTick(() => {
+        if (!savedSel) return
+        const freshContainer = this.getInlineContainer() || container
+        if (!freshContainer) return
+        // focus() is a no-op when the element already has focus; if Vue's innerHTML
+        // replacement lost focus, this re-establishes it before restoreSelection sets the range.
+        freshContainer.focus()
+        restoreSelection(freshContainer, savedSel, doc)
+      })
     },
 
     getDefaultFontSize() {
@@ -858,9 +942,10 @@ export default {
       return this.getInlineDoc().querySelector('.inline-edit.inline-editing')
     },
 
-    execCmd(cmd, value = null, showUi = true) {
-      if (!this.getInlineDoc() || !this.getInlineDoc().execCommand) return
-      this.getInlineDoc().execCommand(cmd, showUi, value)
+    execCmd(cmd, value = null, showUi = true, doc = null) {
+      const targetDoc = doc || this.getInlineDoc()
+      if (!targetDoc || !targetDoc.execCommand) return
+      targetDoc.execCommand(cmd, showUi, value)
     },
 
     queryCmdState(cmd) {
@@ -1043,6 +1128,40 @@ export default {
     },
 
     insertImage() {
+      let container = null
+      let doc = document
+
+      const inlineContainer = this.getInlineContainer()
+      const inlineDoc = this.getInlineDoc()
+      if (inlineContainer && inlineDoc) {
+        container = inlineContainer
+        doc = inlineDoc
+      }
+
+      if (!container) {
+        const lastContainer = this.getLastContainer()
+        const lastDoc = this.getLastDoc()
+        if (lastContainer && lastDoc) {
+          container = lastContainer
+          doc = lastDoc
+        }
+      }
+
+      if (!container) {
+        const wrapper = this.$el?.closest('.text-editor-wrapper')
+        if (wrapper) {
+          container = wrapper.querySelector('.text-editor')
+        }
+      }
+
+      if (!container) {
+        container = document.querySelector('.text-editor')
+      }
+
+      if (!container) {
+        return
+      }
+
       this.param.cmd = 'insertImage'
       this.browser.header = this.$i18n('Insert Image')
       this.browser.path.current = this.roots.assets
@@ -1053,8 +1172,17 @@ export default {
       this.browser.img.width = null
       this.browser.img.height = null
       this.browser.img.objectFit = null
-      this.saveSelection()
-      this.selection.restore = true
+      this.selection.doc = doc
+      this.selection.container = container
+
+      const win = doc.defaultView
+      const liveSel = win?.getSelection?.()
+      const liveRange = liveSel?.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
+      this._savedRange = liveRange
+
+      const savedSel = saveSelection(container, doc) || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
+      this.selection.buffer = savedSel
+      this.selection.restore = !!savedSel
       this.startBrowsing()
     },
 
@@ -1335,13 +1463,38 @@ export default {
         })
         this.browser.element = null
       } else {
-        const styles = []
-        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        const styleAttr = styles.length ? ` style="${styles.join(';')}"` : ''
-        const html = `<img src="${this.browser.path.selected}" alt="${this.browser.linkTitle || ''}" title="${this.browser.linkTitle || ''}"${styleAttr}/>`
-        this.execCmd('insertHTML', html)
+        // Use saved range directly like insertLink does
+        const range = this._savedRange
+        if (range) {
+          const styles = []
+          if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+          if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+          if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+          const styleAttr = styles.length ? ` style="${styles.join(';')}"` : ''
+
+          const img = this.selection.doc.createElement('img')
+          img.setAttribute('src', this.browser.path.selected)
+          img.setAttribute('alt', this.browser.linkTitle || '')
+          img.setAttribute('title', this.browser.linkTitle || '')
+          if (styleAttr) {
+            img.setAttribute('style', styles.join(';'))
+          }
+
+          range.insertNode(img)
+          this._savedRange = null
+        } else {
+          // Fallback to execCmd if no saved range
+          const styles = []
+          if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+          if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+          if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+          const styleAttr = styles.length ? ` style="${styles.join(';')}"` : ''
+          const html = `<img src="${this.browser.path.selected}" alt="${this.browser.linkTitle || ''}" title="${this.browser.linkTitle || ''}"${styleAttr}/>`
+
+          this.selection.container?.focus()
+          this.execCmd('insertHTML', html, true, this.selection.doc)
+        }
+
         $perAdminApp.action(this, 'writeInlineToModel')
         this.$nextTick(() => {
           $perAdminApp.action(this, 'textEditorWriteToModel')

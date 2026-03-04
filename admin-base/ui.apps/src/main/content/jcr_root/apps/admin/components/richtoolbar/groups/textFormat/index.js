@@ -22,6 +22,7 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     collapse: true,
     rules: () => !vm.responsive || !vm.hiddenGroups['text-format'],
+    isDisabled: () => !vm.hasEditorSelection,
     items: [paragraphItem, ...headlineItems]
   }
 }

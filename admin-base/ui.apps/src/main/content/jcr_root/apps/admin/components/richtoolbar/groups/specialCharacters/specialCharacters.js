@@ -14,7 +14,8 @@ export default (vm) => {
         const doc = vm.selection.doc
         if (container && doc) {
           // Bring focus back to the editor (needed if the filter <input> stole it).
-          container.focus()
+          // preventScroll avoids jumping the page to the top of the editor on refocus.
+          container.focus({ preventScroll: true })
           // Restore the exact cursor position using the live Range captured at
           // toggle-click time. This is precise across <br> boundaries, unlike the
           // character-offset fallback which can land on the wrong line.

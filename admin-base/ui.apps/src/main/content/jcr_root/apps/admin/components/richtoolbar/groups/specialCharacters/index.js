@@ -8,6 +8,10 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     collapse: true,
     searchable: true,
+    // Keep enabled while the dropdown is open (vm._specialCharRange is set after toggleClick).
+    // Without this, typing in the search input fires selectionchange → hasEditorSelection=false
+    // → the wrapping <button> becomes disabled (pointer-events:none) → character items unclickable.
+    isDisabled: () => !vm.hasEditorSelection && !vm._specialCharRange,
     rules: () => !vm.responsive || !vm.hiddenGroups['special-characters'],
     items: [
       ...specialCharacters(vm)

@@ -8,6 +8,7 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     collapse: true,
     searchable: true,
+    isDisabled: () => !vm.hasEditorSelection,
     rules: () => !vm.responsive || !vm.hiddenGroups['icons'],
     items: [
       ...icons(vm)

@@ -783,6 +783,8 @@ export default {
       } else {
         this.iframePreviewMode()
       }
+      // Ensure Enter creates <p> instead of <div> in contenteditable inline editors
+      this.iframe.doc.execCommand('defaultParagraphSeparator', false, 'p')
       // Notify the inline toolbar about the iframe so it can track selections inside it
       window.dispatchEvent(new CustomEvent('peregrine:iframe-loaded', { detail: { iframeEl: this.$refs.editview } }))
     },

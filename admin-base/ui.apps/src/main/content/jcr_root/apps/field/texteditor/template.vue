@@ -43,7 +43,7 @@
        @input="onInput"
        @click="pingToolbar"
        @dblclick="onDblClick"
-       @keydown="pingToolbar"
+       @keydown="onKeydown"
        @keyup="pingToolbar"
        @mouseup="onMouseUp">
     </p>
@@ -109,6 +109,8 @@ export default {
     if (this.$refs.inlineToolbar) {
       this.$refs.inlineToolbar.setEditorRef(this.$refs.textEditor)
     }
+    // Ensure Enter creates <p> instead of <div> inside the contenteditable
+    document.execCommand('defaultParagraphSeparator', false, 'p')
   },
 
   methods: {
@@ -163,6 +165,18 @@ export default {
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
     },
+    onKeydown(event) {
+      if (event.ctrlKey && event.altKey) {
+        const n = parseInt(event.key)
+        if (!isNaN(n) && n >= 0 && n <= 6) {
+          event.preventDefault()
+          const tag = n === 0 ? 'p' : `h${n}`
+          if (this.$refs.richtoolbar) this.$refs.richtoolbar.exec('formatBlock', tag)
+          return
+        }
+      }
+      this.pingToolbar()
+    },
     pingToolbar() {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
@@ -179,6 +193,11 @@ export default {
       vm._saveInlineSelectionState()
       if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.hide()
       if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
+    },
+    insertImage(vm = this) {
+      vm._saveInlineSelectionState()
+      if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.hide()
+      if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertImage()
     },
     removeLink(vm = this) {
       // Get the anchor before any state changes

@@ -1,6 +1,6 @@
 <template>
   <div class="font-size-wrapper btn-group">
-    <button class="subtract btn" @click="onSubtract" title="Decrease font size">
+    <button class="subtract btn" @click="onSubtract" title="Decrease font size" :disabled="effectiveDisabled">
       <icon icon="remove" :lib="iconLib" />
     </button>
 
@@ -13,6 +13,7 @@
         type="number"
         max="250"
         min="1"
+        :disabled="effectiveDisabled"
       />
 
       <ul>
@@ -24,7 +25,7 @@
       </ul>
     </div>
 
-    <button class="add btn" @click="onAdd" title="Increase font size">
+    <button class="add btn" @click="onAdd" title="Increase font size" :disabled="effectiveDisabled">
       <icon icon="add" :lib="iconLib" />
     </button>
   </div>
@@ -56,6 +57,10 @@ export default {
     getEditorSelection: {
       type: Function
     },
+    disabled: {
+      type: Boolean,
+      default: false
+    },
   },
 
   data() {
@@ -64,10 +69,16 @@ export default {
       selectionRange: null,
       inputValue: "",
       inlineListenerInterval: null,
+      focused: false,
     };
   },
 
   computed: {
+    // While the input wrapper has focus, ignore the disabled prop so that typing in
+    // the number field doesn't get blocked by selectionchange → hasEditorSelection=false.
+    effectiveDisabled() {
+      return this.disabled && !this.focused
+    },
     forInline() {
       if (this.$refs.inputRef.closest('.richtoolbar.on-sub-nav')) {
         return true
@@ -105,11 +116,6 @@ export default {
       if (currSelection.rangeCount <= 0) return
       if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
       if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
-
-      // remove selection from mirror text editor to avoid issues when finding selection to apply fontsize later
-      if (event.currentTarget.isEqualNode(iframeDoc)) document.getSelection().removeAllRanges() // remove selection
-      if (event.currentTarget.isEqualNode(document)) iframeDoc?.getSelection().removeAllRanges() // remove selection
-
 
       const currRange = currSelection.getRangeAt(0);
 
@@ -187,6 +193,7 @@ export default {
 
     // save/load selection between manual inputs
     onFocusOut(e) {
+      this.focused = false
       this.exec("restoreSelection");
       if (this.selectionRange) {
         const selection = this.selectionRange.startContainer.ownerDocument.getSelection()
@@ -198,6 +205,7 @@ export default {
       });
     },
     onFocusIn(e) {
+      this.focused = true
       this.exec("saveSelection");
       const range = this.getEditorSelection()
       if (range && this.isRangeInEditor(range)) {
