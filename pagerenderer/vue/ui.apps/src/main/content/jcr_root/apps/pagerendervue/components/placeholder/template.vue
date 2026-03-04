@@ -103,7 +103,6 @@ export default {
         padding: 4px;
         margin: 0px;
         text-align: center;
-        /*width: calc(100% - 8px);*/
         width: 100%;
         white-space: nowrap;
         text-overflow: ellipsis;

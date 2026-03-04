@@ -906,7 +906,6 @@ export default {
     },
 
     onIframeMouseOver(event) {
-      // if (this.editable.class === 'selected') return
       if (this.enableEditableFeatures) return
 
       const cmpEl = this.findComponentEl(event.target)
