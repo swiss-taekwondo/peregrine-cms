@@ -323,13 +323,11 @@ export default {
       this.previousTarget = oldVal
       if (val) {
         this.selectComponent(this)
-        console.log('target watch')
       } else {
         this.unselect(this)
       }
     },
     scrollTop() {
-      console.log('scrolltop watch')
       if (this.target) {
         this.wrapEditableAroundSelected()
       } else {
@@ -338,7 +336,6 @@ export default {
     },
     'view.state.tools.workspace.view'() {
       this.$nextTick(() => {
-        console.log('workspace view watch')
         this.wrapEditableAroundSelected()
       })
     },
@@ -351,7 +348,6 @@ export default {
         if (!this.component) return
         this.wrapEditableAroundSelected()
         
-        console.log('node watch')
         this.$nextTick(() => {
           this.refreshIframeElements()
         })
@@ -368,7 +364,6 @@ export default {
           this.editable.timer = setTimeout(() => {
             this.editable.class = 'selected'
             this.wrapEditableAroundSelected()
-            console.log('previewmode watch')
           }, this.editable.delay)
         }
       }
@@ -376,7 +371,6 @@ export default {
     'iframe.dimension': {
       deep: true,
       handler() {
-        console.log('iframe dimension watch')
         if (this.target) {
           this.wrapEditableAroundSelected()
         } else {
@@ -445,7 +439,6 @@ export default {
             Toast.Level.WARNING)
       } else {
         if (vm.dragging || vm.path !== '/jcr:content') {
-          console.warn('select component', el, vm.dragging)
           vm.wrapEditableAroundSelected()
         }
         if (!vm.dragging) {
@@ -795,7 +788,6 @@ export default {
     },
 
     onIframeDragOver(event) {
-      console.clear()
       event.preventDefault()
       this.dragging = true
       this.target = event.target
@@ -803,7 +795,6 @@ export default {
       const previousSibling = this.sibling.previous
       let locked = false
 
-      console.log('iframe drag', this.target, this.component)
       if (this.component) {
         if (!this.dropTarget && this.isTemplateNode) {
           if (!((this.isFromTemplate(previousSibling) || previousSibling === null)
@@ -821,7 +812,6 @@ export default {
           let dropLocation = this.dropLocation
 
           if (this.isTemplateNode) {
-            console.log('istemplatenode')
             if (dropLocation) {
               this.dropPosition = 'into-' + dropLocation
               this.editable.class = 'selected'
@@ -830,12 +820,6 @@ export default {
               event.dataTransfer.effectAllowed = ''
             }
           } else {
-            console.log('not template node',
-              this.dropLocation,
-              this.editable.class,
-              event.dataTransfer.effectAllowed,
-              relMousePos,
-            )
             if (relMousePos['y%'] <= 10 && dropLocation === 'before' && !isRoot) {
               this.dropPosition = 'before'
               this.editable.class = 'drop-top'
@@ -853,7 +837,6 @@ export default {
             }
           }
         } else if (!isRoot && !locked) {
-          console.log('not root-not locked')
           if (relMousePos['y%'] <= 43.5) {
             this.dropPosition = 'before'
             this.editable.class = 'drop-top'
@@ -863,7 +846,6 @@ export default {
           }
           return
         } else {
-          console.log('isroot or locked')
           this.editable.class = ''
           this.dropPosition = 'none'
           event.dataTransfer.effectAllowed = ''
@@ -871,7 +853,6 @@ export default {
       } else {
         this.dropPosition = 'none'
         this.editable.class = ''
-        console.log('no-component')
         event.dataTransfer.dropEffect = 'none'
       }
     },
@@ -884,7 +865,7 @@ export default {
       }
       if (typeof this.component === 'undefined' || this.component === null) return false
       if (this.dropPosition === 'none') {
-        this.toast.invalidDrop = $perAdminApp.toast(this.$i18n('invalidIframeDropNotifyMsg'), Toast.Level.WARNING)
+        this.toast.invalidDrop = $perAdminApp.toast('Invalid drop position', Toast.Level.WARNING)
         return false
       }
 
@@ -917,8 +898,6 @@ export default {
         }
         this.cleanUpAfterDelete(componentPath)
       }
-      // debugger
-      console.log(this.$refs.editable, payload)
       $perAdminApp.stateAction(addOrMove, payload).then((data) => {
         this.refreshIframeElements()
       })
@@ -945,7 +924,6 @@ export default {
       } else {
         this.editable.class = 'mouseover-green'
       }
-       console.log('this.editable.class', this.editable.class) 
 
       this.editable.visible = true
     },
@@ -1189,21 +1167,25 @@ export default {
 
     onDelete(e) {
       const view = this.view
-      const pagePath = view.pageView.path
       const payload = {
         pagePath: view.pageView.path,
         path: this.path
       }
-      if (payload.path !== '/jcr:content') {
-        $perAdminApp.stateAction('deletePageNode', payload).then((data) => {
-          this.cleanUpAfterDelete(payload.path)
-          this.refreshIframeElements()
-        })
-      }
-      this.unselect(this) 
-      // setTimeout(() => {
-      //   this.unselect(this)
-      // }, 1)
+      const vm = this
+      $perAdminApp.askUser('Delete Component?', 'Are you sure you want to delete the component?', {
+        yesText: 'Yes',
+        noText: 'No',
+        yes() {
+          if (payload.path !== '/jcr:content') {
+            $perAdminApp.stateAction('deletePageNode', payload).then((data) => {
+              vm.cleanUpAfterDelete(payload.path)
+              vm.refreshIframeElements()
+            })
+          }
+          vm.unselect(vm) 
+        },
+        no() {},
+      })
     },
 
     cleanUpAfterDelete(path) {
