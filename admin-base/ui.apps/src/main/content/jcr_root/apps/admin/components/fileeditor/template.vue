@@ -172,9 +172,28 @@ export default {
         });
     },
 
+    validateContent() {
+      try {
+        if (this.mode?.json) {
+          JSON.parse(this.content.client);
+        } else if (this.mode === 'xml') {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(this.content.client, 'text/xml');
+          if (!xmlDoc || xmlDoc.querySelector('parsererror')) {
+            throw new Error(xmlDoc.querySelector('parsererror').textContent);
+          }
+        }
+      } catch (error) {
+        this.toast(`Invalid content:\n\n${error.message}`, 'error');
+        return false
+      }
+      return true
+    },
+
     save() {
       const { path, content, extension } = this;
-
+      
+      if (!this.validateContent()) return;
       this.stateAction('saveFile', { path, content: content.client, extension })
         .then(() => {
           this.lastSave = new Date();
@@ -187,6 +206,7 @@ export default {
     saveAndExit() {
       const { path, content, extension } = this;
 
+      if (!this.validateContent()) return;
       this.stateAction('saveFile', { path, content: content.client, extension })
         .then(() => this.loadExplorer(this.getParentPath()))
         .catch(() => this.toast('Save failed!', 'error'));
