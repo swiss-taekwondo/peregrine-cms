@@ -222,14 +222,16 @@ export const restoreSelection = (containerEl, savedSel, doc = document) => {
     range.collapse(true);
     let nodeStack = [containerEl],
       node,
+      lastTextNode = null,
       foundStart = false,
       stop = false;
 
     while (!stop && (node = nodeStack.pop())) {
       if (node.nodeType === 3) {
         const nextCharIndex = charIndex + node.length;
+        lastTextNode = node;
         if (
-          !foundStart &&
+          !foundStart && savedSel &&
           savedSel.start >= charIndex &&
           savedSel.start <= nextCharIndex
         ) {
@@ -237,7 +239,7 @@ export const restoreSelection = (containerEl, savedSel, doc = document) => {
           foundStart = true;
         }
         if (
-          foundStart &&
+          foundStart && savedSel &&
           savedSel.end >= charIndex &&
           savedSel.end <= nextCharIndex
         ) {
@@ -251,6 +253,11 @@ export const restoreSelection = (containerEl, savedSel, doc = document) => {
           nodeStack.push(node.childNodes[i]);
         }
       }
+    }
+
+    if (!foundStart && lastTextNode) {
+      range.setStart(lastTextNode, lastTextNode.length);
+      range.setEnd(lastTextNode, lastTextNode.length);
     }
 
     const sel = win.getSelection();

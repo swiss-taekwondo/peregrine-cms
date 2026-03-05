@@ -720,6 +720,11 @@ export default {
       }
     },
 
+    onInlineMouseUp(event) {
+      // Selection in preview stays in preview - no auto-sync to editor
+      // This allows user to edit directly in preview without affecting editor selection
+    },
+
     onInlineSelectAll(event) {
       event.preventDefault()
       let range, selection
@@ -994,6 +999,7 @@ export default {
         el.addEventListener('keydown', this.onInlineKeyDown)
         el.addEventListener('keyup', this.onInlineKeyUp)
         el.addEventListener('dblclick', this.onInlineDblClick)
+        el.addEventListener('mouseup', this.onInlineMouseUp)
         el.setAttribute('contenteditable', this.previewMode !== 'preview' + '')
       })
     },

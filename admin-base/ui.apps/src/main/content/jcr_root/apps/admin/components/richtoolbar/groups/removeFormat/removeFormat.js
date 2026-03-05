@@ -13,9 +13,9 @@ export default (vm) => {
       if (!range) return true
       const container = range.startContainer
       const el = container.nodeType === Node.TEXT_NODE ? container.parentElement : container
-      // Check if cursor is inside a formatting tag (no [style] — would match editor container)
+      // Check if cursor is inside a formatting tag
       if (el && el.closest('b,strong,i,em,u,s,del,strike,font')) return false
-      // Check queryCommandState via the range's own document (handles pending format on empty lines)
+      // Check queryCommandState via the range's own document
       const doc = container.ownerDocument
       if (['bold', 'italic', 'underline', 'strikeThrough'].some(cmd => {
         try { return doc.queryCommandState(cmd) } catch (e) { return false }

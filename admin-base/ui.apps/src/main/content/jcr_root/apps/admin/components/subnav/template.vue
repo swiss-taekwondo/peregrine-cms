@@ -25,7 +25,6 @@
 <template>
     <div class="nav-content sub-nav" :class="classes">
         <richtoolbar v-if="renderRichToolbar" class="on-sub-nav" :onSubNav="true"/>
-        <richtoolbar-inline v-if="renderRichToolbar" ref="inlineToolbar"/>
         <div v-if="showNodeTree" class="page-tree">
             <admin-components-materializedropdown
                 ref="dropdown"
@@ -56,10 +55,10 @@
 import {NodeTree} from '../../../../../../js/constants'
 import {get} from '../../../../../../js/utils'
 import Richtoolbar from '../richtoolbar/template.vue'
-import RichtoolbarInline from '../richtoolbarinline/template.vue'
 
 export default {
-    components: {Richtoolbar, RichtoolbarInline},
+    name: "Subnav",
+    components: {Richtoolbar},
     props: ['model'],
     data() {
         return {

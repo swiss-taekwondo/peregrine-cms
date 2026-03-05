@@ -43,18 +43,15 @@
        @input="onInput"
        @click="pingToolbar"
        @dblclick="onDblClick"
-       @keydown="onKeydown"
-       @keyup="pingToolbar"
-       @mouseup="onMouseUp">
+       @keydown="pingToolbar"
+       @keyup="pingToolbar">
     </p>
-    <richtoolbar-inline ref="inlineToolbar" />
   </div>
 </template>
 
 <script>
-import {saveSelection, set} from '../../../../../js/utils'
+import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
-import RichtoolbarInline from '../../admin/components/richtoolbarinline/template.vue'
 
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
@@ -87,7 +84,7 @@ function removeUnwantedStyles(htmlText) {
 }
 
 export default {
-  components: {Richtoolbar, RichtoolbarInline},
+  components: {Richtoolbar},
   mixins: [VueFormGenerator.abstractField],
   data() {
     return {
@@ -105,12 +102,6 @@ export default {
   mounted() {
     const view = this.view
     if (view) set(view, '/state/inline/rich', true)
-    // Pass the editor DOM element to the inline toolbar after both refs are available
-    if (this.$refs.inlineToolbar) {
-      this.$refs.inlineToolbar.setEditorRef(this.$refs.textEditor)
-    }
-    // Ensure Enter creates <p> instead of <div> inside the contenteditable
-    document.execCommand('defaultParagraphSeparator', false, 'p')
   },
 
   methods: {
@@ -137,12 +128,6 @@ export default {
       set(view, '/state/inline/doc', null)
       this.editing = false
       this.pingToolbar()
-      if (this.$refs.inlineToolbar) this.$refs.inlineToolbar.hide()
-    },
-    onMouseUp() {
-      this.$nextTick(() => {
-        if (this.$refs.inlineToolbar) this.$refs.inlineToolbar.updateState()
-      })
     },
     onInput(event) {
       const content = event.target.innerHTML;
@@ -165,39 +150,17 @@ export default {
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
     },
-    onKeydown(event) {
-      if (event.ctrlKey && event.altKey) {
-        const n = parseInt(event.key)
-        if (!isNaN(n) && n >= 0 && n <= 6) {
-          event.preventDefault()
-          const tag = n === 0 ? 'p' : `h${n}`
-          if (this.$refs.richtoolbar) this.$refs.richtoolbar.exec('formatBlock', tag)
-          return
-        }
-      }
-      this.pingToolbar()
-    },
     pingToolbar() {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
     },
-    // Proxy methods so $perAdminApp.action can find them from the inline toolbar child.
-    // actionImpl calls these as unbound functions with (vm, target) where vm = this texteditor.
-    // We save current selection state first (editor still has focus due to @mousedown.prevent).
     insertLink(vm = this) {
       vm._saveInlineSelectionState()
-      if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.hide()
       if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertLink()
     },
     editLink(vm = this) {
       vm._saveInlineSelectionState()
-      if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.hide()
       if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
-    },
-    insertImage(vm = this) {
-      vm._saveInlineSelectionState()
-      if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.hide()
-      if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertImage()
     },
     removeLink(vm = this) {
       // Get the anchor before any state changes
@@ -207,8 +170,6 @@ export default {
       const anchor = el ? el.closest('a') : null
       if (!anchor) return
 
-      if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.hide()
-
       // Select the anchor contents and unlink directly
       const range = document.createRange()
       range.selectNodeContents(anchor)
@@ -216,13 +177,7 @@ export default {
       sel.addRange(range)
       document.execCommand('unlink', false, null)
       vm.textEditorWriteToModel()
-      vm.$nextTick(() => {
-        if (vm.$refs.inlineToolbar) vm.$refs.inlineToolbar.updateState()
-      })
     },
-    // Capture the current selection/anchor into view state so richtoolbar methods can read them.
-    // Called before opening the pathbrowser from the inline toolbar (editor still has focus).
-    // Also sets inline.doc so richtoolbar's getInlineDoc() / getInlineContainer() work correctly.
     _saveInlineSelectionState(vm = this) {
       const view = $perAdminApp.getView()
       if (!view) return
@@ -232,8 +187,6 @@ export default {
       set(view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
       set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
       set(view, '/state/inline/lastDoc', vm.doc)
-      // Ensure inline.doc is set so richtoolbar's getInlineDoc()/getInlineContainer() work.
-      // The editor still has focus (mousedown.prevent on inline toolbar buttons), so this is correct.
       set(view, '/state/inline/doc', vm.doc)
     },
   },

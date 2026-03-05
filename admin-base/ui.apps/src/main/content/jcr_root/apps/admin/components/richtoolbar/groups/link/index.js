@@ -9,7 +9,6 @@ export default (vm) => {
     icon: 'link',
     iconLib: IconLib.FONT_AWESOME,
     collapse: true,
-    splitButton: false,
     isActive: () => isATag,
     isDisabled: () => !vm.hasEditorSelection,
     toggleClick: () => { if (!isATag) vm.exec('link') },

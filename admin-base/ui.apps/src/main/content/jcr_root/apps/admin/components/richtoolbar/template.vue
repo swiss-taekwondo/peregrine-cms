@@ -474,34 +474,6 @@ export default {
           style: { backgroundColor: '#fff' },
         }, [h('div', { class: 'rtb-dropdown-items-list' }, menuItems)])
 
-        if (group.toggleClick && group.splitButton !== false) {
-          // Split button: action button (icon) + separate caret button (opens dropdown)
-          const actionBtn = h('button', {
-            class: ['rtb-btn', 'btn', 'rtb-split-action', { active: groupIsActive }, groupClass],
-            attrs: { title: this.$i18n(label), type: 'button' },
-            domProps: { disabled: groupIsDisabled },
-            on: {
-              mousedown: e => e.preventDefault(),
-              click: () => { if (!groupIsDisabled) group.toggleClick() },
-            },
-          }, [renderIcon(h, icon, iconLib)])
-
-          const caretBtn = h('button', {
-            class: ['rtb-btn', 'btn', 'rtb-split-caret', { active: groupIsActive && !isOpen }, groupClass],
-            attrs: { title: this.$i18n(label), type: 'button' },
-            domProps: { disabled: groupIsDisabled },
-            on: {
-              mousedown: e => e.preventDefault(),
-              click: () => { if (!groupIsDisabled) this._toggleGroup(label) },
-            },
-          }, [h('span', { class: 'caret-down' })])
-
-          return h('div', {
-            key: `group-${label}`,
-            class: ['btn-group', 'rtb-group', 'rtb-group--dropdown', 'rtb-group--split', `group-${label}`, { 'rtb-group--open': isOpen }],
-          }, [actionBtn, caretBtn, menu])
-        }
-
         // Dropdown button: single unified button (icon + caret) opens dropdown
         const toggleBtnChildren = [renderIcon(h, icon, iconLib)]
         if (group.showLabel) {
@@ -608,6 +580,7 @@ export default {
           if (savedSel && container && doc) {
             restoreSelection(container, savedSel, doc)
           }
+          this.pingRichToolbar()
         })
       }
     },
@@ -637,6 +610,7 @@ export default {
           if (savedSel && container && doc) {
             restoreSelection(container, savedSel, doc)
           }
+          this.pingRichToolbar()
         })
       }
     },
@@ -686,36 +660,55 @@ export default {
     },
 
     toggleList(cmd) {
-      const doc = this.getInlineDoc()
-      const container = this.getInlineContainer()
+      let doc = this.getInlineDoc()
+      let container = this.getInlineContainer()
+      
+      if (!doc || !container) {
+        doc = this.getLastDoc()
+        container = this.getLastContainer()
+      }
+      
       if (!doc || !container) return
 
-      // Save cursor as character offset relative to the container.
-      // Character offsets survive two things that invalidate a cloned Range node-reference:
-      //   1. DOM restructuring: insertOrderedList replaces <p> wrappers with <ol><li> but
-      //      keeps the same text content and order, so character counts stay identical.
-      //   2. Vue innerHTML replacement: onInput → textEditorWriteToModel calls
-      //      removeUnwantedStyles(), which may strip Chrome-added style attrs from the new
-      //      list HTML. The stripped string differs from the raw DOM innerHTML, so Vue detects
-      //      a mismatch on its next render and calls element.innerHTML = strippedHTML — this
-      //      destroys all existing text nodes, invalidating any cloned Range. Character offsets
-      //      are recomputed against the new text nodes in $nextTick and still land correctly.
+      const win = doc.defaultView || window
+      const sel = win.getSelection ? win.getSelection() : null
+      
+      let savedRange = null
+      if (sel && sel.rangeCount > 0) {
+        savedRange = sel.getRangeAt(0).cloneRange()
+      }
+
       const savedSel = saveSelection(container, doc)
 
-      container.focus()
       doc.execCommand(cmd, false, null)
 
-      // Restore in $nextTick: runs after Vue has flushed its render queue. If
-      // removeUnwantedStyles changed the HTML, Vue will have already replaced innerHTML by
-      // then, so we restore against the final DOM rather than an intermediate state.
       this.$nextTick(() => {
-        if (!savedSel) return
-        const freshContainer = this.getInlineContainer() || container
+        let freshContainer = this.getInlineContainer()
+        if (!freshContainer) {
+          freshContainer = this.getLastContainer() || container
+        }
         if (!freshContainer) return
-        // focus() is a no-op when the element already has focus; if Vue's innerHTML
-        // replacement lost focus, this re-establishes it before restoreSelection sets the range.
-        freshContainer.focus()
-        restoreSelection(freshContainer, savedSel, doc)
+
+        const freshWin = doc.defaultView || window
+        const freshSel = freshWin.getSelection ? freshWin.getSelection() : null
+        
+        if (savedRange && freshSel) {
+          try {
+            freshSel.removeAllRanges()
+            freshSel.addRange(savedRange)
+            return
+          } catch (e) {
+            // Range invalid
+          }
+        }
+        
+        if (savedSel && freshSel) {
+          try {
+            restoreSelection(freshContainer, savedSel, doc)
+          } catch (e) {
+            // Ignore
+          }
+        }
       })
     },
 
@@ -928,6 +921,12 @@ export default {
         const state = view.state || (view.state = {})
         const inline = state.inline || (state.inline = {})
         inline.ping = (inline.ping || 0) + 1
+        
+        // Save anchor when toolbar is pinged - this helps when button is clicked later
+        const anchor = vm.getAnchorAtSelection ? vm.getAnchorAtSelection() : null
+        if (anchor) {
+          inline.lastAnchor = anchor
+        }
       }
       $perAdminApp.action(vm, 'reWrapEditable')
     },
@@ -938,8 +937,14 @@ export default {
     },
 
     getInlineContainer() {
-      if (!this.getInlineDoc()) return
-      return this.getInlineDoc().querySelector('.inline-edit.inline-editing')
+      if (!this.getInlineDoc()) {
+        const lastContainer = this.getLastContainer()
+        if (lastContainer) return lastContainer
+        return
+      }
+      const container = this.getInlineDoc().querySelector('.inline-edit.inline-editing')
+      if (container) return container
+      return this.getLastContainer()
     },
 
     execCmd(cmd, value = null, showUi = true, doc = null) {
@@ -981,13 +986,27 @@ export default {
     getAnchorAtSelection() {
       // Try active inline doc first, then last doc (iframe may have lost focus)
       const doc = this.getInlineDoc() || this.getLastDoc()
+      if (!doc) {
+        // Fall back to checking all possible docs
+        const lastDoc = this.getLastDoc()
+        if (lastDoc && lastDoc.defaultView) {
+          return this._findAnchorInDoc(lastDoc)
+        }
+        // Check main document
+        return this._findAnchorInDoc(document)
+      }
+      if (!doc.defaultView) return null
+      return this._findAnchorInDoc(doc)
+    },
+
+    _findAnchorInDoc(doc) {
       if (!doc || !doc.defaultView) return null
       const selection = doc.defaultView.getSelection()
       if (!selection || selection.rangeCount <= 0) return null
       const node = selection.anchorNode
       if (!node) return null
       const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node
-      return el.closest('a')
+      return el ? el.closest('a') : null
     },
 
     insertLink() {
@@ -1033,11 +1052,28 @@ export default {
 
     editLink() {
       // Prefer live anchor at current selection; fall back to saved last anchor
-      const anchor = this.getAnchorAtSelection() || this.getLastAnchor()
-      if (!anchor) return
+      let anchor = this.getAnchorAtSelection() || this.getLastAnchor()
+      // If anchor found but doc/container missing, try to get them from anchor's location
+      if (anchor && (!this.getInlineDoc() || !this.getLastDoc())) {
+        const anchorDoc = anchor.ownerDocument
+        if (anchorDoc) {
+          set($perAdminApp.getView(), '/state/inline/lastDoc', anchorDoc)
+          set($perAdminApp.getView(), '/state/inline/lastContainer', anchor.closest('.inline-edit'))
+        }
+      }
+      if (!anchor) {
+        return
+      }
 
-      const doc = this.getInlineDoc() || this.getLastDoc()
-      const container = this.getInlineContainer() || this.getLastContainer()
+      let doc = this.getInlineDoc() || this.getLastDoc()
+      let container = this.getInlineContainer() || this.getLastContainer()
+      
+      // If still no doc/container, try to get from anchor
+      if (!doc || !container) {
+        doc = anchor.ownerDocument
+        container = anchor.closest('.inline-edit')
+      }
+      
       if (!doc || !container) return
 
       const href = anchor.getAttribute('href') || ''
@@ -1106,24 +1142,79 @@ export default {
 
     removeLink() {
       // Prefer live anchor at current selection; fall back to saved last anchor
-      const anchor = this.getAnchorAtSelection() || this.getLastAnchor()
-      if (!anchor) return
+      let anchor = this.getAnchorAtSelection() || this.getLastAnchor()
 
-      const doc = this.getInlineDoc() || this.getLastDoc()
-      const container = this.getInlineContainer() || this.getLastContainer()
-      if (!doc || !container) return
+      // Also try getting anchor from inline doc directly if available
+      if (!anchor) {
+        const inlineDoc = this.getInlineDoc()
+        if (inlineDoc && inlineDoc.defaultView) {
+          const sel = inlineDoc.defaultView.getSelection()
+          if (sel && sel.rangeCount > 0) {
+            const node = sel.anchorNode
+            if (node) {
+              const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node
+              anchor = el ? el.closest('a') : null
+            }
+          }
+        }
+      }
+
+      // If anchor not found or not in DOM, try to find it
+      if (!anchor || !anchor.parentNode) {
+        const container = this.getLastContainer()
+        if (container) {
+          const allAnchors = container.getElementsByTagName('a')
+          if (allAnchors.length > 0) {
+            anchor = allAnchors[0]
+          }
+        }
+      }
+
+      if (!anchor || !anchor.parentNode) {
+        return
+      }
+
+      let doc = this.getInlineDoc() || this.getLastDoc()
+      let container = this.getInlineContainer() || this.getLastContainer()
+
+      if (!doc || !container) {
+        doc = anchor.ownerDocument
+        container = anchor.closest('.inline-edit')
+      }
+
+      if (!doc || !container) {
+        return
+      }
 
       container.focus()
       this.$nextTick(() => {
-        const win = doc.defaultView
-        const sel = win.getSelection()
+        const win = doc.defaultView || window
+        const sel = win.getSelection ? win.getSelection() : null
+        if (!sel) return
+
         const range = doc.createRange()
         range.selectNodeContents(anchor)
         sel.removeAllRanges()
         sel.addRange(range)
         doc.execCommand('unlink', false, null)
-        $perAdminApp.action(this, 'writeInlineToModel')
-        $perAdminApp.action(this, 'textEditorWriteToModel')
+
+        // Save directly to model using container's data-per-inline attribute
+        const content = container.innerHTML
+        const dataInline = container.getAttribute('data-per-inline')
+
+        if (dataInline) {
+          const view = $perAdminApp.getView()
+          if (view && view.pageView && view.pageView.page) {
+            const pathParts = dataInline.split('.').slice(1)
+            pathParts.reverse()
+            let parentProp = view.pageView.page
+            while (pathParts.length > 1) {
+              parentProp = parentProp[pathParts.pop()]
+            }
+            const keyStr = pathParts.pop()
+            parentProp[keyStr] = content
+          }
+        }
       })
     },
 
@@ -1212,7 +1303,6 @@ export default {
     },
 
     insertIcon(imgPath) {
-      console.log('imgPath: ', imgPath);
       const range = window.getSelection()?.getRangeAt(0);
       range.deleteContents()
       const fragment = range.createContextualFragment(`<img class="peregrine-icon" style="font-size: inherit; display: inline; width: auto; height: 1em; vertical-align: -0.125em;" src="${imgPath}"></img>`)
@@ -1379,15 +1469,12 @@ export default {
         // Use the cloned Range captured at insertLink() time — this is the exact
         // selection the user made, with no character-offset round-trip needed.
         const range = this._savedRange
-        console.log('[onLinkSelect] using saved range:', range)
-        if (!range) { console.log('[onLinkSelect] ABORT: no saved range'); return }
+        if (!range) return
 
         const editorEl = this.getEditorFrom(range)
-        console.log('[onLinkSelect] editorEl:', editorEl)
-        if (!editorEl) { console.log('[onLinkSelect] ABORT: no editorEl'); return }
+        if (!editorEl) return
         const textEditor = editorEl.closest('.inline-edit[contenteditable="true"]')
-        console.log('[onLinkSelect] textEditor:', textEditor)
-        if (!textEditor) { console.log('[onLinkSelect] ABORT: no textEditor'); return }
+        if (!textEditor) return
 
         let rangeIsInListItem = false
         if (!range.startContainer.isEqualNode(range.endContainer)) {
@@ -1422,10 +1509,38 @@ export default {
         })
       } else {
         // editLink
-        const anchor = this.getLastAnchor()
-        if (!anchor) return
+        let anchor = this.getLastAnchor()
+        // If anchor is null or not in DOM, try to find it from current selection
+        if (!anchor || !anchor.parentNode) {
+          anchor = this.getAnchorAtSelection()
+        }
+        // Try to find in last container
+        if (!anchor || !anchor.parentNode) {
+          const container = this.getLastContainer()
+          if (container) {
+            anchor = container.querySelector('a')
+          }
+        }
+        // Try looking for any anchor in the editable area
+        if (!anchor || !anchor.parentNode) {
+          const container = this.getLastContainer()
+          if (container) {
+            const allAnchors = container.querySelectorAll('a')
+            if (allAnchors.length > 0) {
+              anchor = allAnchors[0]
+            }
+          }
+        }
+        if (!anchor || !anchor.parentNode) return
         applyLinkAttributes(anchor)
         $perAdminApp.action(this, 'textEditorWriteToModel')
+        // Restore anchor reference in state for next edit
+        const view = $perAdminApp.getView()
+        if (view) {
+          const state = view.state || (view.state = {})
+          const inline = state.inline || (state.inline = {})
+          inline.lastAnchor = anchor
+        }
       }
     },
 
