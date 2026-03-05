@@ -31,6 +31,10 @@
         value: false
       }
     },
+    mounted() {
+      
+      console.log(this.$el, this.disabled)
+    },
     watch: {
       value(val) {
         this.$emit('update', val)

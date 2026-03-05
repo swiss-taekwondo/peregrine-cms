@@ -40,7 +40,7 @@
                 <tr>
                     <td>{{references.sourcePath}} <span>({{printStatus(references)}})</span></td>
                     <td class="switch">
-                        <label> <input type="checkbox" v-model="references.publish" disabled> <span class="lever publishingaction"></span> </label>
+                        <label aria-disabled="true" > <input type="checkbox" v-model="references.publish" disabled> <span class="lever publishingaction"></span> </label>
                     </td>
                     <td class="printaction">{{printAction(references)}}</td>
                 </tr>
