@@ -44,17 +44,12 @@ import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
 
-// ---------------------------------------------------------------------------
-// Pure render helpers (no Vue dependency)
-// ---------------------------------------------------------------------------
-
 function renderIcon(h, icon, lib) {
   if (!icon) return null
   if (lib === IconLib.FONT_AWESOME)
     return h('i', { class: `fa fa-${icon}` })
   if (lib === IconLib.PLAIN_TEXT)
     return h('span', { domProps: { innerHTML: icon } })
-  // default: Material Icons
   return h('i', { class: 'material-icons', domProps: { textContent: icon } })
 }
 
@@ -94,8 +89,6 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
   }, children)
 }
 
-// ---------------------------------------------------------------------------
-
 export default {
   name: 'RichToolbar',
   components: { RichtoolbarFontSize, RichtoolbarGroup, Pathbrowser },
@@ -120,7 +113,7 @@ export default {
 
   data() {
     return {
-      openGroups: {},       // label → boolean, tracks open dropdowns
+      openGroups: {},
       selection: {
         restore: false,
         buffer: null,
@@ -182,7 +175,7 @@ export default {
     },
     groups() {
       // eslint-disable-next-line no-unused-expressions
-      this.inlinePing // track ping so groups re-evaluate on every editor interaction
+      this.inlinePing
       return [
         actionsGroup(this),
         textFormatGroup(this),
@@ -319,22 +312,18 @@ export default {
     const disabled = !this.inlineRich || this.preview === 'preview'
     const children = []
 
-    // Always-active group
     if (this.groupAllowed(this.alwaysActiveGroup)) {
       children.push(this._renderGroup(h, this.alwaysActiveGroup, true))
     }
 
-    // Regular groups
     for (const group of this.filteredGroups) {
       children.push(this._renderGroup(h, group, false))
     }
 
-    // Responsive overflow group
     if (this.groupAllowed(this.responsiveMenuGroup)) {
       children.push(this._renderGroup(h, this.responsiveMenuGroup, true))
     }
 
-    // Font size selector
     children.push(h(RichtoolbarFontSize, {
       key: 'font-size',
       props: {
@@ -348,7 +337,6 @@ export default {
       },
     }))
 
-    // Pathbrowser (mounted inline when open)
     if (this.browser.open) {
       children.push(h(Pathbrowser, {
         key: 'pathbrowser',
@@ -393,10 +381,6 @@ export default {
   },
 
   methods: {
-    // -----------------------------------------------------------------------
-    // Render helpers
-    // -----------------------------------------------------------------------
-
     _renderGroup(h, group, alwaysActive) {
       const items = typeof group.items === 'function' ? group.items() : group.items
       if (!items || items.length === 0) return null
@@ -407,7 +391,6 @@ export default {
       const groupClass = resolveClass(group.class)
       const groupIsDisabled = group.isDisabled ? group.isDisabled() : false
 
-      // Searchable groups (icons, special-characters) use the legacy MaterializeDropDown path
       if (group.searchable) {
         return h(RichtoolbarGroup, {
           key: `group-${label}`,
@@ -428,7 +411,6 @@ export default {
         })
       }
 
-      // Filter out dividers (string sentinels) and apply per-item rules if defined
       const itemRules = group.itemRules || null
       const realItems = items.filter((it, i) => {
         if (!it || typeof it !== 'object') return false
@@ -440,7 +422,6 @@ export default {
         const groupIsActive = this.groupIsActive(group)
 
         if (realItems.length <= 1) {
-          // Only one visible item — render as a plain button, no caret/dropdown
           const singleItem = realItems[0]
           const clickFn = group.toggleClick
             ? () => group.toggleClick()
@@ -458,7 +439,6 @@ export default {
           }, [renderIcon(h, icon, iconLib)])])
         }
 
-        // 2+ visible items — render as dropdown
         const isOpen = !!this.openGroups[label]
 
         const closeThisDropdown = () => this.$set(this.openGroups, label, false)
@@ -520,10 +500,6 @@ export default {
     _toggleGroup(label) {
       this.$set(this.openGroups, label, !this.openGroups[label])
     },
-
-    // -----------------------------------------------------------------------
-    // All original methods preserved exactly
-    // -----------------------------------------------------------------------
 
     inlineCmdHandler(event) {
       if (this.onSubNav) return
@@ -627,7 +603,6 @@ export default {
         const el = toEl(range.startContainer)
         const tag = el && el.closest(tagName)
         if (tag) {
-          // Save selection boundaries relative to the tag's text content
           const startContainer = range.startContainer
           const startOffset = range.startOffset
           const endContainer = range.endContainer
@@ -639,7 +614,6 @@ export default {
           }
           parent.removeChild(tag)
 
-          // Restore selection
           const newRange = doc.createRange()
           newRange.setStart(startContainer, startOffset)
           newRange.setEnd(endContainer, endOffset)
@@ -662,53 +636,124 @@ export default {
     toggleList(cmd) {
       let doc = this.getInlineDoc()
       let container = this.getInlineContainer()
-      
+
       if (!doc || !container) {
         doc = this.getLastDoc()
         container = this.getLastContainer()
       }
-      
+
       if (!doc || !container) return
 
       const win = doc.defaultView || window
       const sel = win.getSelection ? win.getSelection() : null
+
+      // Save selected text
+      let selectedText = ''
+      if (sel && sel.rangeCount > 0) {
+        selectedText = sel.toString()
+      }
       
+      // Save Range clone
       let savedRange = null
       if (sel && sel.rangeCount > 0) {
         savedRange = sel.getRangeAt(0).cloneRange()
       }
 
-      const savedSel = saveSelection(container, doc)
-
+      // Execute the command
       doc.execCommand(cmd, false, null)
 
+      // Restore selection after DOM update
       this.$nextTick(() => {
-        let freshContainer = this.getInlineContainer()
-        if (!freshContainer) {
-          freshContainer = this.getLastContainer() || container
-        }
-        if (!freshContainer) return
+        this.$nextTick(() => {
+          let freshContainer = this.getInlineContainer()
+          if (!freshContainer) {
+            freshContainer = this.getLastContainer() || container
+          }
+          if (!freshContainer) return
 
-        const freshWin = doc.defaultView || window
-        const freshSel = freshWin.getSelection ? freshWin.getSelection() : null
-        
-        if (savedRange && freshSel) {
-          try {
-            freshSel.removeAllRanges()
-            freshSel.addRange(savedRange)
-            return
-          } catch (e) {
-            // Range invalid
+          const freshWin = doc.defaultView || window
+          const freshSel = freshWin.getSelection ? freshWin.getSelection() : null
+          if (!freshSel) return
+
+          // Try 1: Range clone (works well for editor)
+          if (savedRange) {
+            try {
+              freshSel.removeAllRanges()
+              freshSel.addRange(savedRange)
+              return
+            } catch (e) {
+              // Range failed
+            }
           }
-        }
-        
-        if (savedSel && freshSel) {
-          try {
-            restoreSelection(freshContainer, savedSel, doc)
-          } catch (e) {
-            // Ignore
+          
+          // Try 2: Simple text search with exact match
+          if (selectedText && selectedText.length > 0) {
+            try {
+              const freshText = (freshContainer.innerText || freshContainer.textContent || '')
+              const exactMatch = freshText.indexOf(selectedText)
+              
+              if (exactMatch >= 0) {
+                // Use the browser's built-in selection by creating a range at exact position
+                const range = freshContainer.ownerDocument.createRange()
+                
+                // Set start
+                range.setStart(freshContainer, 0)
+                range.collapse(true)
+                
+                // Move to exact position using setStart
+                const preRange = freshContainer.ownerDocument.createRange()
+                preRange.selectNodeContents(freshContainer)
+                preRange.setEnd(range.startContainer, range.startOffset)
+                const preLen = preRange.toString().length
+                
+                // Find correct text node
+                let charIndex = 0
+                let foundStart = false
+                const walker = freshContainer.ownerDocument.createTreeWalker(
+                  freshContainer,
+                  NodeFilter.SHOW_TEXT,
+                  null,
+                  false
+                )
+                
+                let node
+                while ((node = walker.nextNode())) {
+                  if (charIndex + node.length >= exactMatch) {
+                    range.setStart(node, exactMatch - charIndex)
+                    foundStart = true
+                    break
+                  }
+                  charIndex += node.length
+                }
+                
+                if (foundStart) {
+                  // Set end
+                  charIndex = 0
+                  const walker2 = freshContainer.ownerDocument.createTreeWalker(
+                    freshContainer,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                  )
+                  
+                  while ((node = walker2.nextNode())) {
+                    if (charIndex + node.length >= exactMatch + selectedText.length) {
+                      range.setEnd(node, exactMatch + selectedText.length - charIndex)
+                      break
+                    }
+                    charIndex += node.length
+                  }
+                  
+                  freshSel.removeAllRanges()
+                  freshSel.addRange(range)
+                  return
+                }
+              }
+            } catch (e) {
+              // Text search failed
+            }
           }
-        }
+        })
       })
     },
 
@@ -921,8 +966,7 @@ export default {
         const state = view.state || (view.state = {})
         const inline = state.inline || (state.inline = {})
         inline.ping = (inline.ping || 0) + 1
-        
-        // Save anchor when toolbar is pinged - this helps when button is clicked later
+
         const anchor = vm.getAnchorAtSelection ? vm.getAnchorAtSelection() : null
         if (anchor) {
           inline.lastAnchor = anchor
@@ -984,15 +1028,12 @@ export default {
     },
 
     getAnchorAtSelection() {
-      // Try active inline doc first, then last doc (iframe may have lost focus)
       const doc = this.getInlineDoc() || this.getLastDoc()
       if (!doc) {
-        // Fall back to checking all possible docs
         const lastDoc = this.getLastDoc()
         if (lastDoc && lastDoc.defaultView) {
           return this._findAnchorInDoc(lastDoc)
         }
-        // Check main document
         return this._findAnchorInDoc(document)
       }
       if (!doc.defaultView) return null
@@ -1029,20 +1070,14 @@ export default {
       this.selection.doc = doc
       this.selection.container = container
 
-      // Clone the Range now while the selection is still live and correct.
-      // This is more reliable than character-offset save/restore which can
-      // mis-count across element boundaries or when the DOM changes.
       const win = doc.defaultView
       const liveSel = win && win.getSelection && win.getSelection()
       const liveRange = liveSel && liveSel.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
       if (!liveRange) {
         return
       }
-      // Store the Range directly on the instance (not in reactive data) to
-      // avoid Vue's Observer wrapping a live DOM Range object.
       this._savedRange = liveRange
 
-      // Keep buffer/restore for the cancel/image paths that still use restoreSelection
       const savedSel = saveSelection(container, doc)
         || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
       this.selection.buffer = savedSel
@@ -1051,9 +1086,7 @@ export default {
     },
 
     editLink() {
-      // Prefer live anchor at current selection; fall back to saved last anchor
       let anchor = this.getAnchorAtSelection() || this.getLastAnchor()
-      // If anchor found but doc/container missing, try to get them from anchor's location
       if (anchor && (!this.getInlineDoc() || !this.getLastDoc())) {
         const anchorDoc = anchor.ownerDocument
         if (anchorDoc) {
@@ -1067,13 +1100,12 @@ export default {
 
       let doc = this.getInlineDoc() || this.getLastDoc()
       let container = this.getInlineContainer() || this.getLastContainer()
-      
-      // If still no doc/container, try to get from anchor
+
       if (!doc || !container) {
         doc = anchor.ownerDocument
         container = anchor.closest('.inline-edit')
       }
-      
+
       if (!doc || !container) return
 
       const href = anchor.getAttribute('href') || ''
@@ -1088,7 +1120,6 @@ export default {
         || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
       this.selection.restore = true
 
-      // Save anchor to view state so onLinkSelect can use it after pathbrowser closes
       const view = $perAdminApp.getView()
       if (view) {
         const state = view.state || (view.state = {})
@@ -1109,14 +1140,10 @@ export default {
       let startPath
       let resolvedHref = href
 
-      // If the href is absolute, check if it's same-origin (browser resolves relative hrefs
-      // to absolute when pasting, so a pasted internal link like /events/foo.html becomes
-      // https://admin-host/events/foo.html)
       if (/^https?:\/\//.test(href)) {
         try {
           const url = new URL(href)
           if (url.hostname === window.location.hostname) {
-            // Same origin — treat as internal, use just the pathname
             resolvedHref = url.pathname
           }
         } catch (e) { /* Do nothing */ }
@@ -1128,7 +1155,6 @@ export default {
         startPath = this.roots.pages || '/'
       } else {
         let hrefPath = resolvedHref.replace(/\.html$/, '')
-        // If the path is a publish-side relative path (not a JCR path), prepend the pages root
         if (!hrefPath.startsWith('/content/')) {
           hrefPath = (this.roots.pages || '') + hrefPath
         }
@@ -1141,10 +1167,8 @@ export default {
     },
 
     removeLink() {
-      // Prefer live anchor at current selection; fall back to saved last anchor
       let anchor = this.getAnchorAtSelection() || this.getLastAnchor()
 
-      // Also try getting anchor from inline doc directly if available
       if (!anchor) {
         const inlineDoc = this.getInlineDoc()
         if (inlineDoc && inlineDoc.defaultView) {
@@ -1159,7 +1183,6 @@ export default {
         }
       }
 
-      // If anchor not found or not in DOM, try to find it
       if (!anchor || !anchor.parentNode) {
         const container = this.getLastContainer()
         if (container) {
@@ -1198,7 +1221,6 @@ export default {
         sel.addRange(range)
         doc.execCommand('unlink', false, null)
 
-        // Save directly to model using container's data-per-inline attribute
         const content = container.innerHTML
         const dataInline = container.getAttribute('data-per-inline')
 
@@ -1466,8 +1488,6 @@ export default {
         const link = this.selection.doc.createElement('a')
         applyLinkAttributes(link)
 
-        // Use the cloned Range captured at insertLink() time — this is the exact
-        // selection the user made, with no character-offset round-trip needed.
         const range = this._savedRange
         if (!range) return
 
@@ -1508,20 +1528,16 @@ export default {
           $perAdminApp.action(this, 'textEditorWriteToModel')
         })
       } else {
-        // editLink
         let anchor = this.getLastAnchor()
-        // If anchor is null or not in DOM, try to find it from current selection
         if (!anchor || !anchor.parentNode) {
           anchor = this.getAnchorAtSelection()
         }
-        // Try to find in last container
         if (!anchor || !anchor.parentNode) {
           const container = this.getLastContainer()
           if (container) {
             anchor = container.querySelector('a')
           }
         }
-        // Try looking for any anchor in the editable area
         if (!anchor || !anchor.parentNode) {
           const container = this.getLastContainer()
           if (container) {
@@ -1534,7 +1550,6 @@ export default {
         if (!anchor || !anchor.parentNode) return
         applyLinkAttributes(anchor)
         $perAdminApp.action(this, 'textEditorWriteToModel')
-        // Restore anchor reference in state for next edit
         const view = $perAdminApp.getView()
         if (view) {
           const state = view.state || (view.state = {})
@@ -1578,7 +1593,6 @@ export default {
         })
         this.browser.element = null
       } else {
-        // Use saved range directly like insertLink does
         const range = this._savedRange
         if (range) {
           const styles = []
@@ -1598,7 +1612,6 @@ export default {
           range.insertNode(img)
           this._savedRange = null
         } else {
-          // Fallback to execCmd if no saved range
           const styles = []
           if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
           if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
