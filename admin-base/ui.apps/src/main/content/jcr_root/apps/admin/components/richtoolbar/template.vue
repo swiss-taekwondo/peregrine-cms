@@ -454,7 +454,6 @@ export default {
           style: { backgroundColor: '#fff' },
         }, [h('div', { class: 'rtb-dropdown-items-list' }, menuItems)])
 
-        // Dropdown button: single unified button (icon + caret) opens dropdown
         const toggleBtnChildren = [renderIcon(h, icon, iconLib)]
         if (group.showLabel) {
           toggleBtnChildren.push(h('span', { class: 'rtb-dropdown-label' }, [label]))
@@ -477,7 +476,6 @@ export default {
         }, [toggleBtn, menu])
       }
 
-      // Flat group — render items inline
       const btnNodes = realItems.map((btn, i) => {
         if (btn.items && btn.items.length > 0) {
           return this._renderGroup(h, btn, false)
@@ -647,22 +645,13 @@ export default {
       const win = doc.defaultView || window
       const sel = win.getSelection ? win.getSelection() : null
 
-      // Save selected text
-      let selectedText = ''
-      if (sel && sel.rangeCount > 0) {
-        selectedText = sel.toString()
-      }
-      
-      // Save Range clone
       let savedRange = null
       if (sel && sel.rangeCount > 0) {
         savedRange = sel.getRangeAt(0).cloneRange()
       }
 
-      // Execute the command
       doc.execCommand(cmd, false, null)
 
-      // Restore selection after DOM update
       this.$nextTick(() => {
         this.$nextTick(() => {
           let freshContainer = this.getInlineContainer()
@@ -673,85 +662,12 @@ export default {
 
           const freshWin = doc.defaultView || window
           const freshSel = freshWin.getSelection ? freshWin.getSelection() : null
-          if (!freshSel) return
-
-          // Try 1: Range clone (works well for editor)
-          if (savedRange) {
+          
+          if (savedRange && freshSel) {
             try {
               freshSel.removeAllRanges()
               freshSel.addRange(savedRange)
-              return
-            } catch (e) {
-              // Range failed
-            }
-          }
-          
-          // Try 2: Simple text search with exact match
-          if (selectedText && selectedText.length > 0) {
-            try {
-              const freshText = (freshContainer.innerText || freshContainer.textContent || '')
-              const exactMatch = freshText.indexOf(selectedText)
-              
-              if (exactMatch >= 0) {
-                // Use the browser's built-in selection by creating a range at exact position
-                const range = freshContainer.ownerDocument.createRange()
-                
-                // Set start
-                range.setStart(freshContainer, 0)
-                range.collapse(true)
-                
-                // Move to exact position using setStart
-                const preRange = freshContainer.ownerDocument.createRange()
-                preRange.selectNodeContents(freshContainer)
-                preRange.setEnd(range.startContainer, range.startOffset)
-                const preLen = preRange.toString().length
-                
-                // Find correct text node
-                let charIndex = 0
-                let foundStart = false
-                const walker = freshContainer.ownerDocument.createTreeWalker(
-                  freshContainer,
-                  NodeFilter.SHOW_TEXT,
-                  null,
-                  false
-                )
-                
-                let node
-                while ((node = walker.nextNode())) {
-                  if (charIndex + node.length >= exactMatch) {
-                    range.setStart(node, exactMatch - charIndex)
-                    foundStart = true
-                    break
-                  }
-                  charIndex += node.length
-                }
-                
-                if (foundStart) {
-                  // Set end
-                  charIndex = 0
-                  const walker2 = freshContainer.ownerDocument.createTreeWalker(
-                    freshContainer,
-                    NodeFilter.SHOW_TEXT,
-                    null,
-                    false
-                  )
-                  
-                  while ((node = walker2.nextNode())) {
-                    if (charIndex + node.length >= exactMatch + selectedText.length) {
-                      range.setEnd(node, exactMatch + selectedText.length - charIndex)
-                      break
-                    }
-                    charIndex += node.length
-                  }
-                  
-                  freshSel.removeAllRanges()
-                  freshSel.addRange(range)
-                  return
-                }
-              }
-            } catch (e) {
-              // Text search failed
-            }
+            } catch (e) {}
           }
         })
       })
