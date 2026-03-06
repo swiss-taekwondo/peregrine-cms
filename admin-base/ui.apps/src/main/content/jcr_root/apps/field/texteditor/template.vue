@@ -119,7 +119,7 @@ export default {
       this.pingToolbar()
       const key = event.which
       const ctrlOrCmd = event.ctrlKey || event.metaKey
-      
+
       if (ctrlOrCmd && event.altKey && ((key >= 48 && key <= 54) || (key >= 96 && key <= 102))) {
         event.preventDefault()
         const digit = key >= 96 ? key - 96 : key - 48
@@ -143,7 +143,6 @@ export default {
     onFocusOut() {
       const view = this.view
       if (!view) return
-      // Capture anchor and container BEFORE clearing doc, so toolbar can use them
       const sel = document.getSelection()
       const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
       const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
@@ -159,7 +158,6 @@ export default {
     },
     onInput(event) {
       const content = event.target.innerHTML;
-      // Update vnode domProps to prevent Vue from resetting cursor position on re-render
       const pVnode = this._vnode.children && this._vnode.children.find(c => c.elm === this.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       this.value = content
@@ -173,7 +171,6 @@ export default {
     },
     textEditorWriteToModel(vm = this) {
       const content = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
-      // Patch the vnode domProps so Vue's next render doesn't overwrite the DOM with the old value
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
@@ -191,14 +188,12 @@ export default {
       if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
     },
     removeLink(vm = this) {
-      // Get the anchor before any state changes
       const sel = document.getSelection()
       const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
       const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
       const anchor = el ? el.closest('a') : null
       if (!anchor) return
 
-      // Select the anchor contents and unlink directly
       const range = document.createRange()
       range.selectNodeContents(anchor)
       sel.removeAllRanges()

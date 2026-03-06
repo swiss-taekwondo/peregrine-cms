@@ -1418,7 +1418,7 @@ export default {
       const win = doc.defaultView || window
       const sel = win.getSelection ? win.getSelection() : window.getSelection()
       if (!sel || sel.rangeCount === 0) return
-      
+
       const range = sel.getRangeAt(0)
       range.deleteContents()
       const fragment = range.createContextualFragment(`<img class="peregrine-icon" style="font-size: inherit; display: inline; width: auto; height: 1em; vertical-align: -0.125em;" src="${imgPath}"></img>`)
@@ -1690,7 +1690,7 @@ export default {
         const doc = this.selection.doc || this.getInlineDoc() || document
         const win = doc.defaultView || window
         const sel = win.getSelection ? win.getSelection() : window.getSelection()
-        
+
         if (sel && sel.rangeCount > 0) {
           const range = sel.getRangeAt(0)
           const styles = []
@@ -1712,7 +1712,7 @@ export default {
           range.collapse(true)
           sel.removeAllRanges()
           sel.addRange(range)
-          
+
           const editor = this.getEditorFrom(range)
           if (editor) editor.dispatchEvent(new Event('input'))
         }

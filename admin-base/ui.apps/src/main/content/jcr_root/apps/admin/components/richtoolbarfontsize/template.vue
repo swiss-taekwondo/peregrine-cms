@@ -74,8 +74,6 @@ export default {
   },
 
   computed: {
-    // While the input wrapper has focus, ignore the disabled prop so that typing in
-    // the number field doesn't get blocked by selectionchange → hasEditorSelection=false.
     effectiveDisabled() {
       return this.disabled && !this.focused
     },

@@ -634,9 +634,6 @@ export default {
     onInlineFocusOut(event) {
       event.target.classList.remove('inline-editing')
       this.editing = false
-      // Save last container, doc and selection buffer so the richtoolbar can still access them
-      // via getLastContainer() / getLastDoc() after inline.doc is cleared below.
-      // This also allows insertLink() to restore the selection even if rangeCount drops to 0.
       const iframeSel = this.iframe.doc ? this.iframe.doc.defaultView.getSelection() : null
       const anchorNode = iframeSel && iframeSel.rangeCount > 0 ? iframeSel.anchorNode : null
       const el = anchorNode
@@ -720,11 +717,6 @@ export default {
       }
     },
 
-    onInlineMouseUp(event) {
-      // Selection in preview stays in preview - no auto-sync to editor
-      // This allows user to edit directly in preview without affecting editor selection
-    },
-
     onInlineSelectAll(event) {
       event.preventDefault()
       let range, selection
@@ -788,9 +780,7 @@ export default {
       } else {
         this.iframePreviewMode()
       }
-      // Ensure Enter creates <p> instead of <div> in contenteditable inline editors
       this.iframe.doc.execCommand('defaultParagraphSeparator', false, 'p')
-      // Notify the inline toolbar about the iframe so it can track selections inside it
       window.dispatchEvent(new CustomEvent('peregrine:iframe-loaded', { detail: { iframeEl: this.$refs.editview } }))
     },
 
@@ -999,7 +989,6 @@ export default {
         el.addEventListener('keydown', this.onInlineKeyDown)
         el.addEventListener('keyup', this.onInlineKeyUp)
         el.addEventListener('dblclick', this.onInlineDblClick)
-        el.addEventListener('mouseup', this.onInlineMouseUp)
         el.setAttribute('contenteditable', this.previewMode !== 'preview' + '')
       })
     },
