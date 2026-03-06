@@ -128,7 +128,7 @@
                          :title="isBrowserTypePage ? 'Open' : ''">{{ getFolderIcon(item) }}</i>
                       <span>{{ item.name }}</span>
                     </li>
-                    <li v-if="isFile(item) && isFileAllowed()"
+                    <li v-if="isFile(item)"
                         v-on:click.stop.prevent="selectItem(item)"
                         :class="isSelected(item.path) ? 'selected' : ''">
                       <template v-if="isSelectable(item)">
@@ -278,7 +278,7 @@
                           <span class="truncate">{{ item.name }}</span>
                         </div>
                       </div>
-                      <template v-if="isFile(item) && isFileAllowed()">
+                      <template v-if="isFile(item)">
                         <img
                             v-if="isImage(item)"
                             :class="isSelected(item.path) ? 'item-image selected' : 'item-image'"
@@ -733,9 +733,6 @@ export default {
     },
     isFile(item) {
       return ['per:Asset', 'per:Object', 'nt:file'].indexOf(item.resourceType) >= 0
-    },
-    isFileAllowed() {
-      return true
     },
     isFolder(item) {
       return [
