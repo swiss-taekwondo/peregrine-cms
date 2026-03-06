@@ -50,6 +50,7 @@
 </template>
 
 <script>
+import {Key} from '../../../../../js/constants'
 import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 
@@ -120,21 +121,21 @@ export default {
       const key = event.which
       const ctrlOrCmd = event.ctrlKey || event.metaKey
 
-      if (ctrlOrCmd && event.altKey && ((key >= 48 && key <= 54) || (key >= 96 && key <= 102))) {
+      if (ctrlOrCmd && event.altKey && ((key >= Key.DIGIT_0 && key <= Key.DIGIT_6) || (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6))) {
         event.preventDefault()
-        const digit = key >= 96 ? key - 96 : key - 48
+        const digit = key >= Key.NUMPAD_0 ? key - Key.NUMPAD_0 : key - Key.DIGIT_0
         const value = digit === 0 ? 'p' : `h${digit}`
         document.execCommand('formatBlock', false, value)
         this.$nextTick(() => this.pingToolbar())
-      } else if (key === 66 && ctrlOrCmd) {
+      } else if (key === Key.B && ctrlOrCmd) {
         event.preventDefault()
         document.execCommand('bold', false, null)
         this.$nextTick(() => this.pingToolbar())
-      } else if (key === 73 && ctrlOrCmd) {
+      } else if (key === Key.I && ctrlOrCmd) {
         event.preventDefault()
         document.execCommand('italic', false, null)
         this.$nextTick(() => this.pingToolbar())
-      } else if (key === 85 && ctrlOrCmd) {
+      } else if (key === Key.U && ctrlOrCmd) {
         event.preventDefault()
         document.execCommand('underline', false, null)
         this.$nextTick(() => this.pingToolbar())
