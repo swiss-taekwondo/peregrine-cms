@@ -79,7 +79,38 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
     attrs: { title: label, type: 'button' },
     domProps: { disabled: isDisabled },
     on: {
-      mousedown: e => e.preventDefault(),
+      mousedown: (e) => {
+        e.preventDefault()
+        try {
+          const isEditor = document.querySelector('.text-editor:not(.inline-edit)') !== null
+          if (isEditor && (btn.cmd === 'insertOrderedList' || btn.cmd === 'insertUnorderedList')) {
+            const doc = vm.getInlineDoc() || vm.getLastDoc()
+            const container = vm.getInlineContainer() || vm.getLastContainer()
+            if (doc && container) {
+              let savedSel = saveSelection(container, doc)
+              if (!savedSel) {
+                savedSel = $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
+              }
+              if (savedSel) {
+                restoreSelection(container, savedSel, doc)
+                window.__savedSel = savedSel
+                window.__savedDoc = doc
+                doc.execCommand(btn.cmd, false, null)
+
+                let comp = vm.$parent
+                while (comp) {
+                  if (comp.textEditorWriteToModel) {
+                    comp.textEditorWriteToModel(comp)
+                    break
+                  }
+                  if (comp.$parent) comp = comp.$parent
+                  else break
+                }
+              }
+            }
+          }
+        } catch(err) {}
+      },
       click: () => {
         if (isDisabled) return
         if (closeDropdown) closeDropdown()
@@ -174,7 +205,6 @@ export default {
       return alwaysActiveGroup(this)
     },
     groups() {
-      // eslint-disable-next-line no-unused-expressions
       this.inlinePing
       return [
         actionsGroup(this),
@@ -435,7 +465,38 @@ export default {
             class: ['rtb-btn', 'btn', { active: groupIsActive }, groupClass],
             attrs: { title: this.$i18n(label), type: 'button' },
             domProps: { disabled: groupIsDisabled },
-            on: { mousedown: e => e.preventDefault(), click: () => { if (!groupIsDisabled) clickFn() } },
+            on: { mousedown: (e) => {
+              e.preventDefault()
+              try {
+                const isEditor = document.querySelector('.text-editor:not(.inline-edit)') !== null
+                if (isEditor && (btn.cmd === 'insertOrderedList' || btn.cmd === 'insertUnorderedList')) {
+                  const doc = this.getInlineDoc() || this.getLastDoc()
+                  const container = this.getInlineContainer() || this.getLastContainer()
+                  if (doc && container) {
+                    let savedSel = saveSelection(container, doc)
+                    if (!savedSel) {
+                      savedSel = $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
+                    }
+                    if (savedSel) {
+                      restoreSelection(container, savedSel, doc)
+                      window.__savedSel = savedSel
+                      window.__savedDoc = doc
+                      doc.execCommand(btn.cmd, false, null)
+
+                      let comp = this.$parent
+                      while (comp) {
+                        if (comp.textEditorWriteToModel) {
+                          comp.textEditorWriteToModel(comp)
+                          break
+                        }
+                        if (comp.$parent) comp = comp.$parent
+                        else break
+                      }
+                    }
+                  }
+                }
+              } catch(err) {}
+            }, click: () => { if (!groupIsDisabled) clickFn() } },
           }, [renderIcon(h, icon, iconLib)])])
         }
 
@@ -589,37 +650,142 @@ export default {
       }
     },
 
-    toggleScriptTag(tagName, cmd) {
-      if (this.itemIsTag(tagName)) {
-        const doc = this.getInlineDoc()
-        if (!doc) return
-        const win = doc.defaultView
-        const selection = win && win.getSelection()
-        if (!selection || selection.rangeCount === 0) return
-        const range = selection.getRangeAt(0)
-        const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
-        const el = toEl(range.startContainer)
-        const tag = el && el.closest(tagName)
-        if (tag) {
-          const startContainer = range.startContainer
-          const startOffset = range.startOffset
-          const endContainer = range.endContainer
-          const endOffset = range.endOffset
+    saveToModel(container) {
+      const content = container.innerHTML
 
-          const parent = tag.parentNode
-          while (tag.firstChild) {
-            parent.insertBefore(tag.firstChild, tag)
-          }
-          parent.removeChild(tag)
+      const dataInline = container.getAttribute('data-per-inline')
 
-          const newRange = doc.createRange()
-          newRange.setStart(startContainer, startOffset)
-          newRange.setEnd(endContainer, endOffset)
-          selection.removeAllRanges()
-          selection.addRange(newRange)
+      if (dataInline) {
+        const view = $perAdminApp.getView()
+        if (!view || !view.pageView || !view.pageView.page) return false
+
+        const editorPath = $perAdminApp.getNodeFromView('/state/editor/path')
+        const pageNode = view.pageView.page
+
+        let parentProp
+        if (editorPath) {
+          parentProp = $perAdminApp.findNodeFromPath(pageNode, editorPath)
         }
+
+        if (!parentProp) {
+          const pathParts = dataInline.split('.').slice(1)
+          pathParts.reverse()
+          parentProp = pageNode
+          while (pathParts.length > 1) {
+            parentProp = parentProp[pathParts.pop()]
+          }
+        }
+
+        const keyStr = dataInline.split('.').pop()
+        if (parentProp && keyStr) {
+          parentProp[keyStr] = content
+          return true
+        }
+      }
+
+      const editorModel = $perAdminApp.getNodeFromViewOrNull('/state/inline/editorModel')
+      if (editorModel) {
+        editorModel.text = content
+        return true
+      }
+
+      return false
+    },
+
+    toggleScriptTag(tagName, cmd) {
+      if (window.__savedDoc) {
+        window.__savedSel = null
+        window.__savedDoc = null
+        return
+      }
+
+      let doc = this.getInlineDoc()
+      let container = this.getInlineContainer()
+
+      if (!doc || !container) {
+        doc = this.getLastDoc()
+        container = this.getLastContainer()
+      }
+
+      if (!doc || !container) return
+
+      const isEditor = document.querySelector('.text-editor-wrapper') !== null
+      console.log('toggleScriptTag: isEditor=', isEditor)
+      
+      const savedSel = saveSelection(container, doc)
+      console.log('toggleScriptTag: savedSel=', !!savedSel)
+
+      if (!isEditor && doc.execCommand) {
+        doc.execCommand(cmd, false, null)
+        if (savedSel) {
+          restoreSelection(container, savedSel, doc)
+        }
+        this.saveToModel(container)
+        return
+      }
+
+      if (!savedSel) return
+
+      const win = doc.defaultView || window
+      const sel = win.getSelection()
+      console.log('toggleScriptTag: sel=', !!sel, 'rangeCount=', sel?.rangeCount)
+      if (!sel || sel.rangeCount === 0) return
+
+      const range = sel.getRangeAt(0)
+      const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
+      const startEl = toEl(range.startContainer)
+      const endEl = toEl(range.endContainer)
+      const existingTag = (startEl && startEl.closest(tagName)) || (endEl && endEl.closest(tagName))
+      console.log('toggleScriptTag: existingTag=', !!existingTag)
+
+      if (existingTag) {
+        console.log('toggleScriptTag: removing tag')
+        const parent = existingTag.parentNode
+        while (existingTag.firstChild) {
+          parent.insertBefore(existingTag.firstChild, existingTag)
+        }
+        parent.removeChild(existingTag)
+        console.log('toggleScriptTag: tag removed, container.innerHTML=', container.innerHTML.substring(0, 100))
       } else {
-        this.execCmd(cmd)
+        console.log('toggleScriptTag: adding tag')
+        try {
+          const wrapper = doc.createElement(tagName)
+          range.surroundContents(wrapper)
+        } catch (e) {
+          console.log('toggleScriptTag: surroundContents failed, using fallback')
+          const fragment = range.extractContents()
+          const wrapper = doc.createElement(tagName)
+          wrapper.appendChild(fragment)
+          range.insertNode(wrapper)
+        }
+      }
+
+      const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
+      console.log('toggleScriptTag: freshContainer=', !!freshContainer)
+      if (freshContainer) {
+        let comp = this.$parent
+        let foundEditor = false
+        while (comp) {
+          if (comp.textEditorWriteToModel) {
+            comp.textEditorWriteToModel(comp)
+            foundEditor = true
+            break
+          }
+          if (comp.$parent) {
+            comp = comp.$parent
+          } else {
+            break
+          }
+        }
+
+        if (!foundEditor) {
+          this.saveToModel(freshContainer)
+        }
+
+        console.log('toggleScriptTag: restoring selection, savedSel=', !!savedSel)
+        if (savedSel) {
+          restoreSelection(freshContainer, savedSel, doc)
+        }
       }
     },
 
@@ -632,6 +798,12 @@ export default {
     },
 
     toggleList(cmd) {
+      if (window.__savedDoc) {
+        window.__savedSel = null
+        window.__savedDoc = null
+        return
+      }
+
       let doc = this.getInlineDoc()
       let container = this.getInlineContainer()
 
@@ -642,35 +814,45 @@ export default {
 
       if (!doc || !container) return
 
-      const win = doc.defaultView || window
-      const sel = win.getSelection ? win.getSelection() : null
+      const isEditor = document.querySelector('.text-editor:not(.inline-edit)') !== null
+      const savedSel = saveSelection(container, doc)
 
-      let savedRange = null
-      if (sel && sel.rangeCount > 0) {
-        savedRange = sel.getRangeAt(0).cloneRange()
+      if (!isEditor && doc.execCommand) {
+        doc.execCommand(cmd, false, null)
+        if (savedSel) {
+          restoreSelection(container, savedSel, doc)
+        }
+        this.saveToModel(container)
+        return
       }
 
       doc.execCommand(cmd, false, null)
 
-      this.$nextTick(() => {
-        this.$nextTick(() => {
-          let freshContainer = this.getInlineContainer()
-          if (!freshContainer) {
-            freshContainer = this.getLastContainer() || container
+      const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
+      if (freshContainer) {
+        let comp = this.$parent
+        let foundEditor = false
+        while (comp) {
+          if (comp.textEditorWriteToModel) {
+            comp.textEditorWriteToModel(comp)
+            foundEditor = true
+            break
           }
-          if (!freshContainer) return
+          if (comp.$parent) {
+            comp = comp.$parent
+          } else {
+            break
+          }
+        }
 
-          const freshWin = doc.defaultView || window
-          const freshSel = freshWin.getSelection ? freshWin.getSelection() : null
-          
-          if (savedRange && freshSel) {
-            try {
-              freshSel.removeAllRanges()
-              freshSel.addRange(savedRange)
-            } catch (e) {}
-          }
-        })
-      })
+        if (!foundEditor) {
+          this.saveToModel(freshContainer)
+        }
+
+        if (savedSel) {
+          restoreSelection(freshContainer, savedSel, doc)
+        }
+      }
     },
 
     getDefaultFontSize() {
@@ -897,13 +1079,11 @@ export default {
     },
 
     getInlineContainer() {
-      if (!this.getInlineDoc()) {
-        const lastContainer = this.getLastContainer()
-        if (lastContainer) return lastContainer
-        return
+      const doc = this.getInlineDoc()
+      if (doc) {
+        const container = doc.querySelector('.inline-edit.inline-editing')
+        if (container) return container
       }
-      const container = this.getInlineDoc().querySelector('.inline-edit.inline-editing')
-      if (container) return container
       return this.getLastContainer()
     },
 

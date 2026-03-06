@@ -43,7 +43,7 @@
        @input="onInput"
        @click="pingToolbar"
        @dblclick="onDblClick"
-       @keydown="pingToolbar"
+       @keydown="onKeyDown"
        @keyup="pingToolbar">
     </p>
   </div>
@@ -110,8 +110,35 @@ export default {
       if (!view) return
       set(view, '/state/inline/rich', true)
       set(view, '/state/inline/doc', this.doc)
+      set(view, '/state/inline/lastContainer', this.$refs.textEditor)
+      set(view, '/state/inline/editorModel', this.model)
       this.editing = true
       this.pingToolbar()
+    },
+    onKeyDown(event) {
+      this.pingToolbar()
+      const key = event.which
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+      
+      if (ctrlOrCmd && event.altKey && ((key >= 48 && key <= 54) || (key >= 96 && key <= 102))) {
+        event.preventDefault()
+        const digit = key >= 96 ? key - 96 : key - 48
+        const value = digit === 0 ? 'p' : `h${digit}`
+        document.execCommand('formatBlock', false, value)
+        this.$nextTick(() => this.pingToolbar())
+      } else if (key === 66 && ctrlOrCmd) {
+        event.preventDefault()
+        document.execCommand('bold', false, null)
+        this.$nextTick(() => this.pingToolbar())
+      } else if (key === 73 && ctrlOrCmd) {
+        event.preventDefault()
+        document.execCommand('italic', false, null)
+        this.$nextTick(() => this.pingToolbar())
+      } else if (key === 85 && ctrlOrCmd) {
+        event.preventDefault()
+        document.execCommand('underline', false, null)
+        this.$nextTick(() => this.pingToolbar())
+      }
     },
     onFocusOut() {
       const view = this.view
@@ -126,6 +153,7 @@ export default {
       set(view, '/state/inline/lastDoc', this.doc)
       set(view, '/state/inline/lastSelectionBuffer', saveSelection(this.$refs.textEditor, this.doc))
       set(view, '/state/inline/doc', null)
+      set(view, '/state/inline/editorModel', null)
       this.editing = false
       this.pingToolbar()
     },
