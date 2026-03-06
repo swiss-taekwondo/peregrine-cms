@@ -32,7 +32,7 @@
       :editorContent="value"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
     />
-    <p class="text-editor inline-edit"
+    <div class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
        v-html="value"
@@ -45,7 +45,7 @@
        @dblclick="onDblClick"
        @keydown="onKeyDown"
        @keyup="pingToolbar">
-    </p>
+       </div>
   </div>
 </template>
 

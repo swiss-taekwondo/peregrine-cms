@@ -434,7 +434,7 @@ export default {
             disabled: groupIsDisabled,
           },
           on: {
-            'toggle-click': () => { if (group.toggleClick) group.toggleClick() },
+            'toggle-click': () => { this.openGroups = {}; if (group.toggleClick) group.toggleClick() },
             click: ({ btn }) => { if (btn.click) btn.click(); else this.exec(btn.cmd) },
           },
         })
@@ -556,7 +556,9 @@ export default {
     },
 
     _toggleGroup(label) {
-      this.$set(this.openGroups, label, !this.openGroups[label])
+      const opening = !this.openGroups[label]
+      this.openGroups = {}
+      if (opening) this.$set(this.openGroups, label, true)
     },
 
     inlineCmdHandler(event) {

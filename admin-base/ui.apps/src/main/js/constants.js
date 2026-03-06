@@ -128,6 +128,10 @@ export const Key = {
   ARROW_RIGHT: 39,
   ARROW_DOWN: 40,
   ESC: 27,
+  DIGIT_0: 48,
+  DIGIT_6: 54,
+  NUMPAD_0: 96,
+  NUMPAD_6: 102,
 };
 
 export const IconLib = {

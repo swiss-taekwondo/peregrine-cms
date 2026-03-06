@@ -46,7 +46,7 @@
       color: #ffffff;
 
       &.active {
-        background-color: #ff9800;
+        background-color: var(--pcms-orange-active);
       }
 
       &.separate {
@@ -229,7 +229,6 @@
     }
 
     > .btn-group.rtb-group--dropdown .rtb-dropdown-menu {
-      left: auto;
       right: 0;
       background: #fff;
     }
@@ -318,7 +317,7 @@
     }
 
     &.active {
-      background-color: #ff9800;
+      background-color: var(--pcms-orange-active);
 
       .material-icons,
       .fa,
@@ -342,7 +341,7 @@
     &.materialize-drop-down {
       a {
         &.active {
-          background-color: #ff9800;
+          background-color: var(--pcms-orange-active);
 
           .fa,
           .material-icons,
@@ -394,7 +393,7 @@
         }
 
         &.active {
-          background-color: #ff9800;
+          background-color: var(--pcms-orange-active);
           color: #ffffff;
         }
       }
@@ -443,7 +442,6 @@
       left: 0;
       z-index: 9000;
       background: #fff !important;
-      border: 1px solid #ccc;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
       flex-direction: column;
       white-space: nowrap;
@@ -456,6 +454,11 @@
         display: flex;
         flex-direction: column;
         min-width: 150px;
+        border: 1px solid var(--pcms-blue-grey-darken-3);
+
+        .rtb-menu-item {
+          border-radius: 0;
+        }
       }
 
       .rtb-menu-item {
@@ -483,13 +486,23 @@
           height: auto;
         }
 
-        &:hover {
-          background: rgba(0, 0, 0, 0.12);
+        &.active {
+          background-color: var(--pcms-orange-active);
+          color: #ffffff;
+
+          .fa,
+          .material-icons {
+            color: #ffffff;
+          }
+        }
+
+        &:hover:not(.active) {
+          background: var(--pcms-orange-hover);
           border-radius: 0 !important;
         }
 
         &:focus-visible {
-          outline: 2px solid var(--pcms-orange, #ff9800);
+          outline: 2px solid var(--pcms-orange, var(--pcms-orange-active));
           outline-offset: -2px;
         }
 
@@ -531,7 +544,7 @@
   }
 
   .rtb-btn:focus-visible {
-    outline: 2px solid var(--pcms-orange, #ff9800);
+    outline: 2px solid var(--pcms-orange, var(--pcms-orange-active));
     outline-offset: -2px;
     border-radius: 2px;
   }
@@ -578,7 +591,7 @@
     }
 
     &.active {
-      background: #ff9800;
+      background: var(--pcms-orange-active);
     }
 
     .fa,
@@ -676,7 +689,7 @@
   z-index: 1;
 
   &:hover {
-    background: #ff9800 !important;
+    background: var(--pcms-orange-active) !important;
     border-color: transparent !important;
   }
 
