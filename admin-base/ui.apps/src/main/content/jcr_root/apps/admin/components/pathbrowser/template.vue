@@ -358,20 +358,6 @@
                         :value="imgHeight"
                         @input="onUpdateImgDimension('height', $event)"/>
                   </div>
-                  <div class="form-group">
-                    <label for="imgObjectFit">Object Fit</label>
-                    <select
-                        id="imgObjectFit"
-                        :value="imgObjectFit || ''"
-                        @change="$emit('update-img-objectFit', $event.target.value || null)">
-                      <option value="">— none —</option>
-                      <option value="fill">fill</option>
-                      <option value="contain">contain</option>
-                      <option value="cover">cover</option>
-                      <option value="none">none</option>
-                      <option value="scale-down">scale-down</option>
-                    </select>
-                  </div>
                 </div>
                 <div class="checkboxes-group">
                   <div class="pathbrowser-newwindow" v-if="newWindow !== undefined"
@@ -418,20 +404,6 @@
                         placeholder="Height"
                         :value="imgHeight"
                         @input="onUpdateImgDimension('height', $event)"/>
-                  </div>
-                  <div class="form-group">
-                    <label for="imageTabObjectFit">Object Fit</label>
-                    <select
-                        id="imageTabObjectFit"
-                        :value="imgObjectFit || ''"
-                        @change="$emit('update-img-objectFit', $event.target.value || null)">
-                      <option value="">— none —</option>
-                      <option value="fill">fill</option>
-                      <option value="contain">contain</option>
-                      <option value="cover">cover</option>
-                      <option value="none">none</option>
-                      <option value="scale-down">scale-down</option>
-                    </select>
                   </div>
                 </div>
               </template>
@@ -531,9 +503,6 @@ export default {
     },
     imgHeight: {
       type: Number
-    },
-    imgObjectFit: {
-      type: String
     },
     onCancel: Function,
   },

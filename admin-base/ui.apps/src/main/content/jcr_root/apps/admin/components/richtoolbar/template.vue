@@ -390,7 +390,6 @@ export default {
           rel: this.browser.rel,
           imgWidth: this.browser.img.width,
           imgHeight: this.browser.img.height,
-          imgObjectFit: this.browser.img.objectFit,
           onCancel: this.onBrowserCancel,
         },
         on: {
@@ -710,10 +709,8 @@ export default {
       if (!doc || !container) return
 
       const isEditor = document.querySelector('.text-editor-wrapper') !== null
-      console.log('toggleScriptTag: isEditor=', isEditor)
-      
+
       const savedSel = saveSelection(container, doc)
-      console.log('toggleScriptTag: savedSel=', !!savedSel)
 
       if (!isEditor && doc.execCommand) {
         doc.execCommand(cmd, false, null)
@@ -728,7 +725,6 @@ export default {
 
       const win = doc.defaultView || window
       const sel = win.getSelection()
-      console.log('toggleScriptTag: sel=', !!sel, 'rangeCount=', sel?.rangeCount)
       if (!sel || sel.rangeCount === 0) return
 
       const range = sel.getRangeAt(0)
@@ -736,23 +732,18 @@ export default {
       const startEl = toEl(range.startContainer)
       const endEl = toEl(range.endContainer)
       const existingTag = (startEl && startEl.closest(tagName)) || (endEl && endEl.closest(tagName))
-      console.log('toggleScriptTag: existingTag=', !!existingTag)
 
       if (existingTag) {
-        console.log('toggleScriptTag: removing tag')
         const parent = existingTag.parentNode
         while (existingTag.firstChild) {
           parent.insertBefore(existingTag.firstChild, existingTag)
         }
         parent.removeChild(existingTag)
-        console.log('toggleScriptTag: tag removed, container.innerHTML=', container.innerHTML.substring(0, 100))
       } else {
-        console.log('toggleScriptTag: adding tag')
         try {
           const wrapper = doc.createElement(tagName)
           range.surroundContents(wrapper)
         } catch (e) {
-          console.log('toggleScriptTag: surroundContents failed, using fallback')
           const fragment = range.extractContents()
           const wrapper = doc.createElement(tagName)
           wrapper.appendChild(fragment)
@@ -761,7 +752,6 @@ export default {
       }
 
       const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
-      console.log('toggleScriptTag: freshContainer=', !!freshContainer)
       if (freshContainer) {
         let comp = this.$parent
         let foundEditor = false
@@ -782,7 +772,6 @@ export default {
           this.saveToModel(freshContainer)
         }
 
-        console.log('toggleScriptTag: restoring selection, savedSel=', !!savedSel)
         if (savedSel) {
           restoreSelection(freshContainer, savedSel, doc)
         }
@@ -1166,8 +1155,8 @@ export default {
       this.selection.doc = doc
       this.selection.container = container
 
-      const win = doc.defaultView
-      const liveSel = win && win.getSelection && win.getSelection()
+      const win = doc.defaultView || window
+      const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
       const liveRange = liveSel && liveSel.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
       if (!liveRange) {
         return
@@ -1338,7 +1327,7 @@ export default {
 
     insertImage() {
       let container = null
-      let doc = document
+      let doc = null
 
       const inlineContainer = this.getInlineContainer()
       const inlineDoc = this.getInlineDoc()
@@ -1360,16 +1349,20 @@ export default {
         const wrapper = this.$el?.closest('.text-editor-wrapper')
         if (wrapper) {
           container = wrapper.querySelector('.text-editor')
+          if (!doc) doc = document
         }
       }
 
       if (!container) {
         container = document.querySelector('.text-editor')
+        if (!doc) doc = document
       }
 
       if (!container) {
         return
       }
+
+      if (!doc) doc = container.ownerDocument
 
       this.param.cmd = 'insertImage'
       this.browser.header = this.$i18n('Insert Image')
@@ -1384,8 +1377,8 @@ export default {
       this.selection.doc = doc
       this.selection.container = container
 
-      const win = doc.defaultView
-      const liveSel = win?.getSelection?.()
+      const win = doc.defaultView || window
+      const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
       const liveRange = liveSel?.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
       this._savedRange = liveRange
 
@@ -1421,7 +1414,12 @@ export default {
     },
 
     insertIcon(imgPath) {
-      const range = window.getSelection()?.getRangeAt(0);
+      const doc = this.selection.doc || this.getInlineDoc() || this.getLastDoc() || document
+      const win = doc.defaultView || window
+      const sel = win.getSelection ? win.getSelection() : window.getSelection()
+      if (!sel || sel.rangeCount === 0) return
+      
+      const range = sel.getRangeAt(0)
       range.deleteContents()
       const fragment = range.createContextualFragment(`<img class="peregrine-icon" style="font-size: inherit; display: inline; width: auto; height: 1em; vertical-align: -0.125em;" src="${imgPath}"></img>`)
       const lastChild = fragment.lastChild;
@@ -1689,34 +1687,34 @@ export default {
         })
         this.browser.element = null
       } else {
-        const range = this._savedRange
-        if (range) {
+        const doc = this.selection.doc || this.getInlineDoc() || document
+        const win = doc.defaultView || window
+        const sel = win.getSelection ? win.getSelection() : window.getSelection()
+        
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0)
           const styles = []
           if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
           if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
           if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-          const styleAttr = styles.length ? ` style="${styles.join(';')}"` : ''
 
-          const img = this.selection.doc.createElement('img')
+          const img = doc.createElement('img')
           img.setAttribute('src', this.browser.path.selected)
           img.setAttribute('alt', this.browser.linkTitle || '')
           img.setAttribute('title', this.browser.linkTitle || '')
-          if (styleAttr) {
+          if (styles.length) {
             img.setAttribute('style', styles.join(';'))
           }
 
+          range.deleteContents()
           range.insertNode(img)
-          this._savedRange = null
-        } else {
-          const styles = []
-          if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-          if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-          if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-          const styleAttr = styles.length ? ` style="${styles.join(';')}"` : ''
-          const html = `<img src="${this.browser.path.selected}" alt="${this.browser.linkTitle || ''}" title="${this.browser.linkTitle || ''}"${styleAttr}/>`
-
-          this.selection.container?.focus()
-          this.execCmd('insertHTML', html, true, this.selection.doc)
+          range.setStartAfter(img)
+          range.collapse(true)
+          sel.removeAllRanges()
+          sel.addRange(range)
+          
+          const editor = this.getEditorFrom(range)
+          if (editor) editor.dispatchEvent(new Event('input'))
         }
 
         $perAdminApp.action(this, 'writeInlineToModel')
