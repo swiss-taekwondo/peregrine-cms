@@ -560,7 +560,7 @@ export default {
       return {}
     },
     list() {
-      if (this.nodes.children) {
+      if (this?.nodes?.children) {
         return this.nodes.children
       }
       return []

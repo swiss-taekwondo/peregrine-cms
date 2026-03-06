@@ -1573,7 +1573,7 @@ export default {
       let href = this.browser.path.selected || ''
 
       const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
-      if (href.startsWith('/') && isPageType && !href.endsWith('.html')) {
+      if (href.startsWith('/') && isPageType && !href.includes('.html')) {
         href += '.html'
       }
 
@@ -1589,6 +1589,7 @@ export default {
           link.removeAttribute('target')
           link.removeAttribute('rel')
         } else {
+          link.removeAttribute('download')
           link.setAttribute('target', this.browser.newWindow ? '_blank' : '_self')
           link.setAttribute('rel', this.browser.rel ? 'noopener noreferrer' : '')
         }
