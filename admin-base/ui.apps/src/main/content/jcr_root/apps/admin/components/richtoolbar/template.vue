@@ -558,7 +558,21 @@ export default {
     _toggleGroup(label) {
       const opening = !this.openGroups[label]
       this.openGroups = {}
-      if (opening) this.$set(this.openGroups, label, true)
+      if (opening) {
+        this.$set(this.openGroups, label, true)
+        this.$nextTick(() => {
+          const menu = this.$el.querySelector('.rtb-dropdown-menu--open')
+          const dropdown = menu?.querySelector('.rtb-dropdown-items-list')
+          if (dropdown) {
+            const rect = dropdown.getBoundingClientRect()
+            if (rect.right > window.innerWidth) {
+              menu.classList.add('rtb-dropdown-menu--align-right')
+            } else {
+              menu.classList.remove('rtb-dropdown-menu--align-right')
+            }
+          }
+        })
+      }
     },
 
     inlineCmdHandler(event) {

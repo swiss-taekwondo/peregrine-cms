@@ -450,6 +450,11 @@
         display: flex;
       }
 
+      &--align-right {
+        left: auto;
+        right: 0;
+      }
+
       .rtb-dropdown-items-list {
         display: flex;
         flex-direction: column;
