@@ -486,7 +486,7 @@
           height: auto;
         }
 
-        &.active {
+        &.active:not([title$="link"]) {
           background-color: var(--pcms-orange-active);
           color: #ffffff;
 
@@ -496,7 +496,8 @@
           }
         }
 
-        &:hover:not(.active) {
+        &:hover:not(.active),
+        &.active:hover:is([title$="link"]) {
           background: var(--pcms-orange-hover);
           border-radius: 0 !important;
         }
