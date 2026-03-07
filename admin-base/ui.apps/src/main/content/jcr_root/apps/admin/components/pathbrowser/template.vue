@@ -316,7 +316,7 @@
                       id="pathBrowserLink"
                       ref="pathBrowserLink"
                       type="url"
-                      placeholder="https://"
+                      placeholder="URL"
                       :value="selectedPath"
                       @mousedown=""
                       @input="selectLink"/>
