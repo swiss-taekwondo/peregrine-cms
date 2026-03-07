@@ -1075,7 +1075,9 @@ export default {
           inline.lastAnchor = anchor
         }
       }
-      $perAdminApp.action(vm, 'reWrapEditable')
+      if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
+        $perAdminApp.action(vm, 'reWrapEditable')
+      }
     },
 
     getInlineDoc() {
@@ -1633,7 +1635,9 @@ export default {
         }
         range.insertNode(link)
         this._savedRange = null
-        $perAdminApp.action(this, 'reWrapEditable')
+        if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
+          $perAdminApp.action(this, 'reWrapEditable')
+        }
         $perAdminApp.action(this, 'writeInlineToModel')
         this.$nextTick(() => {
           $perAdminApp.action(this, 'textEditorWriteToModel')
@@ -1697,7 +1701,9 @@ export default {
         imgEl.setAttribute('alt', linkTitle ? linkTitle : '')
         imgEl.setAttribute('title', linkTitle ? linkTitle : '')
         imgEl.setAttribute('style', styles.join(';'))
-        $perAdminApp.action(this, 'reWrapEditable')
+        if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
+          $perAdminApp.action(this, 'reWrapEditable')
+        }
         $perAdminApp.action(this, 'writeInlineToModel')
         this.$nextTick(() => {
           $perAdminApp.action(this, 'textEditorWriteToModel')
