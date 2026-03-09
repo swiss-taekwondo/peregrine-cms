@@ -13,7 +13,7 @@
   }
   cursor: pointer;
 }
-.switch label[aria-disabled="true"] {
+.switch label:has(input[disabled]) {
   * {
     cursor: not-allowed;
   }
