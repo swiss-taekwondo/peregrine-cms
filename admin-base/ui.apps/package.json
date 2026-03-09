@@ -21,7 +21,8 @@
     "lint-js": "node node_modules/eslint/bin/eslint.js src/main/js",
     "docker": "docker run -it -p 8080:8080 icaraps/peregrine-cms:stkd-nfs-amd64",
     "patch": "node ./uploadPatches.mjs http://localhost:8080 admin:admin target/classes/etc/felibs/admin/js",
-    "build:patch": "npm run build && npm run patch"
+    "build:patch": "npm run build && npm run patch",
+    "mvn:install": "mvn clean install -P autoInstallPackage"
   },
   "author": "",
   "license": "Apache-2.0",
