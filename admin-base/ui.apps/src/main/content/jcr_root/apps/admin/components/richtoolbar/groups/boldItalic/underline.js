@@ -2,11 +2,11 @@ import {IconLib} from '../../../../../../../../js/constants'
 
 export default (vm) => {
   return {
-    label: 'numbered list',
-    icon: 'list-ol',
+    label: 'underline',
+    icon: 'underline',
     iconLib: IconLib.FONT_AWESOME,
-    cmd: 'insertOrderedList',
-    isActive: () => vm.itemIsTag('OL'),
+    cmd: 'underline',
+    isActive: () => vm.queryCmdState('underline'),
     isDisabled: () => !vm.hasEditorSelection
   }
 }
