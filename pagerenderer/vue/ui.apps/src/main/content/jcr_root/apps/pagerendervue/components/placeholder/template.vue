@@ -101,9 +101,9 @@ export default {
         border: 1px dashed #c0c0c0;
         clear: both;
         padding: 4px;
-        margin: 4px;
+        margin: 0px;
         text-align: center;
-        width: calc(100% - 8px);
+        width: 100%;
         white-space: nowrap;
         text-overflow: ellipsis;
         color: black !important; 
