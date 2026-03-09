@@ -80,7 +80,7 @@
 		},
 		mounted() {
 			if (!this.value) {
-				this.$el.querySelector('ul input').click();
+				this?.$el?.querySelector('ul input')?.click();
 				console.warn("No value was found for radio field. Make sure it's default values is setup in the model")
 			}
 		},
