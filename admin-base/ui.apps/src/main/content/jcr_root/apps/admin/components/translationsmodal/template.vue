@@ -424,6 +424,7 @@ export default {
         });
 
         if (response.ok) {
+          $perAdminApp.getApi().populateNodesForBrowser(this.path);
           if (node.translations[lang]) {
             const date = new Date().toISOString();
             node.translations[lang][`per:TranslatedAt_${property.replaceAll(':', '_')}`] = date;

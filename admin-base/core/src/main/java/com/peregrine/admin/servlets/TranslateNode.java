@@ -50,6 +50,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_TRANSLATE;
 import static com.peregrine.admin.util.AdminConstants.LANG_PREFIX;
@@ -130,6 +132,8 @@ public class TranslateNode extends AbstractBaseServlet {
     private static final String PROPERTIES_MISSING = "Properties missing";
     private static final String GEMINI_API_KEY_MISSING = "Gemini API Key missing";
     private static final String GEMINI_MODEL_MISSING = "Gemini Model missing";
+
+    private static final Pattern PATH_PATTERN = Pattern.compile("^/content/([a-z0-9_]+)/(pages|templates|objects)(/.*)?$");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -301,7 +305,31 @@ public class TranslateNode extends AbstractBaseServlet {
             }
 
             // Add timestamp
-            languageNode.setProperty(PER_TRANSLATED_AT, Calendar.getInstance());
+            Calendar timestamp = Calendar.getInstance();
+            languageNode.setProperty(PER_TRANSLATED_AT, timestamp);
+
+            // Update jcr last modified and jcr last modified by
+            Matcher matcher = PATH_PATTERN.matcher(path);
+            if (matcher.matches()) {
+                String rawType = matcher.group(2);
+                String rootPath = path;
+
+                // Truncate BEFORE jcr:content for pages and templates
+                if ("pages".equals(rawType) || "templates".equals(rawType)) {
+                    String target = "/jcr:content";
+                    int index = path.indexOf(target);
+                    if (index != -1) {
+                        rootPath = path.substring(0, index);
+                    }
+                }
+
+                Node rootNode = getNode(resourceResolver, rootPath);
+                String user = resourceResolver.getUserID();
+                if (!isNull(rootNode)) {
+                    rootNode.setProperty(JCR_LAST_MODIFIED, timestamp);
+                    rootNode.setProperty(JCR_LAST_MODIFIED_BY, user);
+                }
+            }
 
             resourceResolver.adaptTo(Session.class).save();
 
