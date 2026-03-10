@@ -987,7 +987,8 @@ export default {
         flex-shrink: 0;
     }
 
-    .topbar-btn:hover {
+    .topbar-btn:hover,
+    .topbar-btn:focus {
         background: #546E7A;
     }
 
@@ -1029,7 +1030,8 @@ export default {
         white-space: nowrap;
     }
 
-    .topbar-dropdown-item:hover {
+    .topbar-dropdown-item:hover,
+    .topbar-dropdown-item:focus {
         background: #f0f0f0;
     }
 
