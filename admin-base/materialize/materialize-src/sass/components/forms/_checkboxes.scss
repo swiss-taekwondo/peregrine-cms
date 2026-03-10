@@ -11,14 +11,6 @@ form p:last-child {
   margin-bottom: 0;
 }
 
-/* Remove default checkbox */
-[type="checkbox"]:not(:checked),
-[type="checkbox"]:checked {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
 // Checkbox Styles
 [type="checkbox"] {
     display: none;
@@ -209,3 +201,4 @@ form p:last-child {
     border-color: $input-disabled-solid-color;
   }
 }
+
