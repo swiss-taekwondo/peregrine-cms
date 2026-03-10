@@ -21,6 +21,7 @@ form p:last-child {
 
 // Checkbox Styles
 [type="checkbox"] {
+    display: none;
   // Text Label Style
   + label {
     position: relative;
