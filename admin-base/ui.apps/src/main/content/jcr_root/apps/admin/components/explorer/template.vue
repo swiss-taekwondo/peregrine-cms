@@ -64,11 +64,13 @@
                             </template>
                         </div>
                     </div>
+                    <div class="switch">
                     <label v-if="model.showFilter === 'true'" class="filter-toggle">
                         <input type="checkbox" v-model="filter">
                         <span class="lever"></span>
-                        <span>Secondary Items</span>
+                        <span>filter secondary items</span>
                     </label>
+                    </div>
                 </div>
             </li>
                 <li
@@ -927,7 +929,9 @@ export default {
         justify-content: center;
         align-items: center;
     }
+</style>
 
+<style scoped>
     .topbar {
         padding: 0.4rem 1rem;
         background: #f9f9f9;
@@ -942,6 +946,7 @@ export default {
     .topbar-controls {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 0.4rem;
         flex-grow: 1;
         flex-wrap: wrap;
@@ -1042,62 +1047,10 @@ export default {
         margin: 4px 0;
     }
 
-    .filter-toggle {
-        font-size: 0.8rem;
-        color: #555;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        cursor: pointer;
-        margin-left: auto;
+    .switch .filter-toggle .lever {
+        margin: 0 4px !important;
     }
 
-    .filter-toggle input[type="checkbox"] {
-        position: absolute;
-        opacity: 0;
-        width: 0;
-        height: 0;
-    }
-
-    .filter-toggle .lever {
-        position: relative;
-        display: inline-block;
-        vertical-align: middle;
-        margin: 0 0.5rem;
-        width: 35px;
-        height: 15px;
-        background-color: rgba(0,0,0,.38);
-        border-radius: 15px;
-        transition: background-color 0.35s;
-        cursor: pointer;
-        margin: 0 !important;
-        margin-left: 16px !important;
-    }
-
-    .filter-toggle .lever::before {
-        content: "";
-        position: absolute;
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        background-color: #F5F5F5;
-        border-radius: 50%;
-        top: -2.5px;
-        left: 0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-        transition: left 0.35s;
-    }
-
-    .filter-toggle input[type="checkbox"]:checked + .lever {
-        background-color: rgb(130.75, 130.75, 130.75);
-    }
-
-    .filter-toggle input[type="checkbox"]:checked + .lever::before {
-        left: 18px;
-    }
-</style>
-
-<style scoped>
 .icon.label {
   height: 24px;
   width: 24px;

@@ -12,7 +12,8 @@
     "build:css": "cd admin-base/materialize && npm run build",
     "build:css:patch": "cd admin-base/materialize && npm run build:patch",
     "build:patch:all": "npm run build:patch && npm run build:css:patch",
-    "watch": "npm run build:patch:all && node ./watcher.js"
+    "watch": "npm run build:patch:all && node ./watcher.js",
+    "mvn:install": "mvn clean install -P autoInstallPackage"
   },
   "author": "headwire.com, Inc",
   "license": "Apache-2.0",
