@@ -57,8 +57,11 @@ public class PerReplicableImpl extends PerBaseImpl implements PerReplicable {
      */
     @Override
     public boolean isStale() {
+        Calendar replicated = getReplicated();
         return Optional.ofNullable(getCalendarProperty(JCR_LAST_MODIFIED))
-                .map(lm -> lm.after(getReplicated()))
+                .map(lm -> lm.after(replicated))
+                .orElse(false) || Optional.ofNullable(getCalendarProperty(PER_TRANSLATED_AT))
+                .map(ta -> ta.after(replicated))
                 .orElse(false);
     }
 

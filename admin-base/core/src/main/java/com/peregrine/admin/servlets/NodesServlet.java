@@ -27,28 +27,7 @@ package com.peregrine.admin.servlets;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_NODES;
 import static com.peregrine.admin.servlets.ReferenceServletUtils.IS_STALE;
-import static com.peregrine.commons.util.PerConstants.ALLOWED_OBJECTS;
-import static com.peregrine.commons.util.PerConstants.ASSET_PRIMARY_TYPE;
-import static com.peregrine.commons.util.PerConstants.COMPONENT;
-import static com.peregrine.commons.util.PerConstants.ECMA_DATE_FORMAT;
-import static com.peregrine.commons.util.PerConstants.ECMA_DATE_FORMAT_LOCALE;
-import static com.peregrine.commons.util.PerConstants.JCR_CONTENT;
-import static com.peregrine.commons.util.PerConstants.JCR_CREATED;
-import static com.peregrine.commons.util.PerConstants.JCR_CREATED_BY;
-import static com.peregrine.commons.util.PerConstants.JCR_LAST_MODIFIED;
-import static com.peregrine.commons.util.PerConstants.JCR_LAST_MODIFIED_BY;
-import static com.peregrine.commons.util.PerConstants.JCR_MIME_TYPE;
-import static com.peregrine.commons.util.PerConstants.JCR_PRIMARY_TYPE;
-import static com.peregrine.commons.util.PerConstants.JCR_TITLE;
-import static com.peregrine.commons.util.PerConstants.METAPROPERTIES;
-import static com.peregrine.commons.util.PerConstants.NAME;
-import static com.peregrine.commons.util.PerConstants.PAGE_PRIMARY_TYPE;
-import static com.peregrine.commons.util.PerConstants.PATH;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATED;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATED_BY;
-import static com.peregrine.commons.util.PerConstants.PER_REPLICATION_REF;
-import static com.peregrine.commons.util.PerConstants.TAGS;
-import static com.peregrine.commons.util.PerConstants.TITLE;
+import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.EQUALS;
 import static com.peregrine.commons.util.PerUtil.GET;
 import static com.peregrine.commons.util.PerUtil.PER_PREFIX;
@@ -109,6 +88,8 @@ public class NodesServlet extends AbstractBaseServlet {
     public static final String ANY_DESCENDANT_ACTIVATED = "anyDescendantActivated";
     public static final String ALL_DESCENDANT_ACTIVATED = "allDescendantActivated";
     public static final String IS_REFERENCED = "isReferenced";
+    public static final String LAST_TRANSLATED = "lastTranslated";
+    public static final String LAST_TRANSLATED_BY = "lastTranslatedBy";
     public static final String RESOURCE_TYPE = "resourceType";
     public static final String JCR_PREFIX = "jcr:";
     public static final String PER_PREFIX = "per:";
@@ -220,10 +201,17 @@ public class NodesServlet extends AbstractBaseServlet {
                     if(isPrimaryType(child, PAGE_PRIMARY_TYPE)) {
                         Resource content = child.getChild(JCR_CONTENT);
                         if(content != null) {
-                            for (String key: content.getValueMap().keySet()) {
+                            ValueMap props = content.getValueMap();
+                            for (String key: props.keySet()) {
                                 if(key.equals(JCR_TITLE)) {
-                                    String title = content.getValueMap().get(JCR_TITLE, String.class);
+                                    String title = props.get(JCR_TITLE, String.class);
                                     json.writeAttribute(TITLE, title);
+                                } else if (key.equals(PER_TRANSLATED_AT)) {
+                                    String timestamp = props.get(PER_TRANSLATED_AT, String.class);
+                                    json.writeAttribute(LAST_TRANSLATED, timestamp);
+                                } else if (key.equals(PER_TRANSLATED_BY)) {
+                                    String timestamp = props.get(PER_TRANSLATED_BY, String.class);
+                                    json.writeAttribute(LAST_TRANSLATED_BY, timestamp);
                                 } else {
                                     if(key.indexOf(":") < 0) {
                                         json.writeAttribute(key, content.getValueMap().get(key, String.class));
@@ -236,6 +224,13 @@ public class NodesServlet extends AbstractBaseServlet {
                             convertNamedChild(json, content, METAPROPERTIES);
                         } else {
                             logger.debug("No Content Child found for: '{}'", child.getPath());
+                        }
+                    }
+                    if (isPrimaryType(child, OBJECT_PRIMARY_TYPE)) {
+                        ValueMap props = child.getValueMap();
+                        String timestamp = props.get(PER_TRANSLATED_AT, String.class);
+                        if (timestamp != null) {
+                            json.writeAttribute(LAST_TRANSLATED, timestamp);
                         }
                     }
 

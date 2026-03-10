@@ -11,9 +11,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
-  
+
   http://www.apache.org/licenses/LICENSE-2.0
-  
+
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,25 +30,34 @@
         <tbody>
           <tr>
             <th>Status</th>
-            <td>{{printStatus(node)}}</td>            
+            <td>{{printStatus(node)}}</td>
           </tr>
           <tr>
-            <th>Date</th>
-            <td>{{publishActionDate}}</td>            
+            <th>Last Published</th>
+            <td>{{publishActionDate}}</td>
           </tr>
           <tr>
-            <th>By</th>
-            <td>{{node.ReplicatedBy}}</td>            
+            <th>Last Published by</th>
+            <td>{{node.ReplicatedBy}}</td>
           </tr>
 
           <tr>
             <th>Last Modified</th>
-            <td>{{modificationDate}}</td>            
-          </tr> 
+            <td>{{modificationDate}}</td>
+          </tr>
           <tr>
             <th>Last Modified by</th>
-            <td>{{node.lastModifiedBy}}</td>            
-          </tr> 
+            <td>{{node.lastModifiedBy}}</td>
+          </tr>
+
+          <tr v-if="translationDate">
+            <th>Last Translated</th>
+            <td>{{translationDate}}</td>
+          </tr>
+          <tr v-if="node.lastTranslatedBy">
+            <th>Last Translated by</th>
+            <td>{{node.lastTranslatedBy}}</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -71,21 +80,25 @@ export default {
     mixins: [ReferenceUtil],
     computed: {
         publishActionDate(){
-            // new Date(this.node.Replicated);
-            return this.node.Replicated
+            if (this.node.Replicated) {
+                return new Date(this.node.Replicated).toLocaleString();
+            }
+            return '';
         },
         modificationDate(){
-            // new Date(this.node.lastModified);
-            return this.node.lastModified
+            if (this.node.lastModified) {
+                return new Date(this.node.lastModified).toLocaleString();
+            }
+            return '';
+        },
+        translationDate(){
+            if (this.node.lastTranslated) {
+                return new Date(this.node.lastTranslated).toLocaleString();
+            }
+            return '';
         },
 
     },
-    methods: {
-
-    },
-    mounted() {
-        
-    }
 }
 </script>
 

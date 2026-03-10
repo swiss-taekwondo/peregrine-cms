@@ -54,8 +54,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_TRANSLATE;
-import static com.peregrine.admin.util.AdminConstants.LANG_PREFIX;
-import static com.peregrine.admin.util.AdminConstants.PER_TRANSLATED_AT;
 import static com.peregrine.commons.ResourceUtils.isPropertyAllowedOnExistingNode;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.*;
@@ -124,12 +122,14 @@ public class TranslateNode extends AbstractBaseServlet {
 
     private static final String LANG = "lang";
     private static final String OVERRIDE = "override";
+    private static final String DELETE = "delete";
     private static final String EXPERIENCES = "experiences";
     private static final String PROPERTIES = "properties";
     private static final String TRANSLATIONS = "translations";
     private static final String NODE_PATH_NOT_FOUND = "Node path not found";
     private static final String LANGUAGE_ERROR = "Language missing or not supported";
     private static final String PROPERTIES_MISSING = "Properties missing";
+    private static final String NO_PROPERTIES_FOUND = "No properties found";
     private static final String GEMINI_API_KEY_MISSING = "Gemini API Key missing";
     private static final String GEMINI_MODEL_MISSING = "Gemini Model missing";
 
@@ -177,8 +177,63 @@ public class TranslateNode extends AbstractBaseServlet {
             // Get optional default translations
             String[] defaultTranslations = request.getParameterValues(TRANSLATIONS + "[]");
 
-            // Get override parameters
+            // Get override and delete parameters
             boolean override = parseBoolean(request.getParameter(OVERRIDE, "false"));
+            boolean delete = parseBoolean(request.getParameter(DELETE, "false"));
+
+            // Only delete requested props
+            if (delete) {
+                String experiencePath = path + "/experiences/lang_" + language;
+                Node nodeToDeleteProps = getNode(resourceResolver, experiencePath);
+                List<String> deletedProps = new ArrayList<>();
+
+                if (isNull(nodeToDeleteProps)) {
+                    return new ErrorResponse()
+                            .setHttpErrorCode(SC_BAD_REQUEST)
+                            .setErrorMessage(NODE_PATH_NOT_FOUND)
+                            .setRequestPath(experiencePath);
+                }
+
+                List<String> propertiesList = Arrays.asList(properties);
+                PropertyIterator propertyIterator = nodeToDeleteProps.getProperties();
+                while (propertyIterator.hasNext()) {
+                    Property property = propertyIterator.nextProperty();
+                    String propertyName = property.getName();
+                    if (propertiesList.contains(propertyName)) {
+                        property.remove();
+                        deletedProps.add(propertyName);
+                    }
+
+                    String translatedAt = PER_TRANSLATED_AT + "_" + propertyName.replaceAll(":", "_");
+                    if (propertiesList.contains(translatedAt)) {
+                        property.remove();
+                    }
+                }
+
+                if (deletedProps.isEmpty()) {
+                    return new ErrorResponse()
+                            .setHttpErrorCode(SC_BAD_REQUEST)
+                            .setErrorMessage(NO_PROPERTIES_FOUND);
+                }
+
+                Calendar timestamp = Calendar.getInstance();
+                this.updateRootNodeTranslatedAt(path, timestamp, resourceResolver);
+
+                // Record deletions as translation actions
+                nodeToDeleteProps.setProperty(PER_TRANSLATED_AT, timestamp);
+                nodeToDeleteProps.setProperty(PER_TRANSLATED_BY, resourceResolver.getUserID());
+
+                resourceResolver.adaptTo(Session.class).save();
+
+                JsonResponse response = new JsonResponse();
+                response.writeAttribute(PATH, experiencePath);
+                response.writeArray(TRANSLATIONS);
+                for (String deletedProp : deletedProps) {
+                    response.writeString(deletedProp);
+                }
+                response.writeClose();
+                return response;
+            }
 
             // String translations can map to multiple properties
             Map<String, Set<String>> propertiesToTranslate = new HashMap<>();
@@ -307,29 +362,10 @@ public class TranslateNode extends AbstractBaseServlet {
             // Add timestamp
             Calendar timestamp = Calendar.getInstance();
             languageNode.setProperty(PER_TRANSLATED_AT, timestamp);
+            languageNode.setProperty(PER_TRANSLATED_BY, resourceResolver.getUserID());
 
             // Update jcr last modified and jcr last modified by
-            Matcher matcher = PATH_PATTERN.matcher(path);
-            if (matcher.matches()) {
-                String rawType = matcher.group(2);
-                String rootPath = path;
-
-                // Truncate BEFORE jcr:content for pages and templates
-                if ("pages".equals(rawType) || "templates".equals(rawType)) {
-                    String target = "/jcr:content";
-                    int index = path.indexOf(target);
-                    if (index != -1) {
-                        rootPath = path.substring(0, index);
-                    }
-                }
-
-                Node rootNode = getNode(resourceResolver, rootPath);
-                String user = resourceResolver.getUserID();
-                if (!isNull(rootNode)) {
-                    rootNode.setProperty(JCR_LAST_MODIFIED, timestamp);
-                    rootNode.setProperty(JCR_LAST_MODIFIED_BY, user);
-                }
-            }
+            this.updateRootNodeTranslatedAt(path, timestamp, resourceResolver);
 
             resourceResolver.adaptTo(Session.class).save();
 
@@ -358,6 +394,28 @@ public class TranslateNode extends AbstractBaseServlet {
         }
 
         return child;
+    }
+
+    private void updateRootNodeTranslatedAt(String path, Calendar timestamp, ResourceResolver resourceResolver) throws RepositoryException {
+        Matcher matcher = PATH_PATTERN.matcher(path);
+        if (matcher.matches()) {
+            String rawType = matcher.group(2);
+            String rootPath = path;
+
+            if ("pages".equals(rawType) || "templates".equals(rawType)) {
+                String target = "/jcr:content";
+                int index = path.indexOf(target);
+                if (index != -1) {
+                    rootPath = path.substring(0, index + target.length());
+                }
+            }
+
+            Node rootNode = getNode(resourceResolver, rootPath);
+            if (!isNull(rootNode)) {
+                rootNode.setProperty(PER_TRANSLATED_AT, timestamp);
+                rootNode.setProperty(PER_TRANSLATED_BY, resourceResolver.getUserID());
+            }
+        }
     }
 
     @Activate

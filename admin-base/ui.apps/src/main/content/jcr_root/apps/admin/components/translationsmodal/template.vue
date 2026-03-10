@@ -424,7 +424,7 @@ export default {
         });
 
         if (response.ok) {
-          $perAdminApp.getApi().populateNodesForBrowser(this.path);
+          this.reloadExplorer();
           if (node.translations[lang]) {
             const date = new Date().toISOString();
             node.translations[lang][`per:TranslatedAt_${property.replaceAll(':', '_')}`] = date;
@@ -450,26 +450,33 @@ export default {
             (`This will delete the ${lang} translation. Would you like to continue ?`), {
               yesText: 'Yes',
               yes: async () => {
-                const response = await fetch(`/bin/cpm/nodes/property.remove.json${node.path}/experiences/lang_${lang}`, {
-                  "headers": {
-                    "content-type": "text/plain;charset=UTF-8",
-                  },
-                  "body": JSON.stringify({
-                    names: [property]
-                  }),
-                  "method": "DELETE",
+                const formData = new FormData();
+                formData.append('_charset_', 'UTF-8');
+                formData.append('lang', lang);
+                formData.append('properties[]', property);
+                formData.append('delete', 'true');
+
+                const response = await fetch(`/perapi/admin/translateNode.json${node.path}`, {
+                  body: formData,
+                  method: 'POST'
                 });
 
                 if (!response.ok) {
                   throw new Error(await response.text());
                 }
 
+                this.reloadExplorer();
                 await this.listTranslations();
               },
             });
       } catch (e) {
         $perAdminApp.toast(`Delete failed: ${e}`, Toast.Level.WARNING)
       }
+    },
+
+    reloadExplorer() {
+      const explorerPath = this.path.split('/').slice(0, -1).join('/');
+      $perAdminApp.getApi().populateNodesForBrowser(explorerPath);
     },
 
     async translateNode(node, lang, property, originalText) {

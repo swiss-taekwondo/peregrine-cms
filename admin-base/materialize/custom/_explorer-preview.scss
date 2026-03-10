@@ -43,7 +43,7 @@
       background-color: customColor("blue-grey", "lighten-3");
     }
   }
-  
+
   & > span {
     position: absolute;
     right: 12px;
@@ -52,7 +52,7 @@
 
   .explorer-preview-content {
     display: flex;
-    flex-direction: column;    
+    flex-direction: column;
     height: 100%;
 
     .panel-title {
@@ -85,6 +85,11 @@
         transition: background-color 0.25s ease-out;
         cursor: pointer;
 
+        a {
+          display: flex;
+          align-items: center;
+        }
+
         &.disabled {
           color: var(--pcms-gray);
 
@@ -97,7 +102,7 @@
           background-color: rgba(0, 0, 0, .1)
         }
 
-        .icon {
+        .icon, i {
           margin-right: 1rem;
         }
       }
@@ -112,7 +117,7 @@
       max-height: 55px;
       background-color: #cfd8dc;
       border-top: 1px solid #b4c1c8;
-      
+
       button {
           display: flex;
           align-items: center;
@@ -141,14 +146,14 @@
         .svg-content {
           fill: customColor("blue-grey", "darken-2");
           transition: fill .3s ease;
-        }	     
+        }
 
-        &:hover {	
-          .svg-content {	     
+        &:hover {
+          .svg-content {
             fill: customColor("orange", "base");
-          }	          
-        }	        
-      }	      
+          }
+        }
+      }
       .collection-item {
         >span {
           display: inline-flex;
@@ -280,8 +285,8 @@
     justify-content: flex-end;
     position: absolute;
     text-align: right;
-    top: 0;	
-    left: 0;	
+    top: 0;
+    left: 0;
     right: 45px;
     overflow: hidden;
     margin: 0;
@@ -334,7 +339,7 @@
       > li {
         border-left: 1px solid #eceff1;
         border-right: 1px solid #b0bec5;
-        height: 100%;	
+        height: 100%;
         line-height: 45px;
         cursor: pointer;
 
