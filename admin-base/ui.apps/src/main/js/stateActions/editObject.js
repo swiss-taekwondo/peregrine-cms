@@ -75,7 +75,7 @@ export default function(me, target) {
 
     let view = me.getView()
     set(me.getView(), `/state/tools/edit`, false)
-    me.getApi().populateObject(target.selected, '/state/tools/object', 'data').then( () => {
+    me.getApi().populateObject(target.selected, '/state/tools/object', 'data', target.schema).then( () => {
         checksum = JSON.stringify(me.getNodeFromView('/state/tools/object/data'))
         set(view, '/state/tools/object/show', target.selected)
         set(me.getView(), `/state/tools/edit`, true)

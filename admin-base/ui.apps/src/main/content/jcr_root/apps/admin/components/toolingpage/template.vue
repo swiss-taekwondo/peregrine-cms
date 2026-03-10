@@ -131,6 +131,8 @@ export default {
             $perAdminApp.stateAction('editFile', {path, resourceType});
           } else if (path.startsWith(`/content/${tenant.name}/objects`)) {
             const node = $perAdminApp.findNodeFromPath($perAdminApp.getView().admin.nodes, path)
+           console.log('node', node) 
+           debugger
             $perAdminApp.stateAction('editObject', {selected: node.path, path: me.model.dataFrom})
           } else if (path.startsWith(`/content/${tenant.name}/templates`)) {
             $perAdminApp.stateAction('editTemplate', path)

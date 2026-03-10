@@ -34,7 +34,7 @@ export default function(me, target) {
     let view = me.getView()
     return new Promise( (resolve, reject) => {
         set(view, '/state/tools/edit', false)
-        me.getApi().populateObject(target.selected, '/state/tools/object', 'data')
+        me.getApi().populateObject(target.selected, '/state/tools/object', 'data', target.schema)
         .then( () => {
             set(view, '/state/tools/object/show', target.selected);
             resolve()

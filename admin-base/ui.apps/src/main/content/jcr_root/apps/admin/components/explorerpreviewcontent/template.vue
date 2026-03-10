@@ -697,8 +697,9 @@ export default {
       this.edit = true
       this.formGenerator.original = deepClone(this.node)
 
+      debugger
       if (this.nodeType === NodeType.OBJECT) {
-        $perAdminApp.stateAction('editObject', {selected: this.currentObject})
+        $perAdminApp.stateAction('editObject', {selected: this.currentObject, schema: this.getSchemaByActiveTab()})
       }
     },
     onCancel() {
@@ -990,7 +991,8 @@ export default {
         }
       }
       set($perAdminApp.getView(), '/state/tools/save/confirmed', true)
-      const result = $perAdminApp.stateAction('saveObjectEdit', {data: data, path: show}).then(() => {
+      
+      const result = $perAdminApp.stateAction('saveObjectEdit', {data: data, path: show, schema: this.getSchemaByActiveTab()}).then(() => {
         $perAdminApp.getNodeFromView('/state/tools')._deleted = {}
       });
       $perAdminApp.stateAction('selectObject', {selected: show})
