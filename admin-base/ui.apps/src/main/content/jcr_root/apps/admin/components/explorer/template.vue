@@ -56,10 +56,10 @@
                             <template v-if="sortBy !== 'natural'">
                                 <div class="topbar-dropdown-divider"></div>
                                 <button :class="['topbar-dropdown-item', { active: sortOrder === 'asc' }]" @click.stop="setSortOrder('asc')">
-                                    <i class="material-icons">arrow_upward</i> Ascending
+                                    <i class="material-icons">arrow_drop_up</i> Ascending
                                 </button>
                                 <button :class="['topbar-dropdown-item', { active: sortOrder === 'desc' }]" @click.stop="setSortOrder('desc')">
-                                    <i class="material-icons">arrow_downward</i> Descending
+                                    <i class="material-icons">arrow_drop_down</i> Descending
                                 </button>
                             </template>
                         </div>
