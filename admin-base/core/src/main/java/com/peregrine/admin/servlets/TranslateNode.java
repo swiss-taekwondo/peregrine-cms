@@ -397,6 +397,7 @@ public class TranslateNode extends AbstractBaseServlet {
     }
 
     private void updateRootNodeTranslatedAt(String path, Calendar timestamp, ResourceResolver resourceResolver) throws RepositoryException {
+        resourceResolver.refresh();
         Matcher matcher = PATH_PATTERN.matcher(path);
         if (matcher.matches()) {
             String rawType = matcher.group(2);
