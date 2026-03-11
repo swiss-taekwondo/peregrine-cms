@@ -697,7 +697,6 @@ export default {
       this.edit = true
       this.formGenerator.original = deepClone(this.node)
 
-      debugger
       if (this.nodeType === NodeType.OBJECT) {
         $perAdminApp.stateAction('editObject', {selected: this.currentObject, schema: this.getSchemaByActiveTab()})
       }

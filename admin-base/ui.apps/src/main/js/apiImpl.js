@@ -469,9 +469,9 @@ class PerAdminImpl {
     return this.populateComponentDefinitionFromNode(path)
       .then(() => {
         return fetch('/admin/getObject.json' + path)
-          .then((data) => {
-            if (schema) {
-              debugger
+          .then(async (data) => {
+            if (!schema) {
+              schema = await fetch('/admin/componentDefinition.json' + path).then((data) => data.model);
             }
             if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
               if (data[field.model] && field.multifield && field.listToStringifiedJson) {
