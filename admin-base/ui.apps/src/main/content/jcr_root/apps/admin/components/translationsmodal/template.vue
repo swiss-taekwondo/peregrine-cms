@@ -626,18 +626,25 @@ export default {
           if (!response.ok) throw new Error(await response.text());
 
           this.translationQueue.completed++;
+          return true;
         } catch (e) {
           console.error(`Failed to bulk translate ${path}:`, e);
           this.translationQueue.completed++;
+          return false;
         }
       });
 
       // 3. Execute in parallel
       try {
-        await Promise.all(requests);
-        $perAdminApp.toast(`Bulk translation for ${lang.toUpperCase()} complete.`, Toast.Level.SUCCESS);
+        const results = await Promise.all(requests);
+        const hasFailures = results.includes(false);
+        if (hasFailures) {
+          $perAdminApp.toast(`Some translations failed during bulk operation.`, Toast.Level.WARNING);
+        } else {
+          $perAdminApp.toast(`Bulk translation for ${lang.toUpperCase()} complete.`, Toast.Level.SUCCESS);
+        }
       } catch (e) {
-        $perAdminApp.toast(`Some translations failed during bulk operation.`, Toast.Level.WARNING);
+        $perAdminApp.toast(`An unexpected error occurred during bulk operation.`, Toast.Level.WARNING);
       } finally {
         this.reloadExplorer();
         await this.listTranslations();
