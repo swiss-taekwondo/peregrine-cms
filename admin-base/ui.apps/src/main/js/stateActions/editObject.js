@@ -52,18 +52,22 @@ export default function(me, target) {
                         'Save Object Edit?',
                         'Would you like to save your object edits?',
                         {
-                            defaultFocus: 'yes',
+                            defaultFocus: 'keepEditing',
                             yesText: 'Save',
-                            noText: 'Cancel',
+                            noText: 'Discard Changes',
+                            keepEditingText: 'Keep Editing',
                             yes() {
                                 me.stateAction('saveObjectEdit', {
                                     data: currentObject.data,
                                     path: currentObject.show
                                 })
-                                resolve()
+                                resolve(true)
                             },
                             no() {
-                                resolve()
+                                resolve(true)
+                            },
+                            keepEditing() {
+                                resolve(false)
                             }
                         }
                     )

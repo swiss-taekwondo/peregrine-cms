@@ -372,20 +372,21 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
   logger.fine('loading content for', initialPath);
   view.admin.consoleErrors = false;
 
-  if (!runBeforeStateActions()) {
-    logger.fine('not allowed to switch state');
-    return;
-  }
+  runBeforeStateActions('navigate').then((allowed) => {
+    if (!allowed) {
+      logger.fine('not allowed to switch state');
+      return;
+    }
 
-  var pathInfo = makePathInfo(initialPath.toString());
-  var path = pathInfo.path;
+    var pathInfo = makePathInfo(initialPath.toString());
+    var path = pathInfo.path;
 
-  var dataUrl = pagePathToDataPath(path);
+    var dataUrl = pagePathToDataPath(path);
 
-  view.status = undefined;
+    view.status = undefined;
 
-  return api
-    .populateUser()
+    return api
+      .populateUser()
     .then(function() {
       if (pathInfo.suffixParams.path) {
         const segments = pathInfo.suffixParams.path.split('/');
@@ -485,6 +486,7 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
           logger.error('error getting %s %j', dataUrl, error);
         });
     });
+  });
 }
 
 /**
@@ -543,13 +545,13 @@ function actionImpl(component, command, target) {
  * @type {Array}
  */
 let beforeStateActions = [];
+let beforeUnloadHandler = null;
 
 function beforeStateActionImpl(fun) {
   beforeStateActions.push(fun);
 }
 
 function runBeforeStateActions(name) {
-  // execute all before state actions
   const actions = [];
   if (beforeStateActions.length > 0) {
     for (let i = 0; i < beforeStateActions.length; i++) {
@@ -557,16 +559,16 @@ function runBeforeStateActions(name) {
     }
   }
 
+  if (actions.length === 0) {
+    return Promise.resolve(true);
+  }
+
   return new Promise((resolve) => {
-    Promise.all(actions).then(() => {
-      beforeStateActions = [];
-      resolve();
+    Promise.all(actions).then((results) => {
+      const allowed = results.every(result => result !== false);
+      resolve(allowed);
     });
   });
-  // console.log(ret);
-
-  // // clear the actions
-  // return true
 }
 
 const waitStack = [];
@@ -598,7 +600,12 @@ function exitWaitState() {
 function stateActionImpl(name, target, skipWait) {
   if (!skipWait) enterWaitState();
   return new Promise((resolve, reject) => {
-    runBeforeStateActions(name).then(() => {
+    runBeforeStateActions(name).then((allowed) => {
+      if (!allowed) {
+        if (!skipWait) exitWaitState();
+        resolve(false);
+        return;
+      }
       try {
         const stateAction = StateActions(name);
         const action = stateAction($perAdminApp, target);
@@ -766,8 +773,10 @@ function askUserImpl(title, message, options) {
 
   let yesText = options.yesText ? options.yesText : 'Yes';
   let noText = options.noText ? options.noText : 'No';
+  let keepEditingText = options.keepEditingText ? options.keepEditingText : null;
   set(view, '/state/notification/yesText', yesText);
   set(view, '/state/notification/noText', noText);
+  set(view, '/state/notification/keepEditingText', keepEditingText);
 
   set(view, '/state/notification/yesFn', () => {
     if (options.yes && typeof options.yes === 'function') options.yes()
@@ -777,14 +786,33 @@ function askUserImpl(title, message, options) {
     if (options.no && typeof options.no === 'function') options.no()
     dialog.close()
   })
+  set(view, '/state/notification/keepEditingFn', () => {
+    if (options.keepEditing && typeof options.keepEditing === 'function') options.keepEditing()
+    dialog.close()
+  })
 
   dialog.showModal()
 
-  if (options.defaultFocus && options.defaultFocus.toLowerCase && options.defaultFocus.toLowerCase() === 'yes') {
-    dialog.querySelector('button[title="ok" i]').focus()
-  } else {
-    dialog.querySelector('button[title="cancel" i]').focus()
+  const setFocus = () => {
+    const buttons = dialog.querySelectorAll('button')
+    let targetButton = null
+
+    if (options.defaultFocus === 'yes') {
+      targetButton = Array.from(buttons).find(b => b.title === 'ok')
+    } else if (options.defaultFocus === 'keepEditing') {
+      targetButton = Array.from(buttons).find(b => b.title === 'keepEditing')
+    } else if (options.defaultFocus === 'no' || options.defaultFocus === 'cancel') {
+      targetButton = Array.from(buttons).find(b => b.title === 'cancel')
+    }
+
+    if (targetButton) {
+      targetButton.focus()
+    } else if (buttons.length > 0) {
+      buttons[0].focus()
+    }
   }
+
+  setTimeout(setFocus, 0)
 }
 
 /**
@@ -1249,6 +1277,27 @@ var PerAdminApp = {
 
   beforeStateAction(fun) {
     beforeStateActionImpl(fun);
+  },
+
+  clearBeforeStateActions() {
+    beforeStateActions = [];
+  },
+
+  setBeforeUnloadHandler(handler) {
+    if (beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', beforeUnloadHandler);
+    }
+    beforeUnloadHandler = handler;
+    if (handler) {
+      window.addEventListener('beforeunload', handler);
+    }
+  },
+
+  clearBeforeUnloadHandler() {
+    if (beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', beforeUnloadHandler);
+      beforeUnloadHandler = null;
+    }
   },
 
   normalizeString(val, separator = '-') {

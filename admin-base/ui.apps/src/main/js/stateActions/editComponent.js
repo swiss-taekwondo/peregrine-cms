@@ -30,6 +30,16 @@ let log = LoggerFactory.logger('editComponent').setLevelDebug()
 function bringUpEditor(me, view, target) {
     log.fine('Bring Up Editor, ')
 
+    const beforeUnloadHandler = function(e) {
+        const current = JSON.stringify(view.pageView.page, jsonEqualizer, 2);
+        if (current !== view.state.editor.checksum) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    };
+    $perAdminApp.setBeforeUnloadHandler(beforeUnloadHandler);
+
     me.beforeStateAction( function(name) {
         return new Promise( (resolve, reject) => {
             const current = JSON.stringify(view.pageView.page, jsonEqualizer, 2)
@@ -38,9 +48,10 @@ function bringUpEditor(me, view, target) {
                     resolve(true)
                 } else {
                     $perAdminApp.askUser('Save Page Edit?', 'Would you like to save your page edits?', {
-                        defaultFocus: 'yes',
+                        defaultFocus: 'keepEditing',
                         yesText: 'Save',
-                        noText: 'Cancel',
+                        noText: 'Discard Changes',
+                        keepEditingText: 'Keep Editing',
                         yes() {
                             const page = view.pageView.page;
                             const path = view.state.editor.path;
@@ -50,6 +61,11 @@ function bringUpEditor(me, view, target) {
                             })
                         },
                         no() {
+                            $perAdminApp.clearBeforeStateActions();
+                            $perAdminApp.clearBeforeUnloadHandler();
+                            resolve(true)
+                        },
+                        keepEditing() {
                             resolve(false)
                         }
                     })
