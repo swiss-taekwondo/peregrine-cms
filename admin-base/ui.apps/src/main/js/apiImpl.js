@@ -384,7 +384,7 @@ class PerAdminImpl {
                       processField(field.fields[i])
                     }
                   }
-                  if (field.listtostringifiedjson) {
+                  if (field.serialized) {
                     try {
                       field.values = json.parse(field.values)
                     } catch (error) {
@@ -474,7 +474,7 @@ class PerAdminImpl {
               schema = await fetch('/admin/componentDefinition.json' + path).then((data) => data.model);
             }
             if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
-              if (data[field.model] && field.multifield && field.listToStringifiedJson) {
+              if (data[field.model] && field.multifield && field.serialized) {
                 try {
                   data[field.model] = JSON.parse(data[field.model])
                 } catch(e) {
@@ -1166,7 +1166,7 @@ class PerAdminImpl {
     delete nodeData['jcr:lastModifiedBy']
 
     if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
-      if (nodeData[field.model] && field.multifield && field.listToStringifiedJson) {
+      if (nodeData[field.model] && field.multifield && field.serialized) {
         const list = [];
         Object.values(nodeData[field.model]).forEach((item) => {
           list.push(item)
