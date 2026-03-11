@@ -1156,7 +1156,6 @@ class PerAdminImpl {
   }
 
   saveObjectEdit(path, node, schema) {
-   console.log('path, node, schema', path, node, schema) 
     let formData = new FormData()
     // convert to a new object
     let nodeData = JSON.parse(JSON.stringify(node))
@@ -1173,7 +1172,6 @@ class PerAdminImpl {
           list.push(item)
         });
         nodeData[field.model] = JSON.stringify(list)
-       console.log('nodeData[field.model]', nodeData[field.model]) 
       }
     })
     if (nodeData.tags) {
