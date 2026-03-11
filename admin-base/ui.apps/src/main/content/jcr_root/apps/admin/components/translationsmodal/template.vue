@@ -525,6 +525,7 @@ export default {
           });
           await Promise.all(promises);
         }
+        this.reloadExplorer();
         await this.listTranslations();
       } catch (e) {
         $perAdminApp.toast(`Translation failed: ${e}`, Toast.Level.WARNING)
@@ -638,6 +639,7 @@ export default {
       } catch (e) {
         $perAdminApp.toast(`Some translations failed during bulk operation.`, Toast.Level.WARNING);
       } finally {
+        this.reloadExplorer();
         await this.listTranslations();
         setTimeout(() => {
           this.resetBulkState();
