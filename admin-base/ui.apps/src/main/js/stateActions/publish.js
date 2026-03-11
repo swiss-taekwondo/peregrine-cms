@@ -27,5 +27,5 @@ let log = LoggerFactory.logger('replicate').setLevelDebug()
 
 export default function(me, target) {
     log.fine(target)
-    return me.getApi().replicate(target.path, false, false, target.references, true)
+    return me.getApi().replicate(target.path, false, false, target.references, target.draft, target.callback);
 }
