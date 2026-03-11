@@ -52,6 +52,13 @@
     </script>
 
     <style>
+        @keyframes rotate { 100% { transform: rotate(360deg); } }
+        @keyframes dash {
+            0% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; }
+            50% { stroke-dasharray: 90, 200; stroke-dashoffset: -35px; }
+            100% { stroke-dasharray: 90, 200; stroke-dashoffset: -124px; }
+        }
+
         .tutorial-visible {
             display: flex;
         }
@@ -94,7 +101,13 @@
 </head>
 <body>
 
-<div id="waitMask" style="display: none; z-index: 999; position: absolute; top: 0; right: 0; height: 100%; width: 100%; cursor: wait; background-color: black; opacity: 0.2;pointer-events: none;">&nbsp;</div>
+<div id="waitMask" style="display: none; z-index: 999; position: absolute; top: 0; right: 0; height: 100%; width: 100%; cursor: wait; background-color: black; opacity: 0.2;pointer-events: none;">
+    <div id="waitMaskSpinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none;">
+        <svg class="circular" viewBox="25 25 50 50" style="width: 50px; animation: rotate 2s linear infinite;">
+            <circle class="path" cx="50" cy="50" r="20" fill="none" stroke="#fff" stroke-width="2" stroke-miterlimit="10" style="stroke-dasharray: 1, 200; stroke-dashoffset: 0; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+    </div>
+</div>
 
 <div id="peregrine-main">
     <div id="peregrine-adminapp">
