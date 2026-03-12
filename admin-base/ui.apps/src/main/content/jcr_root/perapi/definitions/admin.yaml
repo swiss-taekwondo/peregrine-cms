@@ -689,6 +689,11 @@ paths:
           in: formData
           description: Override existing translation
           default: false
+        - name: delete
+          type: boolean
+          in: formData
+          description: Delete translation
+          default: false
       responses:
         200:
           description: Returns the experiences translation node path and translations

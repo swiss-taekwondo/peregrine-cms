@@ -455,9 +455,10 @@ export default {
                     return 'item-replication-unknown';
                 }
                 else if(item.ReplicationStatus) {
-                    const modified = item.lastModified || item.created
-                    const replicated = item.Replicated
-                    return `item-${item.ReplicationStatus}${replicated < modified ? '-modified' : ''}`
+                  const modified = item.lastModified || item.created;
+                  const replicated = item.Replicated;
+                  const translated = item.lastTranslated;
+                  return `item-${item.ReplicationStatus}${replicated < modified || (replicated < translated) ? "-modified" : ""}`;
                 }
 
                 return 'item-replication-unknown'

@@ -424,6 +424,7 @@ export default {
         });
 
         if (response.ok) {
+          this.reloadExplorer();
           if (node.translations[lang]) {
             const date = new Date().toISOString();
             node.translations[lang][`per:TranslatedAt_${property.replaceAll(':', '_')}`] = date;
@@ -449,26 +450,33 @@ export default {
             (`This will delete the ${lang} translation. Would you like to continue ?`), {
               yesText: 'Yes',
               yes: async () => {
-                const response = await fetch(`/bin/cpm/nodes/property.remove.json${node.path}/experiences/lang_${lang}`, {
-                  "headers": {
-                    "content-type": "text/plain;charset=UTF-8",
-                  },
-                  "body": JSON.stringify({
-                    names: [property]
-                  }),
-                  "method": "DELETE",
+                const formData = new FormData();
+                formData.append('_charset_', 'UTF-8');
+                formData.append('lang', lang);
+                formData.append('properties[]', property);
+                formData.append('delete', 'true');
+
+                const response = await fetch(`/perapi/admin/translateNode.json${node.path}`, {
+                  body: formData,
+                  method: 'POST'
                 });
 
                 if (!response.ok) {
                   throw new Error(await response.text());
                 }
 
+                this.reloadExplorer();
                 await this.listTranslations();
               },
             });
       } catch (e) {
         $perAdminApp.toast(`Delete failed: ${e}`, Toast.Level.WARNING)
       }
+    },
+
+    reloadExplorer() {
+      const explorerPath = this.path.split('/').slice(0, -1).join('/');
+      $perAdminApp.getApi().populateNodesForBrowser(explorerPath);
     },
 
     async translateNode(node, lang, property, originalText) {
@@ -517,6 +525,7 @@ export default {
           });
           await Promise.all(promises);
         }
+        this.reloadExplorer();
         await this.listTranslations();
       } catch (e) {
         $perAdminApp.toast(`Translation failed: ${e}`, Toast.Level.WARNING)
@@ -617,19 +626,27 @@ export default {
           if (!response.ok) throw new Error(await response.text());
 
           this.translationQueue.completed++;
+          return true;
         } catch (e) {
           console.error(`Failed to bulk translate ${path}:`, e);
           this.translationQueue.completed++;
+          return false;
         }
       });
 
       // 3. Execute in parallel
       try {
-        await Promise.all(requests);
-        $perAdminApp.toast(`Bulk translation for ${lang.toUpperCase()} complete.`, Toast.Level.SUCCESS);
+        const results = await Promise.all(requests);
+        const hasFailures = results.includes(false);
+        if (hasFailures) {
+          $perAdminApp.toast(`Some translations failed during bulk operation.`, Toast.Level.WARNING);
+        } else {
+          $perAdminApp.toast(`Bulk translation for ${lang.toUpperCase()} complete.`, Toast.Level.SUCCESS);
+        }
       } catch (e) {
-        $perAdminApp.toast(`Some translations failed during bulk operation.`, Toast.Level.WARNING);
+        $perAdminApp.toast(`An unexpected error occurred during bulk operation.`, Toast.Level.WARNING);
       } finally {
+        this.reloadExplorer();
         await this.listTranslations();
         setTimeout(() => {
           this.resetBulkState();
