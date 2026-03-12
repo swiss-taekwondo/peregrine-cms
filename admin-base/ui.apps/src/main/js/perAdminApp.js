@@ -368,13 +368,14 @@ function processLoaders(loaders) {
  *
  */
 function loadContentImpl(initialPath, firstTime, fromPopState) {
-  exitWaitState();
+  enterWaitState();
   logger.fine('loading content for', initialPath);
   view.admin.consoleErrors = false;
 
   runBeforeStateActions('navigate').then((allowed) => {
     if (!allowed) {
       logger.fine('not allowed to switch state');
+      exitWaitState();
       return;
     }
 
@@ -478,12 +479,16 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
                     targetPath
                   );
                 }
+                exitWaitState();
+              } else {
+                exitWaitState();
               }
             });
           });
         })
         .catch(function(error) {
           logger.error('error getting %s %j', dataUrl, error);
+          exitWaitState();
         });
     });
   });
@@ -576,16 +581,20 @@ const waitStack = [];
 function enterWaitState() {
   waitStack.push('wait');
   setTimeout(function() {
-    if (waitStack.length > 0) {
-      document.getElementById('waitMask').style.display = 'inherit';
+    const mask = document.getElementById('waitMask');
+    if (mask && waitStack.length > 0) {
+      mask.style.display = 'inherit';
     }
   }, 100);
 }
 
 function exitWaitState() {
-  waitStack.pop();
-  if (waitStack.length === 0) {
-    document.getElementById('waitMask').style.display = 'none';
+  if (waitStack.length > 0) {
+    waitStack.pop();
+  }
+  const mask = document.getElementById('waitMask');
+  if (mask && waitStack.length === 0) {
+    mask.style.display = 'none';
   }
 }
 

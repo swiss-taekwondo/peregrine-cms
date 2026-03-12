@@ -200,11 +200,11 @@
             <i class="material-icons">publish</i>
             Publish to Web ({{nodeType}})
           </div>
-          <div v-if="nodeFromPath.activated" class="action" :title="`Deactivate ${nodeType}`">
+          <div v-if="nodeFromPath && nodeFromPath.activated" class="action" :title="`Deactivate ${nodeType}`">
             <admin-components-action :model="{
-                    target: node.path,
+                    target: node && node.path,
                     command: 'unPublishResource',
-                    tooltipTitle: `${$i18n('undo publish')} '${node.title || node.name}'`
+                    tooltipTitle: `${$i18n('undo publish')} '${node && (node.title || node.name)}'`
                 }">
               <i class="material-icons">remove_circle_outline</i>
               Unpublish ({{nodeType}})
@@ -262,7 +262,7 @@
 
       <admin-components-translationsmodal
         ref="translationsModal"
-        v-bind:path="this.node.path"
+        v-bind:path="node && node.path"
         v-bind:modalTitle="`Translations: ${nodeName}`">
       </admin-components-translationsmodal>
 
@@ -476,11 +476,13 @@ export default {
     },
     node() {
       if (this.nodeType === NodeType.OBJECT) {
+        if (!this.rawCurrentObject || !this.rawCurrentObject.data) return null;
         return this.rawCurrentObject.data
       }
       return this.nodeFromPath;
     },
     allowOperations() {
+      if (!this.currentObject) return false;
       return this.currentObject.split('/').length > 4;
     },
     allowMove() {
@@ -532,6 +534,7 @@ export default {
       return $perAdminApp.getView().state.versions ? $perAdminApp.getView().state.versions.has_versions : false
     },
     nodeName() {
+      if (!this.node) return '';
       let nodeName = this.node.name;
       if (this.nodeType === NodeType.OBJECT) {
         nodeName = this.node.path.split('/').slice(-1).pop()
@@ -711,7 +714,7 @@ export default {
       this.formGenerator.changes = []
     },
     onModelUpdate(newVal, schemaKey) {
-      if (this.edit) {
+      if (this.edit && this.formGenerator.original) {
         this.formGenerator.changes.push({
           key: schemaKey,
           oldVal: this.formGenerator.original[schemaKey],
