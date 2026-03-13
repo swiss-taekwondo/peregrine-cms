@@ -575,21 +575,7 @@ function enterWaitState() {
   waitStack.push('wait');
   setTimeout(function() {
     if (waitStack.length > 0) {
-      const waitMask = document.getElementById('waitMask');
-      const spinner = document.getElementById('waitMaskSpinner');
-      console.log('waitMask:', waitMask ? 'found' : 'null');
-      console.log('waitMask innerHTML:', waitMask ? waitMask.innerHTML : 'null');
-      console.log('spinner:', spinner ? 'found' : 'null');
-      if (waitMask) {
-        waitMask.style.display = 'inherit';
-        console.log('waitMask display set to inherit');
-      }
-      if (spinner) {
-        spinner.style.display = 'block';
-        console.log('spinner display set to block');
-      } else {
-        console.log('ERROR: spinner element not found!');
-      }
+      document.getElementById('waitMask').style.display = 'inherit';
     }
   }, 100);
 }
@@ -597,10 +583,7 @@ function enterWaitState() {
 function exitWaitState() {
   waitStack.pop();
   if (waitStack.length === 0) {
-    const waitMask = document.getElementById('waitMask');
-    const spinner = document.getElementById('waitMaskSpinner');
-    if (waitMask) waitMask.style.display = 'none';
-    if (spinner) spinner.style.display = 'none';
+    document.getElementById('waitMask').style.display = 'none';
   }
 }
 
