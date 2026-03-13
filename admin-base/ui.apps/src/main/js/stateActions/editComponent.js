@@ -75,10 +75,14 @@ function bringUpEditor(me, view, target) {
                     const path = view.state.editor.path;
                     const data = me.findNodeFromPath(page, path);
                     me.stateAction('savePageEdit', { pagePath: view.pageView.path, path, data}).then(() => {
+                        $perAdminApp.clearBeforeStateActions();
+                        $perAdminApp.clearBeforeUnloadHandler();
                         resolve(true);
                     });
                 },
                 no() {
+                    $perAdminApp.clearBeforeStateActions();
+                    $perAdminApp.clearBeforeUnloadHandler();
                     resolve(true);
                 },
                 keepEditing() {
