@@ -35,6 +35,7 @@ export default function(me, target) {
     $perAdminApp.clearBeforeUnloadHandler();
 
     let checksum = ''
+    let originalData = null
     set(me.getView(), '/state/tools/save/confirmed', false)
 
     const beforeUnloadHandler = function(e) {
@@ -97,7 +98,10 @@ export default function(me, target) {
                         });
                     },
                     no() {
-                        checksum = newChecksum;
+                        if (originalData !== null) {
+                            set(me.getView(), '/state/tools/object/data', deepClone(originalData));
+                        }
+                        checksum = JSON.stringify(originalData);
                         $perAdminApp.clearBeforeStateActions();
                         $perAdminApp.clearBeforeUnloadHandler();
                         resolve(true);
@@ -113,7 +117,9 @@ export default function(me, target) {
     let view = me.getView()
     set(me.getView(), `/state/tools/edit`, false)
     me.getApi().populateObject(target.selected, '/state/tools/object', 'data').then( () => {
-        checksum = JSON.stringify(me.getNodeFromView('/state/tools/object/data'))
+        const loadedData = me.getNodeFromView('/state/tools/object/data')
+        checksum = JSON.stringify(loadedData)
+        originalData = deepClone(loadedData)
         set(view, '/state/tools/object/show', target.selected)
         set(me.getView(), `/state/tools/edit`, true)
     })
