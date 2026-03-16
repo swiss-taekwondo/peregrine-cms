@@ -158,7 +158,16 @@ export default {
       if (!editorPath) {
         return this.openEditor(target)
       }
-      
+
+      const originalData = view.state.editor ? view.state.editor.originalData : null
+      const currentNode = originalData ? $perAdminApp.findNodeFromPath(view.pageView.page, editorPath) : null
+      if (!originalData || !currentNode || JSON.stringify(originalData) === JSON.stringify(currentNode)) {
+        return this.openEditor(target)
+      }
+
+      const contentview = me.$children.find(child => typeof child.wrapEditableAroundElement === 'function')
+      const savedPreviousTarget = contentview ? contentview.previousTarget : null
+
       return new Promise((resolve) => {
         $perAdminApp.askUser('Save Page Edit?', 'Would you like to save your page edits?', {
           defaultFocus: 'keepEditing',
@@ -179,6 +188,10 @@ export default {
             })
           },
           keepEditing: () => {
+            if (contentview && savedPreviousTarget) {
+              contentview.target = savedPreviousTarget
+              contentview.wrapEditableAroundElement(contentview.findComponentEl(savedPreviousTarget))
+            }
             resolve()
           }
         })
