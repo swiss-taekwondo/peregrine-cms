@@ -25,7 +25,8 @@
 <template>
     <div class="pathfield">
         <template v-for="(item, index) in pathSegments">
-            /&nbsp;<admin-components-action
+            /&nbsp;<strong class="pathfield_current" v-if="index === pathSegments.length - 1">{{ index === 0 ? $i18n(item.name) : item.name }}</strong><admin-components-action
+                v-else
                 v-bind:model="{
                     target: { path: item.path },
                     title: (index == 0)? $i18n(item.name) : item.name,
@@ -55,3 +56,9 @@
         }
     }
 </script>
+<style scoped>
+    .pathfield_current {
+        font-weight: bold;
+        cursor: default;
+    }
+</style>
