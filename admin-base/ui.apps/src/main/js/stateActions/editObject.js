@@ -55,7 +55,7 @@ export default function(me, target) {
     $perAdminApp.setBeforeUnloadHandler(beforeUnloadHandler);
 
     me.beforeStateAction((name) => {
-        if (name === 'saveObjectEdit' || name === 'selectObject' || name === 'unselectObject') {
+        if (name === 'saveObjectEdit') {
             return true;
         }
 
