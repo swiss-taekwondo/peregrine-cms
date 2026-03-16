@@ -89,11 +89,7 @@
       <admin-components-confirmdialog
         v-on:confirm-dialog="confirmDialog"
         submitText="Publish"
-        :submitOptions="[
-                      { text: 'Smart Publish', action: 'smart', desc: 'Default publishing behavior' },
-                      { text: 'Quick Publish', action: 'quick', desc: 'Publish without updating references' },
-                      { text: 'Preview Publish', action: 'preview', desc: 'Publish without going live' },
-                  ]" />
+        :submitOptions="this.advancedPublish" />
     </template>
   </admin-components-materializemodal>
 </template>
@@ -115,6 +111,13 @@ export default {
     };
   },
   computed: {
+    advancedPublish() {
+      return window?.localStorage?.PER_EXPERIMENTAL ? [
+        { text: 'Smart Publish', action: 'smart', desc: 'Default publishing behavior' },
+        { text: 'Quick Publish', action: 'quick', desc: 'Publish without updating references' },
+        { text: 'Preview Publish', action: 'preview', desc: 'Publish without going live' },
+      ] : [];
+    },
     pt() {
       var node = this.path;
       return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, node);
