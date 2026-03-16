@@ -13,6 +13,7 @@ import static com.peregrine.commons.util.PerConstants.*;
 
 public class PerReplicableImpl extends PerBaseImpl implements PerReplicable {
 
+    public static final String PER_TRANSLATED_AT = "per:TranslatedAt";
     private final ValueMap vm;
 
     public PerReplicableImpl(final Resource resource) {

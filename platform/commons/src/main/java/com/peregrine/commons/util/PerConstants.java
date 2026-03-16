@@ -48,10 +48,6 @@ public class PerConstants {
     public static final String ACTIVATED = "activated";
     public static final String DEACTIVATED = "deactivated";
     public static final String PUBLISHED_LABEL = "Published";
-    public static final String LANG_PREFIX = "lang_";
-    public static final String PER_TRANSLATE_REF = "per:TranslateRef";
-    public static final String PER_TRANSLATED_AT = "per:TranslatedAt";
-    public static final String PER_TRANSLATED_BY = "per:TranslatedBy";
 
     public static final String SLING_SERVLET_DEFAULT = "sling/servlet/default";
 

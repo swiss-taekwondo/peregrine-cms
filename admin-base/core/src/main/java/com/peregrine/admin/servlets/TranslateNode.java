@@ -54,6 +54,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_TRANSLATE;
+import static com.peregrine.admin.util.AdminConstants.*;
 import static com.peregrine.commons.ResourceUtils.isPropertyAllowedOnExistingNode;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.*;

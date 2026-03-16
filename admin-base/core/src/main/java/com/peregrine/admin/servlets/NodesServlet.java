@@ -27,6 +27,8 @@ package com.peregrine.admin.servlets;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_NODES;
 import static com.peregrine.admin.servlets.ReferenceServletUtils.IS_STALE;
+import static com.peregrine.admin.util.AdminConstants.PER_TRANSLATED_AT;
+import static com.peregrine.admin.util.AdminConstants.PER_TRANSLATED_BY;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.EQUALS;
 import static com.peregrine.commons.util.PerUtil.GET;
