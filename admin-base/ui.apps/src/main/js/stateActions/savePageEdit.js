@@ -37,6 +37,8 @@ export default function(me, target) {
         me.getApi().savePageEdit(view.pageView.path, target.data).then( () => {
             delete view.state.editor;
             set(view, '/state/editorVisible', false)
+            $perAdminApp.clearBeforeStateActions();
+            $perAdminApp.clearBeforeUnloadHandler();
             if(view.pageView.page.serverSide) {
                 me.action(me.getApp().$children[0], 'refreshEditor', view.pageView.page)
                 resolve()

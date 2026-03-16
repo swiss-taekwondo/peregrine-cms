@@ -37,6 +37,8 @@ export default function(me, target) {
                 let view = me.getView()
                 delete view.state.editor;
                 set(view, '/state/editorVisible', false)
+                $perAdminApp.clearBeforeStateActions();
+                $perAdminApp.clearBeforeUnloadHandler();
                 resolve()
             })
         })

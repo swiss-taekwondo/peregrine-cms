@@ -97,7 +97,7 @@
 </template>
 
 <script>
-import {set} from '../../../../../../js/utils'
+import {set, jsonEqualizer} from '../../../../../../js/utils'
 
 
 export default {
@@ -148,18 +148,60 @@ export default {
     },
 
     showComponentEdit(me, target) {
-
-      set($perAdminApp.getView(), `/state/editorVisible`, false)
-      // only trigger state action if another component is selected
-      if ($perAdminApp.getNodeFromView('/state/editor/path') !== target) {
-        return $perAdminApp.stateAction('editComponent', target).then(() => {
-          set($perAdminApp.getView(), `/state/editorVisible`, true)
-        })
-      } else {
-        return new Promise((resolve) => {
-          resolve()
-        })
+      const view = $perAdminApp.getView()
+      const editorPath = view.state.editor ? view.state.editor.path : null
+      
+      if (editorPath && editorPath === target) {
+        return this.openEditor(target)
       }
+      
+      if (!editorPath) {
+        return this.openEditor(target)
+      }
+
+      const originalData = view.state.editor ? view.state.editor.originalData : null
+      const currentNode = originalData ? $perAdminApp.findNodeFromPath(view.pageView.page, editorPath) : null
+      if (!originalData || !currentNode || JSON.stringify(originalData) === JSON.stringify(currentNode)) {
+        return this.openEditor(target)
+      }
+
+      const contentview = me.$children.find(child => typeof child.wrapEditableAroundElement === 'function')
+      const savedPreviousTarget = contentview ? contentview.previousTarget : null
+
+      return new Promise((resolve) => {
+        $perAdminApp.askUser('Save Page Edit?', 'Would you like to save your page edits?', {
+          defaultFocus: 'keepEditing',
+          yesText: 'Save',
+          noText: 'Discard Changes',
+          keepEditingText: 'Keep Editing',
+          yes: () => {
+            const page = view.pageView.page
+            const path = view.state.editor.path
+            const data = $perAdminApp.findNodeFromPath(page, path)
+            $perAdminApp.stateAction('savePageEdit', { pagePath: view.pageView.path, path, data}).then(() => {
+              this.openEditor(target).then(resolve)
+            })
+          },
+          no: () => {
+            $perAdminApp.getApi().populatePageView(view.pageView.path).then(() => {
+              this.openEditor(target).then(resolve)
+            })
+          },
+          keepEditing: () => {
+            if (contentview && savedPreviousTarget) {
+              contentview.target = savedPreviousTarget
+              contentview.wrapEditableAroundElement(contentview.findComponentEl(savedPreviousTarget))
+            }
+            resolve()
+          }
+        })
+      })
+    },
+    
+    openEditor(target) {
+      return $perAdminApp.stateAction('editComponent', target).then(() => {
+        set($perAdminApp.getView(), `/state/editorVisible`, true)
+      })
     },
 
     onEditorEnterFullscreen() {

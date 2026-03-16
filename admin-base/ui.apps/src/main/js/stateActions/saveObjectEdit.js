@@ -30,7 +30,8 @@ export default function(me, target) {
 
     log.fine(target)
 
-    set(me.getView(), '/state/tools/save/confirmed', false)
+    set(me.getView(), '/state/tools/save/confirmed', true)
+    $perAdminApp.clearBeforeUnloadHandler()
     return new Promise( (resolve, reject) => {
         me.getApi().saveObjectEdit(target.path, target.data, target.schema).then( () => {
             resolve()
