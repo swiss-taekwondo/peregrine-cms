@@ -267,6 +267,7 @@
       </template>
 
       <admin-components-translationsmodal
+        v-if="this.node && this.node.path"
         ref="translationsModal"
         v-bind:path="this.node.path"
         v-bind:modalTitle="`Translations: ${nodeName}`">
@@ -570,12 +571,12 @@ export default {
       }
     },
     selfOrAnyDescendantActivated() {
-      const node = this.node;
+      const node = this.nodeFromPath;
       if (!node) {
         console.warn('selfOrAnyDescendantActivated() failed')
         return
       }
-      return node.activated || node.selfOrAnyDescendantActivated;
+      return node.activated || node.anyDescendantActivated;
     },
     classForActionDisabledOnActivatedResource() {
       return this.selfOrAnyDescendantActivated ? 'action operationDisabledOnActivatedItem' : 'action';
@@ -815,10 +816,19 @@ export default {
     },
 
     checkActivationStatusAndPerform(action) {
-      if (this.selfOrAnyDescendantActivated) {
-        $perAdminApp.toast("You cannot perform this operation yet. The resource or one of its children is still published." +
-                    " Please unpublish all of them first.", "warn", 5000);
-      } else {
+      if (this.nodeFromPath.activated) {
+        $perAdminApp.toast("The resource is still published. Please unpublish it first.", "warn", 5000);
+      } else if (this.nodeFromPath.anyDescendantActivated) {
+        $perAdminApp.toast("One of the children of this resource is still published. Please unpublish all of them first.", "warn", 5000);
+      } else if (this.nodeFromPath.isReferenced) {
+        $perAdminApp.askUser('Warning', "Deleting may break references. Would you like to continue ?", {
+          yesText: 'Yes',
+          yes: function yes() {
+            action();
+          }
+        });
+      }
+      else {
         action();
       }
     },
@@ -863,8 +873,11 @@ export default {
           $perAdminApp.stateAction(`unselect${me.uNodeType}`, {})
         }).then(() => {
           const path = $perAdminApp.getNodeFromView('/state/tools/pages')
-          $perAdminApp.loadContent(
+          if (path) {
+            $perAdminApp.loadContent(
               '/content/admin/pages/pages.html/path' + SUFFIX_PARAM_SEPARATOR + path)
+          }
+
           me.isOpen = false
         })
       });
@@ -933,9 +946,9 @@ export default {
           resourceType: this.node.resourceType,
           mimeType: this.node.mimeType,
         }).then(() => {
-          // dumb hack to make copy source render properly.
-          // Assets lose their resourceType and mimeType after being copied in explorer children array but it still exists
-          setTimeout(() => { $perAdminApp.getApi().populateNodesForBrowser(this.path.selected) }, 100);
+          setTimeout(() => {
+            $perAdminApp.loadContent(`/content/admin/pages/${this.nodeType}s.html/path${SUFFIX_PARAM_SEPARATOR}${this.path.selected}`, false);
+          }, 100);
         });
       }
       this.isCopyOpen = false;
@@ -1005,7 +1018,7 @@ export default {
         }
       }
       set($perAdminApp.getView(), '/state/tools/save/confirmed', true)
-      
+
       const result = $perAdminApp.stateAction('saveObjectEdit', {data: data, path: show, schema: this.getSchemaByActiveTab()}).then(() => {
         $perAdminApp.getNodeFromView('/state/tools')._deleted = {}
       });
