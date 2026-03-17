@@ -200,7 +200,9 @@ export default {
       pingDebouncer: {
         id: null,
         timeout: 150
-      }
+      },
+      undoStack: [],
+      redoStack: []
     }
   },
   computed: {
@@ -411,9 +413,11 @@ export default {
         set($perAdminApp.getView(), '/state/contentview/editor/active', false)
       }
     })
+    window.addEventListener('keydown', this.onUndoKeyDown)
   },
   beforeDestroy() {
     set($perAdminApp.getView(), '/state/contentview/editor/active', false)
+    window.removeEventListener('keydown', this.onUndoKeyDown)
   },
   methods: {
     componentKey(component) {
@@ -1014,6 +1018,7 @@ export default {
       this.iframe.doc.addEventListener('dragover', this.onIframeDragOver)
       this.iframe.doc.addEventListener('drop', this.onIframeDrop)
       this.iframe.doc.addEventListener('mouseover', this.onIframeMouseOver)
+      this.iframe.win.addEventListener('keydown', this.onUndoKeyDown)
       this.iframe.html.classList.add('edit-mode')
       const elements = this.iframe.app.querySelectorAll(`[${Attribute.INLINE}]`)
       elements.forEach((el, index) => {
@@ -1030,6 +1035,7 @@ export default {
         this.iframe.doc.removeEventListener('click', this.onIframeClick)
         this.iframe.doc.removeEventListener('scroll', this.onIframeScroll)
         this.iframe.doc.removeEventListener('mouseover', this.onIframeScroll)
+        this.iframe.win.removeEventListener('keydown', this.onUndoKeyDown)
       } catch (err) {
         console.debug('no event listener to be removed from iframe', err)
       }
@@ -1216,27 +1222,185 @@ export default {
       this.editable.class = 'draggable'
     },
 
-    onDelete(e) {
+    async onDelete(e) {
       const view = this.view
       const payload = {
         pagePath: view.pageView.path,
         path: this.path
       }
       const vm = this
+
+      let undoEntry = null
+      if (payload.path !== '/jcr:content') {
+        try {
+          const jcrPath = view.pageView.path + payload.path
+          const response = await fetch(jcrPath + '.infinity.json')
+          const jcrData = await response.json()
+          const nodeData = vm.jcrToInsertData(jcrData, payload.path)
+
+          let dropPath = null
+          let drop = 'into'
+          const el = vm.iframe.app.querySelector(`[${Attribute.PATH}="${payload.path}"]`)
+          if (el) {
+            let sibling = el.nextElementSibling
+            while (sibling) {
+              if (sibling.hasAttribute(Attribute.PATH)) {
+                dropPath = sibling.getAttribute(Attribute.PATH)
+                drop = 'before'
+                break
+              }
+              sibling = sibling.nextElementSibling
+            }
+            if (!dropPath) {
+              sibling = el.previousElementSibling
+              while (sibling) {
+                if (sibling.hasAttribute(Attribute.PATH)) {
+                  dropPath = sibling.getAttribute(Attribute.PATH)
+                  drop = 'after'
+                  break
+                }
+                sibling = sibling.previousElementSibling
+              }
+            }
+            if (!dropPath) {
+              const parentEl = el.parentElement ? el.parentElement.closest(`[${Attribute.DROPTARGET}]`) : null
+              if (parentEl) {
+                dropPath = parentEl.getAttribute(Attribute.PATH) || parentEl.getAttribute(Attribute.DROPTARGET)
+              }
+              if (!dropPath) {
+                dropPath = payload.path.substring(0, payload.path.lastIndexOf('/'))
+              }
+              drop = 'into'
+            }
+          } else {
+            dropPath = payload.path.substring(0, payload.path.lastIndexOf('/'))
+            drop = 'into'
+          }
+          undoEntry = { pagePath: payload.pagePath, dropPath, drop, data: nodeData }
+        } catch (err) {
+          console.warn('Failed to capture undo data for deletion', err)
+        }
+      }
+
       $perAdminApp.askUser('Delete Component?', 'Are you sure you want to delete the component?', {
         yesText: 'Yes',
         noText: 'No',
         yes() {
           if (payload.path !== '/jcr:content') {
+            if (undoEntry) {
+              vm.undoStack.push(undoEntry)
+              vm.redoStack = []
+            }
             $perAdminApp.stateAction('deletePageNode', payload).then((data) => {
               vm.cleanUpAfterDelete(payload.path)
               vm.refreshIframeElements()
             })
           }
-          vm.unselect(vm) 
+          vm.unselect(vm)
         },
         no() {},
       })
+    },
+
+    jcrToInsertData(jcrNode, path) {
+      const IGNORED_KEYS = new Set([
+        'jcr:primaryType', 'jcr:uuid', 'jcr:created', 'jcr:createdBy',
+        'jcr:baseVersion', 'jcr:isCheckedOut', 'jcr:predecessors',
+        'jcr:versionHistory', 'per:Replicated', 'per:ReplicatedBy',
+        'per:ReplicationLastAction', 'per:ReplicationRef', 'per:ReplicationStatus',
+      ])
+      const result = { path }
+      const children = []
+      for (const [key, value] of Object.entries(jcrNode)) {
+        if (IGNORED_KEYS.has(key)) continue
+        if (key === 'sling:resourceType') {
+          result.component = value
+        } else if (value !== null && typeof value === 'object' && !Array.isArray(value) && value['jcr:primaryType']) {
+          children.push(this.jcrToInsertData(value, path + '/' + key))
+        } else {
+          result[key] = value
+        }
+      }
+      if (children.length > 0) result.children = children
+      return result
+    },
+
+    onUndoKeyDown(event) {
+      const key = event.which || event.keyCode
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+      if (!ctrlOrCmd) return
+      const isUndo = key === Key.Z && !event.shiftKey
+      const isRedo = key === Key.Y || (key === Key.Z && event.shiftKey)
+      if (!isUndo && !isRedo) return
+      if (this.inline !== null) return
+      if (isUndo && this.undoStack.length === 0) return
+      if (isRedo && this.redoStack.length === 0) return
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (isUndo) {
+        const undoItem = this.undoStack.pop()
+        const vm = this
+        const api = $perAdminApp.getApi()
+        api.insertNodeWithDataAt(undoItem.pagePath + undoItem.dropPath, undoItem.data, undoItem.drop)
+          .then(() => api.populatePageView(undoItem.pagePath))
+          .then(() => {
+            if (vm.$refs.editview) {
+              const editview = vm.$refs.editview
+              const onLoad = () => {
+                editview.removeEventListener('load', onLoad)
+                const newPath = vm.findRestoredPath(editview.contentDocument, undoItem)
+                if (newPath) {
+                  vm.redoStack.push({ pagePath: undoItem.pagePath, path: newPath, undoItem })
+                }
+              }
+              editview.addEventListener('load', onLoad)
+              editview.contentWindow.location.reload()
+            }
+          })
+      } else {
+        const redoItem = this.redoStack.pop()
+        const vm = this
+        $perAdminApp.stateAction('deletePageNode', { pagePath: redoItem.pagePath, path: redoItem.path })
+          .then(() => {
+            vm.undoStack.push(redoItem.undoItem)
+            if (vm.$refs.editview) {
+              vm.$refs.editview.contentWindow.location.reload()
+            }
+          })
+      }
+    },
+
+    findRestoredPath(doc, undoItem) {
+      const { dropPath, drop } = undoItem
+      if (drop === 'before') {
+        const refEl = doc.querySelector(`[${Attribute.PATH}="${dropPath}"]`)
+        if (refEl) {
+          let sibling = refEl.previousElementSibling
+          while (sibling) {
+            if (sibling.hasAttribute(Attribute.PATH)) return sibling.getAttribute(Attribute.PATH)
+            sibling = sibling.previousElementSibling
+          }
+        }
+      } else if (drop === 'after') {
+        const refEl = doc.querySelector(`[${Attribute.PATH}="${dropPath}"]`)
+        if (refEl) {
+          let sibling = refEl.nextElementSibling
+          while (sibling) {
+            if (sibling.hasAttribute(Attribute.PATH)) return sibling.getAttribute(Attribute.PATH)
+            sibling = sibling.nextElementSibling
+          }
+        }
+      } else {
+        const segments = dropPath.split('/').filter(Boolean).length
+        const directChildren = Array.from(doc.querySelectorAll(`[${Attribute.PATH}]`))
+          .filter(el => {
+            const p = el.getAttribute(Attribute.PATH)
+            return p.startsWith(dropPath + '/') && p.split('/').filter(Boolean).length === segments + 1
+          })
+        if (directChildren.length > 0) return directChildren[directChildren.length - 1].getAttribute(Attribute.PATH)
+      }
+      return null
     },
 
     cleanUpAfterDelete(path) {

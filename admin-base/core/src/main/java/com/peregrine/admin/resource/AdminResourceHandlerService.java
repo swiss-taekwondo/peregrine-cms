@@ -1141,14 +1141,17 @@ public class AdminResourceHandlerService
             if (value instanceof String) {
                 node.setProperty(key, (String) value);
             } else if (value instanceof List) {
-                final Node child;
-                if (node.hasNode(key)) {
-                    child = node.getNode(key);
+                if ("children".equals(key)) {
+                    applyChildrenProperties(node, (List) value);
                 } else {
-                    child = node.addNode(key);
+                    final Node child;
+                    if (node.hasNode(key)) {
+                        child = node.getNode(key);
+                    } else {
+                        child = node.addNode(key);
+                    }
+                    applyChildrenProperties(child, (List) value);
                 }
-
-                applyChildrenProperties(child, (List) value);
             }
         }
     }
@@ -1192,7 +1195,15 @@ public class AdminResourceHandlerService
                 newNode.setProperty(SLING_RESOURCE_TYPE, componentName);
                 logger.trace("Copy Props from Component Variation, component name: '{}'", componentName);
                 copyPropertiesFromComponentVariation(newNode, APPS_ROOT + SLASH + componentName, null);
+            } else {
+                // Source node not found (e.g. it was deleted) — set sling:resourceType from the component property in the data
+                final String componentName = getPropsFromMap(properties, COMPONENT, null);
+                if (isNotEmpty(componentName)) {
+                    newNode.setProperty(SLING_RESOURCE_TYPE, componentName);
+                }
             }
+            properties.remove(COMPONENT);
+            properties.remove(PATH);
 
             logger.trace("Apply Properties to node: '{}', props: '{}'", newNode, properties);
             applyProperties(newNode, properties);
