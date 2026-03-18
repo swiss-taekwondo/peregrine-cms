@@ -1316,7 +1316,7 @@ class PerAdminImpl {
             clearInterval(noticeFunction)
             $perAdminApp.notifyUser('Errors',
                 `were encountered when ${deactivate ? 'un'
-                    : ''}publishing ${data.sourcePath}. Please check with your admin.`)
+                    : ''}publishing ${path}. Please check with your admin.`)
             if (error.response && error.response.data
                 && error.response.data.message) {
               reject(error.response.data.message)
