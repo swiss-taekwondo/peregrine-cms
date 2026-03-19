@@ -325,6 +325,9 @@ export default {
             }
         },
 
+        mounted() {
+            console.log('explorer mounted', this.path, this.model, this.pt)
+        },
         computed: {
             showNavigateToParent() {
                 return this.path.split('/').length > 4

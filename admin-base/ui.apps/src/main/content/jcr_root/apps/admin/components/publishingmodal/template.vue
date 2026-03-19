@@ -107,7 +107,8 @@ export default {
   data() {
     return {
       "referencedBy": [],
-      "children": []
+      "children": [],
+      nodes: null,
     };
   },
   computed: {
@@ -124,7 +125,7 @@ export default {
     },
     references() {
       return $perAdminApp.getView().state.references;
-    }
+    },
   },
   mixins: [ReferenceUtil],
   methods: {
@@ -145,12 +146,16 @@ export default {
         return "None";
       }
     },
-    confirmDialog($event) {
+    async confirmDialog($event) {
       if ($event === "cancel") {
         this.close();
         return;
       }
+      await this.nodes
+      
+      console.log('confirm publish', $event, this.path, this.model, this.pt, this.nodes)
 
+      debugger
       // Check if it's one of our valid publish events
       if (["smart", "preview", "quick", "confirm"].includes($event)) {
         const target = {
@@ -241,7 +246,43 @@ export default {
         }
       })
       .then(() => this.$refs.materializemodal.open());
+    
+    // biome-ignore lint: noAsyncPromiseExecutor
+    me.nodes = (async (resolve) => {
+      try {
+        const tenantName = $perAdminApp.getView().state.tenant.name;
+        if (!tenantName) throw new Error("Could not determine tenant name.");
+        const tenantRes = await fetch(`/content/${tenantName}.json`);
+        if (!tenantRes.ok) throw new Error(`Failed to fetch tenant configuration for ${tenantName}`);
+        const tenantConfig = await tenantRes.json();
+        const sourceSite = tenantConfig.sourceSite ?? tenantName;
+        const modelRes = await fetch(`/apps/${sourceSite}/i18n/model.json`);
+        if (!modelRes.ok) throw new Error(`Failed to fetch translation model from /apps/${sourceSite}/i18n/model.json`);
+        const translationModel = await modelRes.json();
+        const pageRes = await fetch(`${this.path}.json`);
+        if(pageRes.ok) {
+          const pageJson = await pageRes.json();
+          if (pageJson['jcr:lastModified']) {
+            this.rawPageLastModified = new Date(pageJson['jcr:lastModified']);
+            this.pageLastModified = this.rawPageLastModified.toLocaleString();
+          }
+        }
 
+        const formData = new FormData();
+        formData.append('model', new Blob([JSON.stringify(translationModel)], {type: 'application/json; charset=utf-8'}));
+        const response = await fetch(`/perapi/admin/listTranslations.json${this.path}`, {
+          body: formData,
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
+        const data = await response.json();
+        console.log('this.nodes', data.nodes) 
+        return data.nodes || [];
+      } catch (e) {
+        console.error("Failed to get nodes for translations check", e)
+        return [];
+      }
+    })();
   }
 };
 </script>

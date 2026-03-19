@@ -196,6 +196,7 @@ export default {
   },
   methods: {
     open() {
+      console.log('open translations modal', this.path, this.model, this.pt)
       this.$refs.materializemodal.open();
       if (this.path) {
         this.listTranslations();
@@ -393,6 +394,7 @@ export default {
         if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
         const data = await response.json();
         this.nodes = data.nodes || [];
+       console.log('this.nodes', this.nodes) 
       } catch (e) {
         this.error = e.toString();
         // If error occurs, we might want to clear nodes so the error is visible and not confusing
