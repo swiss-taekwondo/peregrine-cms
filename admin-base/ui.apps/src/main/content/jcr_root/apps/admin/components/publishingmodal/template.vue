@@ -25,6 +25,7 @@
 
 
 <template>
+<div>
   <admin-components-materializemodal
     ref="materializemodal"
     class="publishing-modal"
@@ -92,6 +93,14 @@
         :submitOptions="this.advancedPublish" />
     </template>
   </admin-components-materializemodal>
+
+  <admin-components-translationsmodal
+    v-if="path"
+    ref="translationsModal"
+    v-bind:path="path"
+    v-bind:modalTitle="`Translations: ${nodeName}`"
+  />
+</div>
 </template>
 
 <script>
@@ -108,7 +117,6 @@ export default {
     return {
       "referencedBy": [],
       "children": [],
-      nodes: null,
     };
   },
   computed: {
@@ -125,6 +133,14 @@ export default {
     },
     references() {
       return $perAdminApp.getView().state.references;
+    },
+    nodeName() {
+      if (!this.node) return '';
+      let nodeName = this.node.name;
+      if (this.nodeType === NodeType.OBJECT) {
+        nodeName = this.node.path.split('/').slice(-1).pop()
+      }
+      return nodeName
     },
   },
   mixins: [ReferenceUtil],
@@ -151,9 +167,40 @@ export default {
         this.close();
         return;
       }
-      await this.nodes
+      // trigger loading translations
+      const translationsModal = this.$refs.translationsModal;
+      await translationsModal.listTranslations()
+      const nodesWithTranslatableProperties = translationsModal.nodes.map(node => ({...node, $translatableProperties: translationsModal.getTranslatableProperties(node)}))
+      let missingTranslations = false;
+      for (const node of nodesWithTranslatableProperties) {
+        for (const translatablePropertyKey of Object.keys(node.$translatableProperties)) {
+          for (const lang of translationsModal.languages) {
+            if (!node?.translations?.[lang]?.[translatablePropertyKey]) {
+              missingTranslations = true;
+              break;
+            }
+          }
+        }
+      }
       
-      console.log('confirm publish', $event, this.path, this.model, this.pt, this.nodes)
+      console.log('confirm publish', $event, this.path, this.model, this.pt, this.$refs.translationsModal.nodes)
+      if (missingTranslations) {
+        const userWantsToOpenTranslations = await new Promise((resolve) => {
+          $perAdminApp.askUser('Missing Translations', 'The node you are about to publish is missing translations. Would you like to open the translations?', {
+            yesText: 'Open Translations',
+            noText: 'Continue without translating',
+            yes() {
+              translationsModal.open()
+              resolve(true)
+            },
+            no() {
+              resolve(false)
+            },
+          })
+        })
+        
+        if (userWantsToOpenTranslations) return
+      }
 
       debugger
       // Check if it's one of our valid publish events
@@ -246,43 +293,6 @@ export default {
         }
       })
       .then(() => this.$refs.materializemodal.open());
-    
-    // biome-ignore lint: noAsyncPromiseExecutor
-    me.nodes = (async (resolve) => {
-      try {
-        const tenantName = $perAdminApp.getView().state.tenant.name;
-        if (!tenantName) throw new Error("Could not determine tenant name.");
-        const tenantRes = await fetch(`/content/${tenantName}.json`);
-        if (!tenantRes.ok) throw new Error(`Failed to fetch tenant configuration for ${tenantName}`);
-        const tenantConfig = await tenantRes.json();
-        const sourceSite = tenantConfig.sourceSite ?? tenantName;
-        const modelRes = await fetch(`/apps/${sourceSite}/i18n/model.json`);
-        if (!modelRes.ok) throw new Error(`Failed to fetch translation model from /apps/${sourceSite}/i18n/model.json`);
-        const translationModel = await modelRes.json();
-        const pageRes = await fetch(`${this.path}.json`);
-        if(pageRes.ok) {
-          const pageJson = await pageRes.json();
-          if (pageJson['jcr:lastModified']) {
-            this.rawPageLastModified = new Date(pageJson['jcr:lastModified']);
-            this.pageLastModified = this.rawPageLastModified.toLocaleString();
-          }
-        }
-
-        const formData = new FormData();
-        formData.append('model', new Blob([JSON.stringify(translationModel)], {type: 'application/json; charset=utf-8'}));
-        const response = await fetch(`/perapi/admin/listTranslations.json${this.path}`, {
-          body: formData,
-          method: 'POST'
-        });
-        if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
-        const data = await response.json();
-        console.log('this.nodes', data.nodes) 
-        return data.nodes || [];
-      } catch (e) {
-        console.error("Failed to get nodes for translations check", e)
-        return [];
-      }
-    })();
   }
 };
 </script>

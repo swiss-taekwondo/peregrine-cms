@@ -394,7 +394,7 @@ export default {
         if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
         const data = await response.json();
         this.nodes = data.nodes || [];
-       console.log('this.nodes', this.nodes) 
+       console.log('list-translations:translationsmodal', this.path, this.nodes) 
       } catch (e) {
         this.error = e.toString();
         // If error occurs, we might want to clear nodes so the error is visible and not confusing
