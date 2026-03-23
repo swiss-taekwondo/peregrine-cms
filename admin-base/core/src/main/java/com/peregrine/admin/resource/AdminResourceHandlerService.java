@@ -1189,7 +1189,7 @@ public class AdminResourceHandlerService
         if (isNull(target)) {
             final String path = getPropsFromMap(properties, PATH, EMPTY);
             final Node sourceNode = findSourceByPath(parent, path.split(SLASH));
-            final Node newNode = addNewNode(parent);
+            final Node newNode = isNotBlank(name) ? parent.addNode(name, NT_UNSTRUCTURED) : addNewNode(parent);
             if (nonNull(sourceNode) && sourceNode.hasProperty(SLING_RESOURCE_TYPE)) {
                 String componentName = sourceNode.getProperty(SLING_RESOURCE_TYPE).getString();
                 newNode.setProperty(SLING_RESOURCE_TYPE, componentName);

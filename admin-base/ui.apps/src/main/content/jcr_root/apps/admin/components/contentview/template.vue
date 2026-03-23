@@ -201,8 +201,8 @@ export default {
         id: null,
         timeout: 150
       },
-      undoStack: [],
-      redoStack: []
+      undoItem: null,
+      redoItem: null
     }
   },
   computed: {
@@ -414,10 +414,13 @@ export default {
       }
     })
     window.addEventListener('keydown', this.onUndoKeyDown)
+    this._onComponentDeleted = (e) => this.showDeleteToast(e.detail)
+    window.addEventListener('per:component-deleted', this._onComponentDeleted)
   },
   beforeDestroy() {
     set($perAdminApp.getView(), '/state/contentview/editor/active', false)
     window.removeEventListener('keydown', this.onUndoKeyDown)
+    window.removeEventListener('per:component-deleted', this._onComponentDeleted)
   },
   methods: {
     componentKey(component) {
@@ -1244,7 +1247,7 @@ export default {
           if (el) {
             let sibling = el.nextElementSibling
             while (sibling) {
-              if (sibling.hasAttribute(Attribute.PATH)) {
+              if (sibling.hasAttribute(Attribute.PATH) && !sibling.hasAttribute(Attribute.DROPTARGET)) {
                 dropPath = sibling.getAttribute(Attribute.PATH)
                 drop = 'before'
                 break
@@ -1254,7 +1257,7 @@ export default {
             if (!dropPath) {
               sibling = el.previousElementSibling
               while (sibling) {
-                if (sibling.hasAttribute(Attribute.PATH)) {
+                if (sibling.hasAttribute(Attribute.PATH) && !sibling.hasAttribute(Attribute.DROPTARGET)) {
                   dropPath = sibling.getAttribute(Attribute.PATH)
                   drop = 'after'
                   break
@@ -1287,19 +1290,36 @@ export default {
         noText: 'No',
         yes() {
           if (payload.path !== '/jcr:content') {
-            if (undoEntry) {
-              vm.undoStack.push(undoEntry)
-              vm.redoStack = []
-            }
             $perAdminApp.stateAction('deletePageNode', payload).then((data) => {
               vm.cleanUpAfterDelete(payload.path)
               vm.refreshIframeElements()
+              if (undoEntry) {
+                vm.showDeleteToast(undoEntry)
+              }
             })
           }
           vm.unselect(vm)
         },
         no() {},
       })
+    },
+
+    showDeleteToast(undoEntry) {
+      const vm = this
+      vm.undoItem = undoEntry
+      vm.redoItem = null
+      const toastObj = $perAdminApp.toast(
+        `<span style="flex: 1;">Component deleted.</span><a class="btn per-undo-btn" style="white-space: nowrap; margin-left: 16px;">Undo</a>`,
+        'delete'
+      )
+      const undoBtn = toastObj.el.querySelector('.per-undo-btn')
+      if (undoBtn) {
+        undoBtn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          vm.performUndo()
+          toastObj.remove()
+        })
+      }
     },
 
     jcrToInsertData(jcrNode, path) {
@@ -1325,6 +1345,44 @@ export default {
       return result
     },
 
+    performUndo() {
+      if (!this.undoItem) return
+      const undoItem = this.undoItem
+      this.undoItem = null
+      const vm = this
+      const api = $perAdminApp.getApi()
+      api.insertNodeWithDataAt(undoItem.pagePath + undoItem.dropPath, undoItem.data, undoItem.drop)
+        .then(() => api.populatePageView(undoItem.pagePath))
+        .then(() => {
+          if (vm.$refs.editview) {
+            const editview = vm.$refs.editview
+            const onLoad = () => {
+              editview.removeEventListener('load', onLoad)
+              const newPath = vm.findRestoredPath(editview.contentDocument, undoItem)
+              if (newPath) {
+                vm.redoItem = { pagePath: undoItem.pagePath, path: newPath, undoItem }
+              }
+            }
+            editview.addEventListener('load', onLoad)
+            editview.contentWindow.location.reload()
+          }
+        })
+    },
+
+    performRedo() {
+      if (!this.redoItem) return
+      const redoItem = this.redoItem
+      this.redoItem = null
+      const vm = this
+      $perAdminApp.stateAction('deletePageNode', { pagePath: redoItem.pagePath, path: redoItem.path })
+        .then(() => {
+          vm.undoItem = redoItem.undoItem
+          if (vm.$refs.editview) {
+            vm.$refs.editview.contentWindow.location.reload()
+          }
+        })
+    },
+
     onUndoKeyDown(event) {
       const key = event.which || event.keyCode
       const ctrlOrCmd = event.ctrlKey || event.metaKey
@@ -1332,42 +1390,22 @@ export default {
       const isUndo = key === Key.Z && !event.shiftKey
       const isRedo = key === Key.Y || (key === Key.Z && event.shiftKey)
       if (!isUndo && !isRedo) return
-      if (this.inline !== null) return
-      if (isUndo && this.undoStack.length === 0) return
-      if (isRedo && this.redoStack.length === 0) return
+      if (this.inline !== null) {
+        const inlineHasFocus = this.iframe.doc &&
+          this.iframe.doc.activeElement &&
+          this.iframe.doc.activeElement.hasAttribute('data-per-inline')
+        if (inlineHasFocus) return
+        this.flushInlineState()
+      }
+      if (isUndo && !this.undoItem) return
+      if (isRedo && !this.redoItem) return
       event.preventDefault()
       event.stopPropagation()
 
       if (isUndo) {
-        const undoItem = this.undoStack.pop()
-        const vm = this
-        const api = $perAdminApp.getApi()
-        api.insertNodeWithDataAt(undoItem.pagePath + undoItem.dropPath, undoItem.data, undoItem.drop)
-          .then(() => api.populatePageView(undoItem.pagePath))
-          .then(() => {
-            if (vm.$refs.editview) {
-              const editview = vm.$refs.editview
-              const onLoad = () => {
-                editview.removeEventListener('load', onLoad)
-                const newPath = vm.findRestoredPath(editview.contentDocument, undoItem)
-                if (newPath) {
-                  vm.redoStack.push({ pagePath: undoItem.pagePath, path: newPath, undoItem })
-                }
-              }
-              editview.addEventListener('load', onLoad)
-              editview.contentWindow.location.reload()
-            }
-          })
+        this.performUndo()
       } else {
-        const redoItem = this.redoStack.pop()
-        const vm = this
-        $perAdminApp.stateAction('deletePageNode', { pagePath: redoItem.pagePath, path: redoItem.path })
-          .then(() => {
-            vm.undoStack.push(redoItem.undoItem)
-            if (vm.$refs.editview) {
-              vm.$refs.editview.contentWindow.location.reload()
-            }
-          })
+        this.performRedo()
       }
     },
 
