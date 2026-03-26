@@ -196,6 +196,7 @@ export default {
         templateComponent: null,
         missingEventPath: null,
         invalidDrop: null,
+        showDeleteToast: null,
       },
       pingDebouncer: {
         id: null,
@@ -388,6 +389,11 @@ export default {
       }
     },
     'toast.missingEventPath'(val, old) {
+      if (old) {
+        old.remove()
+      }
+    },
+    'toast.showDeleteToast'(val, old) {
       if (old) {
         old.remove()
       }
@@ -1312,6 +1318,7 @@ export default {
         `<span style="flex: 1;">Component deleted.</span><a class="btn per-undo-btn" style="white-space: nowrap; margin-left: 16px;">Undo</a>`,
         'delete'
       )
+      vm.toast.showDeleteToast = toastObj
       const undoBtn = toastObj.el.querySelector('.per-undo-btn')
       if (undoBtn) {
         undoBtn.addEventListener('click', (e) => {
