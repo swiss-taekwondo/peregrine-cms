@@ -161,7 +161,8 @@ export default {
 
       const originalData = view.state.editor ? view.state.editor.originalData : null
       const currentNode = originalData ? $perAdminApp.findNodeFromPath(view.pageView.page, editorPath) : null
-      if (!originalData || !currentNode || JSON.stringify(originalData) === JSON.stringify(currentNode)) {
+      const replacer = (k, v) => k === '_opDeleteProps' ? undefined : v
+      if (!originalData || !currentNode || JSON.stringify(originalData, replacer) === JSON.stringify(currentNode, replacer)) {
         return this.openEditor(target)
       }
 

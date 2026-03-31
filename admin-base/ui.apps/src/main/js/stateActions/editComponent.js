@@ -59,8 +59,8 @@ function bringUpEditor(me, view, target) {
         if (!currentNode) {
             return true;
         }
-        const originalStr = JSON.stringify(view.state.editor.originalData)
-        const currentStr = JSON.stringify(currentNode)
+        const originalStr = JSON.stringify(view.state.editor.originalData, (k, v) => k === '_opDeleteProps' ? undefined : v)
+        const currentStr = JSON.stringify(currentNode, (k, v) => k === '_opDeleteProps' ? undefined : v)
         if (originalStr === currentStr) {
             return true;
         }
