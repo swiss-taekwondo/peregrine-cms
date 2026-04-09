@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -38,8 +38,9 @@ function bringUpEditor(me, view, target) {
         if (!view.state.editor || !view.state.editor.originalData) return;
         const currentNode = me.findNodeFromPath(view.pageView.page, view.state.editor.path)
         if (!currentNode) return;
-        const originalStr = JSON.stringify(view.state.editor.originalData)
-        const currentStr = JSON.stringify(currentNode)
+        const replacer = (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v
+        const originalStr = JSON.stringify(view.state.editor.originalData, replacer)
+        const currentStr = JSON.stringify(currentNode, replacer)
         if (originalStr !== currentStr) {
             e.preventDefault();
             e.returnValue = '';
@@ -59,8 +60,8 @@ function bringUpEditor(me, view, target) {
         if (!currentNode) {
             return true;
         }
-        const originalStr = JSON.stringify(view.state.editor.originalData)
-        const currentStr = JSON.stringify(currentNode)
+        const originalStr = JSON.stringify(view.state.editor.originalData, (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v)
+        const currentStr = JSON.stringify(currentNode, (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v)
         if (originalStr === currentStr) {
             return true;
         }
@@ -113,11 +114,11 @@ function bringUpEditor(me, view, target) {
 export default function(me, target) {
     log.fine(target)
     let view = me.getView()
-    
+
     if (view.state.editor && view.state.editor.path === target) {
         return Promise.resolve()
     }
-    
+
     return new Promise((resolve, reject) => {
         bringUpEditor(me, view, target).then(() => { resolve() }).catch(() => reject())
     })
