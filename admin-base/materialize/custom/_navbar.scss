@@ -10,7 +10,7 @@ nav {
 
   .nav-wrapper {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
 
     a {
       display: block;
@@ -41,7 +41,6 @@ nav {
     .nav-left {
       display: flex;
       align-items: center;
-      margin-right: auto;
       padding-top: 3px;
 
       .current-tenant-name {
@@ -80,12 +79,21 @@ nav {
     .nav-center {
       display: flex;
       align-items: center;
+      flex-wrap: nowrap;
+      overflow: visible;
+    }
+
+    .nav-mobile {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      max-height: none;
+      overflow: visible;
     }
 
     .nav-right {
       display: flex;
       align-items: center;
-      margin-left: auto;
 
       .icon-link {
         padding: 0 .5rem;
@@ -280,7 +288,8 @@ nav {
     }
 
     .nav-mobile {
-      max-height: 54px;
+      max-height: none;
+      white-space: nowrap;
 
       .tenant-select {
         min-width: 150px;

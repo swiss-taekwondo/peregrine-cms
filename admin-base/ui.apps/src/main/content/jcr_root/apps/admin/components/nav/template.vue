@@ -47,16 +47,24 @@
         </admin-components-materializedropdown>
       </div>
       <div class="nav-center">
-        <ul v-if="!hideTenants" class="hide-on-med-and-down nav-mobile">
+        <ul v-if="!hideTenants" class="nav-mobile">
           <admin-components-action
-              v-for="section in sections"
+              v-for="section in visibleSections"
               :key="`section-${section.name}`"
               tag="li"
               :model="getSectionModel(section)"
-              :class="{active: getActiveSection() === section.name, 'no-mobile': !section.mobile}"
+              :class="{active: getActiveSection() === section.name}"
               class="nav-link"/>
+          <li v-if="hiddenItems.length > 0" class="nav-link">
+            <admin-components-materializedropdown
+                :below-origin="true"
+                :gutter="2"
+                :items="navMoreDdItems">
+              <a><i class="material-icons">more_horiz</i></a>
+            </admin-components-materializedropdown>
+          </li>
         </ul>
-        <ul v-else class="hide-on-med-and-down nav-mobile">
+        <ul v-else class="nav-mobile">
           <admin-components-action
               tag="li"
               :model="getSectionModel({title: 'Home', name: 'index'})"
@@ -64,7 +72,7 @@
               class="nav-link"/>
         </ul>
       </div>
-      <ul class="nav-right hide-on-med-and-down nav-mobile">
+      <ul class="nav-right nav-mobile">
         <admin-components-materializemodal ref="languageModal">
           <template>
             <vue-multiselect
@@ -155,16 +163,41 @@ export default {
       state: $perAdminApp.getView().state,
       tenants: $perAdminApp.getView().admin.tenants || [],
       sections: [
-        {name: 'welcome', title: 'Dashboard', mobile: true},
-        {name: 'pages', title: 'Pages'},
-        {name: 'assets', title: 'Assets'},
-        {name: 'objects', title: 'Objects'},
-        {name: 'templates', title: 'Templates'},
+        {name: 'welcome', title: 'Dashboard', priority: 10},
+        {name: 'pages', title: 'Pages', priority: 20},
+        {name: 'assets', title: 'Assets', priority: 30},
+        {name: 'objects', title: 'Objects', priority: 40},
+        {name: 'templates', title: 'Templates', priority: 50},
       ],
-      helpSelection: 'Help'
+      helpSelection: 'Help',
+      responsive: false,
+      windowWidth: window.innerWidth
     }
   },
   computed: {
+    visibleSections() {
+      if (!this.responsive || this.hideTenants) {
+        return this.sections
+      }
+      return this.sections.filter(s => !this.getHiddenNames().has(s.name))
+    },
+    hiddenItems() {
+      if (!this.responsive || this.hideTenants) {
+        return []
+      }
+      return this.sections.filter(s => this.getHiddenNames().has(s.name))
+    },
+    navMoreDdItems() {
+      return this.hiddenItems.map(s => {
+        const model = this.getSectionModel(s)
+        return {
+          label: model.title,
+          click: () => {
+            $perAdminApp.action(this, model.command, model.target)
+          }
+        }
+      })
+    },
     hideTenants() {
       return this.model.hideTenants ? true : $perAdminApp.getView().state.tenant ? false : true
     },
@@ -233,7 +266,34 @@ export default {
       this.refreshTenants()
     })
   },
+  mounted() {
+    this.checkResponsive()
+    window.addEventListener('resize', this.checkResponsive)
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.checkResponsive)
+  },
   methods: {
+    checkResponsive() {
+      this.responsive = window.innerWidth < 993
+      this.windowWidth = window.innerWidth
+    },
+    getHiddenNames() {
+      if (!this.responsive) return new Set()
+      const availableWidth = this.windowWidth - 380
+      const sectionWidth = 100
+      const hidden = new Set()
+      const sorted = [...this.sections].sort((a, b) => a.priority - b.priority)
+      let usedWidth = 0
+      for (const s of sorted) {
+        if (usedWidth + sectionWidth <= availableWidth) {
+          usedWidth += sectionWidth
+        } else {
+          hidden.add(s.name)
+        }
+      }
+      return hidden
+    },
     getSectionModel(section) {
       let target = `/content/admin/pages/${section.name}.html`
       if (this.state.tenant) {
