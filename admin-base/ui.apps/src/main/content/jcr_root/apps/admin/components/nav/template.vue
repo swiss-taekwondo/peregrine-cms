@@ -133,15 +133,6 @@
           </template>
         </admin-components-materializedropdown>
         <admin-components-materializedropdown
-            v-if="!responsive || hiddenItems.length === 0"
-            tag="li"
-            class="nav-link more-link"
-            :below-origin="true"
-            :gutter="2"
-            :items="moreDdItems">
-          <i class="material-icons">more_vert</i>
-        </admin-components-materializedropdown>
-        <admin-components-materializedropdown
             tag="li"
             class="nav-link more-link"
             :below-origin="true"
