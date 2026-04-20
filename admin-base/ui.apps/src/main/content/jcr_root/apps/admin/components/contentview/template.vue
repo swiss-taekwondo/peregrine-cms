@@ -586,11 +586,6 @@ export default {
         this.inlineEdit.firstTime.push(event.target)
       }
       this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
-      console.log('[LABAMBA] contentview onInlineEdit captured selection', {
-        containerClass: event.target?.className || null,
-        containerTag: event.target?.tagName || null,
-        selection: this.inlineEdit.selection,
-      })
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
@@ -621,20 +616,7 @@ export default {
             ) ? window.__labambaInlineRestoreOnce : null
             if (queuedInlineRestore?.rangeSelection) {
               const restoredQueuedRange = restoreDomRangeSelection(event.target, queuedInlineRestore.rangeSelection, this.iframe.doc)
-              console.log('[LABAMBA] contentview onInlineEdit restoring queued range selection', {
-                containerClass: event.target?.className || null,
-                containerTag: event.target?.tagName || null,
-                reason: queuedInlineRestore.reason || null,
-                rangeSelection: queuedInlineRestore.rangeSelection,
-                restoredQueuedRange,
-              })
               if (!restoredQueuedRange && queuedInlineRestore.selection) {
-                console.log('[LABAMBA] contentview onInlineEdit fallback to queued character selection', {
-                  containerClass: event.target?.className || null,
-                  containerTag: event.target?.tagName || null,
-                  reason: queuedInlineRestore.reason || null,
-                  selection: queuedInlineRestore.selection,
-                })
                 restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
               }
               window.__labambaInlineRestoreOnce = null
@@ -642,22 +624,11 @@ export default {
               return
             }
             if (queuedInlineRestore?.selection) {
-              console.log('[LABAMBA] contentview onInlineEdit restoring queued selection', {
-                containerClass: event.target?.className || null,
-                containerTag: event.target?.tagName || null,
-                reason: queuedInlineRestore.reason || null,
-                selection: queuedInlineRestore.selection,
-              })
               restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
               window.__labambaInlineRestoreOnce = null
               this.inlineEdit.selection = null
               return
             }
-            console.log('[LABAMBA] contentview onInlineEdit restoring selection', {
-              containerClass: event.target?.className || null,
-              containerTag: event.target?.tagName || null,
-              selection: this.inlineEdit.selection,
-            })
             restoreSelection(event.target, this.inlineEdit.selection, this.iframe.doc)
             this.inlineEdit.selection = null
           })
