@@ -1,104 +1,20 @@
-import {DropDown} from '../../../../../../../../js/constants';
+export default (vm, groups) => {
+  const computeHidden = () => vm.getResponsiveLayout(groups)
+  const getHiddenGroups = () => computeHidden().hidden.filter(g => g.isFontSizeControl || vm.getGroupItems(g).length > 0)
 
-const baseBreakpoint = 1000
+  const getHiddenItems = () => vm.getResponsiveMenuItems(groups)
 
-export default (vm) => {
-  const w = vm.docEl.dimension.w
-  const groups = vm.groups
-
-  groups.forEach((g) => {
-    if (w <= breakpoint(vm, g)) {
-      hideGroup(vm, g)
-    } else {
-      showGroup(vm, g)
-    }
-  })
+  const rules = () => {
+    const hiddenGroups = getHiddenGroups()
+    return vm.responsive && (hiddenGroups.length > 1 || hiddenGroups.some(g => g.isFontSizeControl))
+  }
 
   return {
     label: 'responsive-menu',
     icon: 'bars',
     collapse: true,
     isActive: () => false,
-    rules: () => vm.responsive && vm.docEl.dimension.w <= baseBreakpoint,
-    items: getItems(vm)
+    rules: rules,
+    items: getHiddenItems
   }
-}
-
-const getGroupIndex = (vm, group) => {
-  let index = -1
-
-  vm.groups.some((g, i) => {
-    if (g.label === group.label && g.icon === group.icon) {
-      index = i
-      return true
-    }
-  })
-
-  return index
-}
-
-const breakpoint = (vm, group) => {
-  const size = vm.size
-  const sliced = vm.groups.slice(0, getGroupIndex(vm, group))
-  let br = lowestBreakpoint(vm)
-
-  sliced.forEach((g) => {
-    br += size.group
-    if (!g.collapse) {
-      br += g.items.length * size.button
-    } else {
-      br += size.button
-    }
-  })
-
-  return br
-}
-
-const lowestBreakpoint = (vm) => {
-  let lowest = baseBreakpoint
-  const size = vm.size
-
-  vm.groups.forEach((g) => {
-    lowest -= size.group
-    if (!g.collapse) {
-      lowest -= g.items.length * size.button
-    } else {
-      lowest -= size.button
-    }
-  })
-
-  return lowest
-}
-
-const hideGroup = (vm, group) => {
-  vm.$set(vm.hiddenGroups, group.label, true)
-}
-
-const showGroup = (vm, group) => {
-  vm.$set(vm.hiddenGroups, group.label, false)
-}
-
-const getItems = (vm) => {
-  const all = vm.groups
-  const filtered = vm.filteredGroups
-  const items = []
-
-  all.forEach((g) => {
-    const c = filtered.filter((f) => f.label === g.label && f.icon === g.icon)
-
-    if (!c || c.length <= 0) {
-      const groupItems = g.itemRules
-        ? g.items.filter((it, i) => !g.itemRules[i] || g.itemRules[i]())
-        : g.items
-
-      if (groupItems.length > 0) {
-        if (items.length > 0) {
-          items.push(DropDown.DIVIDER)
-        }
-        items.push(...groupItems)
-      }
-    }
-  })
-
-  return items
 }

@@ -7,6 +7,8 @@ export default (vm) => {
     label: 'super-sub-script',
     icon: 'A<sup>2</sup>',
     iconLib: IconLib.PLAIN_TEXT,
+    order: 80,
+    priority: 90,
     rules: () => !vm.responsive || !vm.hiddenGroups['super-sub-script'],
     items: [
       superscript(vm),

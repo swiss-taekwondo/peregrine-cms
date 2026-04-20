@@ -8,6 +8,8 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     collapse: true,
     searchable: true,
+    order: 90,
+    priority: 110,
     isDisabled: () => !vm.hasEditorSelection && !vm._specialCharRange,
     rules: () => !vm.responsive || !vm.hiddenGroups['special-characters'],
     items: [

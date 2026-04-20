@@ -15,6 +15,9 @@ export default (vm) => {
   }
 
   return {
+    hiddenKey: 'text-format',
+    order: 20,
+    priority: 40,
     label: () => {
       const active = getActiveItem()
       return active ? `${vm.$i18n('text-format')} (${active.label})` : vm.$i18n('text-format')
