@@ -38,7 +38,7 @@ import {
   superSubScriptGroup,
   textFormatGroup,
 } from './groups'
-import {get, restoreSelection, saveSelection, set} from '../../../../../../js/utils'
+import {get, restoreSelection, saveSelection, saveDomRangeSelection, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
@@ -103,6 +103,47 @@ function getBtnTitle(btn, vm) {
   return shortcut ? `${baseTitle} (${shortcut})` : baseTitle
 }
 
+function logSelectionState(prefix, doc = null, container = null, savedSel = null, range = null) {
+  const selection = doc?.defaultView?.getSelection?.() || null
+  const activeRange = range || (selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null)
+  const startNode = activeRange?.startContainer
+  const endNode = activeRange?.endContainer
+  console.log(`[LABAMBA] ${prefix}`, {
+    docIsInline: !!(doc && doc !== document),
+    containerClass: container?.className || null,
+    containerTag: container?.tagName || null,
+    savedSel,
+    selectionRangeCount: selection?.rangeCount ?? 0,
+    startOffset: activeRange?.startOffset ?? null,
+    endOffset: activeRange?.endOffset ?? null,
+    startNodeType: startNode?.nodeType ?? null,
+    endNodeType: endNode?.nodeType ?? null,
+    startNodeText: startNode?.textContent?.slice?.(0, 80) || null,
+    endNodeText: endNode?.textContent?.slice?.(0, 80) || null,
+  })
+}
+
+function isSidebarTextEditor(container) {
+  return !!(container?.classList?.contains('text-editor'))
+}
+
+function getDeepestLastTextNode(node) {
+  if (!node) return null
+  const doc = node.ownerDocument || document
+  const walker = doc.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode(textNode) {
+      return textNode.nodeValue && textNode.nodeValue.length > 0
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP
+    },
+  })
+  let last = null
+  while (walker.nextNode()) {
+    last = walker.currentNode
+  }
+  return last
+}
+
 function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdown = null) {
   const isActive = btn.isActive ? btn.isActive() : false
   const isDisabled = btn.isDisabled ? btn.isDisabled() : false
@@ -128,35 +169,6 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
       mousedown: (e) => {
         e.preventDefault()
         if (inDropdown) e.stopPropagation()
-        try {
-          const isEditor = document.querySelector('.text-editor:not(.inline-edit)') !== null
-          if (isEditor && (btn.cmd === 'insertOrderedList' || btn.cmd === 'insertUnorderedList')) {
-            const doc = vm.getInlineDoc() || vm.getLastDoc()
-            const container = vm.getInlineContainer() || vm.getLastContainer()
-            if (doc && container) {
-              let savedSel = saveSelection(container, doc)
-              if (!savedSel) {
-                savedSel = $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-              }
-              if (savedSel) {
-                restoreSelection(container, savedSel, doc)
-                window.__savedSel = savedSel
-                window.__savedDoc = doc
-                doc.execCommand(btn.cmd, false, null)
-
-                let comp = vm.$parent
-                while (comp) {
-                  if (comp.textEditorWriteToModel) {
-                    comp.textEditorWriteToModel(comp)
-                    break
-                  }
-                  if (comp.$parent) comp = comp.$parent
-                  else break
-                }
-              }
-            }
-          }
-        } catch(err) {}
       },
       click: (e) => {
         if (inDropdown) e.stopPropagation()
@@ -353,8 +365,24 @@ export default {
       window.addEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
 
       this._updateEditorSelection = () => {
-        const hasSelection = !!this.getEditorSelection()
+        const selectionRange = this.getEditorSelection()
+        const hasSelection = !!selectionRange
         this.hasEditorSelection = hasSelection
+        if (selectionRange) {
+          this._savedRange = selectionRange.cloneRange()
+          const editorEl = this.getEditorFrom(selectionRange)
+          if (editorEl) {
+            this.selection.doc = editorEl.ownerDocument
+            this.selection.container = editorEl
+            this.selection.buffer = saveSelection(editorEl, editorEl.ownerDocument)
+          }
+          logSelectionState('selectionchange captured', this.selection.doc, this.selection.container, this.selection.buffer, selectionRange)
+        } else {
+          console.log('[LABAMBA] selectionchange cleared', {
+            activeElementClass: document.activeElement?.className || null,
+            activeElementTag: document.activeElement?.tagName || null,
+          })
+        }
         window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
           detail: { hasEditorSelection: hasSelection },
         }))
@@ -823,35 +851,6 @@ export default {
             domProps: { disabled: groupIsDisabled },
             on: { mousedown: (e) => {
               e.preventDefault()
-              try {
-                const isEditor = document.querySelector('.text-editor:not(.inline-edit)') !== null
-                if (isEditor && (btn.cmd === 'insertOrderedList' || btn.cmd === 'insertUnorderedList')) {
-                  const doc = this.getInlineDoc() || this.getLastDoc()
-                  const container = this.getInlineContainer() || this.getLastContainer()
-                  if (doc && container) {
-                    let savedSel = saveSelection(container, doc)
-                    if (!savedSel) {
-                      savedSel = $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-                    }
-                    if (savedSel) {
-                      restoreSelection(container, savedSel, doc)
-                      window.__savedSel = savedSel
-                      window.__savedDoc = doc
-                      doc.execCommand(btn.cmd, false, null)
-
-                      let comp = this.$parent
-                      while (comp) {
-                        if (comp.textEditorWriteToModel) {
-                          comp.textEditorWriteToModel(comp)
-                          break
-                        }
-                        if (comp.$parent) comp = comp.$parent
-                        else break
-                      }
-                    }
-                  }
-                }
-              } catch(err) {}
             }, click: () => { if (!groupIsDisabled) clickFn() } },
           }, [renderIcon(h, icon, iconLib)])])
         }
@@ -1128,10 +1127,18 @@ export default {
 
     undo() {
       if (this.onSubNav) {
+        console.log('[LABAMBA] undo delegated to inline toolbar', {
+          sharedHistoryIndex: this.sharedHistoryIndex,
+          sharedHistoryLength: this.sharedHistoryLength,
+        })
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
         return
       }
       if (this.historyIndex > 0) {
+        console.log('[LABAMBA] undo start', {
+          historyIndex: this.historyIndex,
+          historyLength: this.historyStack.length,
+        })
         this.isUndoing = true
         this.historyIndex--
         window.dispatchEvent(new CustomEvent('richtoolbar:history', {
@@ -1141,6 +1148,7 @@ export default {
         const container = this.getInlineContainer()
         const doc = this.getInlineDoc()
         const savedSel = container && doc ? saveSelection(container, doc) : null
+        logSelectionState('undo before apply snapshot', doc, container, savedSel)
         const textEditor = this.$el.closest('.text-editor-wrapper')
           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
           : this.$el.nextElementSibling
@@ -1151,6 +1159,7 @@ export default {
           if (savedSel && container && doc) {
             restoreSelection(container, savedSel, doc)
           }
+          logSelectionState('undo after restore', doc, container, savedSel)
           this.pingRichToolbar()
         })
       }
@@ -1158,10 +1167,18 @@ export default {
 
     redo() {
       if (this.onSubNav) {
+        console.log('[LABAMBA] redo delegated to inline toolbar', {
+          sharedHistoryIndex: this.sharedHistoryIndex,
+          sharedHistoryLength: this.sharedHistoryLength,
+        })
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
         return
       }
       if (this.historyIndex < this.historyStack.length - 1) {
+        console.log('[LABAMBA] redo start', {
+          historyIndex: this.historyIndex,
+          historyLength: this.historyStack.length,
+        })
         this.isUndoing = true
         this.historyIndex++
         window.dispatchEvent(new CustomEvent('richtoolbar:history', {
@@ -1171,6 +1188,7 @@ export default {
         const container = this.getInlineContainer()
         const doc = this.getInlineDoc()
         const savedSel = container && doc ? saveSelection(container, doc) : null
+        logSelectionState('redo before apply snapshot', doc, container, savedSel)
         const textEditor = this.$el.closest('.text-editor-wrapper')
           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
           : this.$el.nextElementSibling
@@ -1181,6 +1199,7 @@ export default {
           if (savedSel && container && doc) {
             restoreSelection(container, savedSel, doc)
           }
+          logSelectionState('redo after restore', doc, container, savedSel)
           this.pingRichToolbar()
         })
       }
@@ -1245,7 +1264,7 @@ export default {
 
       if (!doc || !container) return
 
-      const isEditor = document.querySelector('.text-editor-wrapper') !== null
+      const isEditor = isSidebarTextEditor(container)
 
       const savedSel = saveSelection(container, doc)
 
@@ -1309,7 +1328,18 @@ export default {
           this.saveToModel(freshContainer)
         }
 
-        if (savedSel) {
+        if (isEditor) {
+          const selection = doc.defaultView?.getSelection?.()
+          if (selection && selection.rangeCount > 0) {
+            this._savedRange = selection.getRangeAt(0).cloneRange()
+          }
+          this.selection.doc = doc
+          this.selection.container = freshContainer
+          this.selection.buffer = saveSelection(freshContainer, doc)
+          if (typeof freshContainer.focus === 'function') {
+            freshContainer.focus()
+          }
+        } else if (savedSel) {
           restoreSelection(freshContainer, savedSel, doc)
         }
       }
@@ -1325,6 +1355,7 @@ export default {
 
     toggleList(cmd) {
       if (window.__savedDoc) {
+        console.log('[LABAMBA] toggleList aborted because savedDoc guard was set', { cmd })
         window.__savedSel = null
         window.__savedDoc = null
         return
@@ -1340,19 +1371,76 @@ export default {
 
       if (!doc || !container) return
 
-      const isEditor = document.querySelector('.text-editor:not(.inline-edit)') !== null
-      const savedSel = saveSelection(container, doc)
+      const isEditor = isSidebarTextEditor(container)
+      const bufferedSel = this.selection.buffer || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
+      const liveSel = saveSelection(container, doc)
+      const savedSel = isEditor ? (bufferedSel || liveSel) : (liveSel || bufferedSel)
+      const preSelection = doc.defaultView?.getSelection?.() || null
+      const preRange = preSelection && preSelection.rangeCount > 0 ? preSelection.getRangeAt(0).cloneRange() : null
+      const collapsedSidebarRange = isEditor && preRange && preRange.collapsed ? preRange : null
+      const collapsedInlineRange = !isEditor && preRange && preRange.collapsed ? preRange : null
+      logSelectionState('toggleList before restore', doc, container, savedSel, this._savedRange)
+      console.log('[LABAMBA] toggleList inputs', {
+        cmd,
+        isEditor,
+        bufferedSel,
+        liveSel,
+        usingSavedRange: !!(isEditor && this._savedRange && doc.defaultView),
+        collapsedSidebarRange: !!collapsedSidebarRange,
+        collapsedInlineRange: !!collapsedInlineRange,
+      })
+
+      if (isEditor && this._savedRange && doc.defaultView) {
+        const selection = doc.defaultView.getSelection()
+        if (selection) {
+          selection.removeAllRanges()
+          selection.addRange(this._savedRange.cloneRange())
+        }
+        logSelectionState('toggleList after savedRange restore', doc, container, savedSel)
+      }
 
       if (!isEditor && doc.execCommand) {
         doc.execCommand(cmd, false, null)
-        if (savedSel) {
-          restoreSelection(container, savedSel, doc)
+        const selection = doc.defaultView?.getSelection?.()
+        if (selection && collapsedInlineRange && selection.rangeCount > 0) {
+          const currentRange = selection.getRangeAt(0)
+          const currentNode = currentRange.startContainer?.nodeType === Node.TEXT_NODE
+            ? currentRange.startContainer.parentElement
+            : currentRange.startContainer
+          const currentListItem = currentNode?.closest?.('li')
+          const targetTextNode = getDeepestLastTextNode(currentListItem)
+          if (currentListItem && targetTextNode) {
+            const caretRange = doc.createRange()
+            caretRange.setStart(targetTextNode, targetTextNode.textContent.length)
+            caretRange.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(caretRange)
+            console.log('[LABAMBA] toggleList non-editor collapsed caret restored to list item', {
+              cmd,
+              listItemText: currentListItem.textContent?.trim?.() || '',
+            })
+          }
         }
+        const postExecSelection = saveSelection(container, doc)
+        const postExecRangeSelection = collapsedInlineRange ? null : saveDomRangeSelection(container, doc)
+        window.__labambaInlineRestoreOnce = {
+          reason: cmd,
+          container: container,
+          selection: postExecSelection,
+          rangeSelection: postExecRangeSelection,
+        }
+        console.log('[LABAMBA] toggleList non-editor stored post-exec selection', {
+          cmd,
+          postExecSelection,
+          postExecRangeSelection,
+        })
+        logSelectionState('toggleList non-editor after exec', doc, container, postExecSelection)
         this.saveToModel(container)
         return
       }
 
       doc.execCommand(cmd, false, null)
+      logSelectionState('toggleList after execCommand', doc, container, savedSel)
 
       const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
       if (freshContainer) {
@@ -1375,9 +1463,47 @@ export default {
           this.saveToModel(freshContainer)
         }
 
-        if (savedSel) {
+        if (isEditor) {
+          const selection = doc.defaultView?.getSelection?.()
+          if (selection && collapsedSidebarRange && selection.rangeCount > 0) {
+            const currentRange = selection.getRangeAt(0)
+            const currentNode = currentRange.startContainer?.nodeType === Node.TEXT_NODE
+              ? currentRange.startContainer.parentElement
+              : currentRange.startContainer
+            const currentListItem = currentNode?.closest?.('li')
+            const targetTextNode = getDeepestLastTextNode(currentListItem)
+            if (currentListItem && targetTextNode) {
+              const caretRange = doc.createRange()
+              caretRange.setStart(targetTextNode, targetTextNode.textContent.length)
+              caretRange.collapse(true)
+              selection.removeAllRanges()
+              selection.addRange(caretRange)
+              console.log('[LABAMBA] toggleList collapsed caret restored to list item', {
+                cmd,
+                listItemText: currentListItem.textContent?.trim?.() || '',
+              })
+            }
+          }
+          if (selection && selection.rangeCount > 0) {
+            this._savedRange = selection.getRangeAt(0).cloneRange()
+          }
+          this.selection.doc = doc
+          this.selection.container = freshContainer
+          this.selection.buffer = saveSelection(freshContainer, doc)
+          if (typeof freshContainer.focus === 'function') {
+            freshContainer.focus()
+          }
+          logSelectionState('toggleList editor final state', doc, freshContainer, this.selection.buffer, this._savedRange)
+        } else if (savedSel) {
           restoreSelection(freshContainer, savedSel, doc)
+          logSelectionState('toggleList non-editor final restore', doc, freshContainer, savedSel)
         }
+        console.log('[LABAMBA] toggleList writer path', {
+          cmd,
+          foundEditor,
+          freshContainerClass: freshContainer?.className || null,
+          freshContainerTag: freshContainer?.tagName || null,
+        })
       }
     },
 
@@ -1452,7 +1578,7 @@ export default {
       const getEditorFromEl = typeof range.startContainer.closest === 'function'
         ? range.startContainer
         : range.startContainer.parentElement
-      return getEditorFromEl.closest('.inline-edit[contenteditable="true"]')
+      return getEditorFromEl.closest('.inline-edit[contenteditable="true"], .text-editor')
     },
 
     isRangeInEditor(range) {
