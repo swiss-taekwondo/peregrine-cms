@@ -7,6 +7,8 @@ export default (vm) => {
     label: 'list',
     icon: 'list',
     iconLib: IconLib.FONT_AWESOME,
+    order: 50,
+    priority: 60,
     rules: () => !vm.responsive || !vm.hiddenGroups.list,
     items: [
       numberedList(vm),

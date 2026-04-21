@@ -163,11 +163,11 @@ export default {
       state: $perAdminApp.getView().state,
       tenants: $perAdminApp.getView().admin.tenants || [],
       sections: [
-        {name: 'welcome', title: 'Dashboard', priority: 10},
-        {name: 'pages', title: 'Pages', priority: 20},
-        {name: 'assets', title: 'Assets', priority: 30},
-        {name: 'objects', title: 'Objects', priority: 40},
-        {name: 'templates', title: 'Templates', priority: 50},
+        {name: 'welcome', title: 'Dashboard'},
+        {name: 'pages', title: 'Pages'},
+        {name: 'assets', title: 'Assets'},
+        {name: 'objects', title: 'Objects'},
+        {name: 'templates', title: 'Templates'},
       ],
       helpSelection: 'Help',
       responsive: false,
@@ -283,9 +283,8 @@ export default {
       const availableWidth = this.windowWidth - 380
       const sectionWidth = 100
       const hidden = new Set()
-      const sorted = [...this.sections].sort((a, b) => a.priority - b.priority)
       let usedWidth = 0
-      for (const s of sorted) {
+      for (const s of this.sections) {
         if (usedWidth + sectionWidth <= availableWidth) {
           usedWidth += sectionWidth
         } else {

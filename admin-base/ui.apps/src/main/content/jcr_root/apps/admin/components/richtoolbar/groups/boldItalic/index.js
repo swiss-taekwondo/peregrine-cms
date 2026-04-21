@@ -8,6 +8,8 @@ export default (vm) => {
     label: 'bold-italic',
     icon: 'bold',
     iconLib: IconLib.FONT_AWESOME,
+    order: 30,
+    priority: 10,
     rules: () => !vm.responsive || !vm.hiddenGroups['bold-italic'],
     items: [
       bold(vm),

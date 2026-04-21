@@ -7,6 +7,8 @@ export default (vm) => {
     label: 'actions',
     icon: 'undo',
     iconLib: IconLib.FONT_AWESOME,
+    order: 10,
+    priority: 30,
     rules: () => !vm.responsive || !vm.hiddenGroups.actions,
     items: [
       undo(vm),

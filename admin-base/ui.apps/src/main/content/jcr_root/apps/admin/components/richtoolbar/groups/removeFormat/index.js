@@ -6,6 +6,8 @@ export default (vm) => {
     label: 'remove format',
     icon: 'format_clear',
     iconLib: IconLib.MATERIAL_ICONS,
+    order: 110,
+    priority: 80,
     rules: () => !vm.responsive || !vm.hiddenGroups['remove format'],
     items: [
       removeFormat(vm)

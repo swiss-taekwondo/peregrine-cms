@@ -8,6 +8,8 @@ export default (vm) => {
       label: `${vm.$i18n('headline')} ${i}`,
       icon: 'header',
       iconLib: IconLib.FONT_AWESOME,
+      cmd: 'formatBlock',
+      value: `h${i}`,
       isActive: () => vm.itemIsTag(`H${i}`),
       class: () => vm.itemIsTag(`H${i}`) ? 'active' : null,
       click: () => vm.exec('formatBlock', `h${i}`),

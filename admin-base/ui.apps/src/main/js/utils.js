@@ -212,6 +212,131 @@ export const saveSelection = (containerEl, document = document) => {
   }
 };
 
+function isNodeWithinContainer(node, containerEl) {
+  if (!node || !containerEl) return false;
+  if (node === containerEl) return true;
+  const elementNode = node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
+  return !!(elementNode && containerEl.contains(elementNode));
+}
+
+function getNodePathWithinContainer(node, containerEl) {
+  if (!isNodeWithinContainer(node, containerEl)) return null;
+  const path = [];
+  let current = node;
+  while (current && current !== containerEl) {
+    const parent = current.parentNode;
+    if (!parent) return null;
+    path.unshift(Array.prototype.indexOf.call(parent.childNodes, current));
+    current = parent;
+  }
+  return path;
+}
+
+function resolveNodePathWithinContainer(containerEl, path) {
+  if (!containerEl || !Array.isArray(path)) return null;
+  let current = containerEl;
+  for (let i = 0; i < path.length; i++) {
+    const index = path[i];
+    if (!current || !current.childNodes || index < 0 || index >= current.childNodes.length) {
+      return null;
+    }
+    current = current.childNodes[index];
+  }
+  return current;
+}
+
+function getClosestListItemWithinContainer(node, containerEl) {
+  if (!isNodeWithinContainer(node, containerEl)) return null;
+  let current = node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
+  while (current && current !== containerEl) {
+    if (current.nodeType === Node.ELEMENT_NODE && current.tagName === 'LI') {
+      return current;
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
+function getIntersectingListItemsWithinContainer(range, containerEl) {
+  if (!range || !containerEl || !containerEl.querySelectorAll) return [];
+  const items = Array.prototype.slice.call(containerEl.querySelectorAll('li'));
+  return items.filter((item) => {
+    try {
+      return range.intersectsNode(item);
+    } catch (e) {
+      return false;
+    }
+  });
+}
+
+function getListItemIndexWithinContainer(listItem, containerEl) {
+  if (!listItem || !containerEl || !containerEl.querySelectorAll) return null;
+  const items = Array.prototype.slice.call(containerEl.querySelectorAll('li'));
+  const index = items.indexOf(listItem);
+  return index >= 0 ? index : null;
+}
+
+function getListItemByIndexWithinContainer(containerEl, index) {
+  if (index === null || index === undefined || !containerEl || !containerEl.querySelectorAll) return null;
+  const items = containerEl.querySelectorAll('li');
+  return index >= 0 && index < items.length ? items[index] : null;
+}
+
+function getDeepestFirstTextNode(node) {
+  if (!node) return null;
+  const doc = node.ownerDocument || document;
+  const walker = doc.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode(textNode) {
+      return textNode.nodeValue && textNode.nodeValue.length > 0
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP;
+    },
+  });
+  return walker.nextNode();
+}
+
+function getDeepestLastTextNode(node) {
+  if (!node) return null;
+  const doc = node.ownerDocument || document;
+  const walker = doc.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode(textNode) {
+      return textNode.nodeValue && textNode.nodeValue.length > 0
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP;
+    },
+  });
+  let last = null;
+  while (walker.nextNode()) {
+    last = walker.currentNode;
+  }
+  return last;
+}
+
+export const saveDomRangeSelection = (containerEl, document = document) => {
+  const window = document.defaultView;
+  if (!window || !window.getSelection || !document.createRange) return null;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!isNodeWithinContainer(range.startContainer, containerEl) || !isNodeWithinContainer(range.endContainer, containerEl)) {
+    return null;
+  }
+  const intersectingListItems = getIntersectingListItemsWithinContainer(range, containerEl);
+  const startListItem = intersectingListItems[0] || getClosestListItemWithinContainer(range.startContainer, containerEl);
+  const endListItem = intersectingListItems[intersectingListItems.length - 1] || getClosestListItemWithinContainer(range.endContainer, containerEl);
+  return {
+    startPath: getNodePathWithinContainer(range.startContainer, containerEl),
+    startOffset: range.startOffset,
+    endPath: getNodePathWithinContainer(range.endContainer, containerEl),
+    endOffset: range.endOffset,
+    startListItemPath: startListItem ? getNodePathWithinContainer(startListItem, containerEl) : null,
+    endListItemPath: endListItem ? getNodePathWithinContainer(endListItem, containerEl) : null,
+    startListItemIndex: getListItemIndexWithinContainer(startListItem, containerEl),
+    endListItemIndex: getListItemIndexWithinContainer(endListItem, containerEl),
+    collapsed: range.collapsed,
+  };
+};
+
 export const restoreSelection = (containerEl, savedSel, doc = document) => {
   const win = doc.defaultView;
 
@@ -271,6 +396,42 @@ export const restoreSelection = (containerEl, savedSel, doc = document) => {
     textRange.moveStart('character', savedSel.start);
     textRange.select();
   }
+};
+
+export const restoreDomRangeSelection = (containerEl, savedRange, doc = document) => {
+  const win = doc.defaultView;
+  if (!savedRange || !win || !win.getSelection || !doc.createRange) return false;
+
+  const range = doc.createRange();
+  const startListItem = getListItemByIndexWithinContainer(containerEl, savedRange.startListItemIndex)
+    || resolveNodePathWithinContainer(containerEl, savedRange.startListItemPath);
+  const endListItem = getListItemByIndexWithinContainer(containerEl, savedRange.endListItemIndex)
+    || resolveNodePathWithinContainer(containerEl, savedRange.endListItemPath);
+
+  if (startListItem && endListItem) {
+    const startTextNode = getDeepestFirstTextNode(startListItem);
+    const endTextNode = getDeepestLastTextNode(endListItem);
+    if (!startTextNode || !endTextNode) return false;
+    range.setStart(startTextNode, 0);
+    range.setEnd(endTextNode, endTextNode.textContent.length);
+  } else {
+    const startNode = resolveNodePathWithinContainer(containerEl, savedRange.startPath);
+    const endNode = resolveNodePathWithinContainer(containerEl, savedRange.endPath);
+    if (!startNode || !endNode) return false;
+
+    const normalizeOffset = (node, offset) => {
+      const maxOffset = node.nodeType === Node.TEXT_NODE ? node.textContent.length : node.childNodes.length;
+      return Math.max(0, Math.min(offset, maxOffset));
+    };
+
+    range.setStart(startNode, normalizeOffset(startNode, savedRange.startOffset));
+    range.setEnd(endNode, normalizeOffset(endNode, savedRange.endOffset));
+  }
+
+  const sel = win.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  return true;
 };
 
 export const getCurrentDateTime = () => {

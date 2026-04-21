@@ -102,6 +102,7 @@ import {
   get,
   getCaretCharacterOffsetWithin,
   isChromeBrowser,
+  restoreDomRangeSelection,
   restoreSelection,
   saveSelection,
   set
@@ -583,8 +584,8 @@ export default {
     onInlineEdit(event) {
       if (!this.inlineEdit.firstTime.includes(event.target)) {
         this.inlineEdit.firstTime.push(event.target)
-        this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
       }
+      this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
@@ -609,6 +610,25 @@ export default {
       if (this.inlineEdit.selection) {
         this.$nextTick(() => {
           this.$nextTick(() => {
+            const queuedInlineRestore = (
+              window.__labambaInlineRestoreOnce
+              && window.__labambaInlineRestoreOnce.container === event.target
+            ) ? window.__labambaInlineRestoreOnce : null
+            if (queuedInlineRestore?.rangeSelection) {
+              const restoredQueuedRange = restoreDomRangeSelection(event.target, queuedInlineRestore.rangeSelection, this.iframe.doc)
+              if (!restoredQueuedRange && queuedInlineRestore.selection) {
+                restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
+              }
+              window.__labambaInlineRestoreOnce = null
+              this.inlineEdit.selection = null
+              return
+            }
+            if (queuedInlineRestore?.selection) {
+              restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
+              window.__labambaInlineRestoreOnce = null
+              this.inlineEdit.selection = null
+              return
+            }
             restoreSelection(event.target, this.inlineEdit.selection, this.iframe.doc)
             this.inlineEdit.selection = null
           })
