@@ -87,6 +87,7 @@ export default {
 
   mounted() {
     document.addEventListener("selectionchange", this.onSelectionChange);
+    this.syncInputValueFromSelection()
 
     // this is bad, but it doesn't work with on load/DOMContentLoaded or readystate, the listener just doesn't get triggered for the sub-nav input
     // because it loads before the iframe.
@@ -105,6 +106,41 @@ export default {
   },
 
   methods: {
+    syncInputValueFromSelection(selectionRange = null) {
+      const range = selectionRange || this.getEditorSelection()
+      if (!range || !this.isRangeInEditor(range)) {
+        const defaultFontSize = parseInt(this.getDefaultFontSize())
+        if (defaultFontSize && !isNaN(defaultFontSize)) {
+          this.inputValue = defaultFontSize
+        }
+        return
+      }
+
+      const htmlEl = range.startContainer.closest
+        ? range.startContainer
+        : range.startContainer.parentElement
+
+      if (htmlEl && this.isNodeInEditor(htmlEl)) {
+        const fontSizeParent = htmlEl.closest('[style*="font-size"]')
+        const check = this.isNodeInEditor(fontSizeParent) ? fontSizeParent : htmlEl
+        const inlineFontSize = parseInt(check?.style?.fontSize)
+        if (!isNaN(inlineFontSize) && inlineFontSize > 0) {
+          this.inputValue = inlineFontSize
+          return
+        }
+
+        const computedFontSize = parseInt(check?.ownerDocument?.defaultView?.getComputedStyle(check).fontSize)
+        if (!isNaN(computedFontSize) && computedFontSize > 0) {
+          this.inputValue = computedFontSize
+          return
+        }
+      }
+
+      const defaultFontSize = parseInt(this.getDefaultFontSize())
+      if (defaultFontSize && !isNaN(defaultFontSize)) {
+        this.inputValue = defaultFontSize
+      }
+    },
 
     // sets fontsize of input to that of selected text
     onSelectionChange(event) {
@@ -116,29 +152,7 @@ export default {
       if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
 
       const currRange = currSelection.getRangeAt(0);
-
-      if (!this.isRangeInEditor(currRange)) return
-
-      const htmlEl = currRange.startContainer.closest
-        ? currRange.startContainer
-        : currRange.startContainer.parentElement;
-
-      // checking inline style
-      if (htmlEl && this.isNodeInEditor(htmlEl)) {
-        const fontSizeParent = htmlEl.closest('[style*="font-size"]');
-        const check = this.isNodeInEditor(fontSizeParent) ? fontSizeParent : htmlEl;
-        const nr = parseInt(check?.style?.fontSize);
-        if (!isNaN(nr) && nr > 0) {
-          this.inputValue = nr;
-          return;
-        }
-      }
-
-      // getting style from preview computedStyle
-      const defaultFontSize = parseInt(this.getDefaultFontSize());
-      if (defaultFontSize && !isNaN(defaultFontSize)) {
-        this.inputValue = defaultFontSize;
-      }
+      this.syncInputValueFromSelection(currRange)
     },
 
     applyFontSize() {

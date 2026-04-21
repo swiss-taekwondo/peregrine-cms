@@ -58,18 +58,18 @@ function resolveClass(cls) {
   return cls || ''
 }
 
-function isMacPlatform() {
+const isMacPlatform = (() => {
   if (typeof navigator === 'undefined') return false
   const platform = navigator.userAgentData?.platform || navigator.platform || ''
   return /Mac|iPhone|iPad|iPod/i.test(platform)
-}
+})()
 
 function getBtnShortcut(btn) {
   if (!btn || typeof btn !== 'object') return ''
   if (btn.shortcut) return btn.shortcut
 
-  const modifier = isMacPlatform() ? 'Cmd' : 'Ctrl'
-  const redoShortcut = isMacPlatform() ? `${modifier}+Shift+Z` : `${modifier}+Y`
+  const modifier = isMacPlatform ? 'Cmd' : 'Ctrl'
+  const redoShortcut = isMacPlatform ? `${modifier}+Shift+Z` : `${modifier}+Y`
   const formatValue = (btn.value || '').toLowerCase()
 
   switch (btn.cmd) {
@@ -256,6 +256,7 @@ export default {
       sharedHistoryLength: 0,
 
       hasEditorSelection: false,
+      layoutPing: 0,
     }
   },
 
@@ -265,6 +266,7 @@ export default {
     },
     groups() {
       this.inlinePing
+      this.layoutPing
       return [
         textFormatGroup(this),
         actionsGroup(this),
@@ -342,7 +344,7 @@ export default {
 
   mounted() {
     this.$nextTick(() => {
-      window.addEventListener('resize', this.updateDocElDimensions)
+      window.addEventListener('resize', this.scheduleDocElDimensionsUpdate)
       this.initResizeObserver()
       this.scheduleDocElDimensionsUpdate()
     })
@@ -421,7 +423,7 @@ export default {
   },
 
   beforeDestroy() {
-    window.removeEventListener('resize', this.updateDocElDimensions)
+    window.removeEventListener('resize', this.scheduleDocElDimensionsUpdate)
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
       this._resizeObserver = null
@@ -429,6 +431,10 @@ export default {
     if (this._resizeFrame) {
       cancelAnimationFrame(this._resizeFrame)
       this._resizeFrame = null
+    }
+    if (this._resizeTimeout) {
+      clearTimeout(this._resizeTimeout)
+      this._resizeTimeout = null
     }
     window.removeEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
     if (this._historyHandler) {
@@ -527,13 +533,34 @@ export default {
     },
 
     scheduleDocElDimensionsUpdate() {
+      const nextWidth = this.$el ? this.$el.clientWidth : document.documentElement.clientWidth
+      const delayMs = nextWidth > this.docEl.dimension.w ? 1000 : 0
+
       if (this._resizeFrame) {
         cancelAnimationFrame(this._resizeFrame)
-      }
-      this._resizeFrame = requestAnimationFrame(() => {
         this._resizeFrame = null
-        this.updateDocElDimensions()
-      })
+      }
+      if (this._resizeTimeout) {
+        clearTimeout(this._resizeTimeout)
+        this._resizeTimeout = null
+      }
+
+      const runUpdate = () => {
+        this._resizeFrame = requestAnimationFrame(() => {
+          this._resizeFrame = null
+          this.updateDocElDimensions()
+        })
+      }
+
+      if (delayMs > 0) {
+        this._resizeTimeout = setTimeout(() => {
+          this._resizeTimeout = null
+          runUpdate()
+        }, delayMs)
+        return
+      }
+
+      runUpdate()
     },
 
     getGroupKey(group) {
@@ -553,6 +580,13 @@ export default {
       })
     },
 
+    groupHasResponsiveMenuEntry(group) {
+      if (!group) return false
+      if (group.isFontSizeControl) return true
+      if (this.getGroupItems(group).length > 0) return true
+      return typeof group.toggleClick === 'function' || typeof group.click === 'function'
+    },
+
     getGroupOrder(group, fallback = 999) {
       if (!group) return fallback
       return group.order != null ? group.order : fallback
@@ -565,7 +599,7 @@ export default {
 
     shouldShowResponsiveMenuForHiddenGroups(hiddenGroups = []) {
       const responsiveHiddenGroups = hiddenGroups.filter((group) => {
-        return group?.isFontSizeControl || this.getGroupItems(group).length > 0
+        return this.groupHasResponsiveMenuEntry(group)
       })
       return responsiveHiddenGroups.length > 1 || responsiveHiddenGroups.some(group => group?.isFontSizeControl)
     },
@@ -607,7 +641,7 @@ export default {
     getResponsiveMenuActiveGroup(groups = this.groups) {
       if (!this.responsiveMenuGroupKey) return null
       const {hidden} = this.getResponsiveLayout(groups)
-      const hiddenGroups = hidden.filter(group => this.getGroupItems(group).length > 0)
+      const hiddenGroups = hidden.filter(group => this.groupHasResponsiveMenuEntry(group))
       return hiddenGroups.find(group => this.getGroupKey(group) === this.responsiveMenuGroupKey) || null
     },
 
@@ -626,7 +660,7 @@ export default {
     getResponsiveMenuItems(groups = this.groups) {
       const {hidden} = this.getResponsiveLayout(groups)
       const hiddenGroups = hidden
-        .filter(group => group.isFontSizeControl || this.getGroupItems(group).length > 0)
+        .filter(group => this.groupHasResponsiveMenuEntry(group))
         .sort((a, b) => this.getGroupOrder(a) - this.getGroupOrder(b))
 
       if (!this.responsiveMenuGroupKey) {
@@ -656,6 +690,18 @@ export default {
         return group
       }
       const items = this.getGroupItems(group)
+      if (items.length === 0 && group.toggleClick) {
+        const label = typeof group.label === 'function' ? group.label() : group.label
+        const icon = typeof group.icon === 'function' ? group.icon() : group.icon
+        return {
+          label,
+          title: label,
+          icon,
+          iconLib: group.iconLib || IconLib.FONT_AWESOME,
+          isDisabled: group.isDisabled,
+          click: () => group.toggleClick(),
+        }
+      }
       if (items.length === 1 && !group.searchable) {
         const item = items[0]
         return {
@@ -1439,13 +1485,23 @@ export default {
     },
 
     getDefaultFontSize() {
-      const iframeWindow = document.querySelector('iframe#editview')?.contentWindow
-      if (!iframeWindow) return 16
-      const currentInlineEditor = iframeWindow.document.querySelector(
-        '.inline-edit[contenteditable="true"] > *'
-      )
-      if (!currentInlineEditor) return null
-      return iframeWindow.getComputedStyle(currentInlineEditor).fontSize
+      const range = this.getEditorSelection()
+      if (range) {
+        const targetNode = typeof range.startContainer.closest === 'function'
+          ? range.startContainer
+          : range.startContainer.parentElement
+        if (targetNode?.ownerDocument?.defaultView) {
+          return targetNode.ownerDocument.defaultView.getComputedStyle(targetNode).fontSize
+        }
+      }
+
+      const activeContext = this.getActiveEditorContext()
+      const editor = activeContext?.container || this.getInlineContainer()
+      const editorDoc = editor?.ownerDocument || activeContext?.doc || document
+      const editorWindow = editorDoc?.defaultView || window
+      const fallbackTarget = editor?.firstElementChild || editor
+      if (!fallbackTarget || !editorWindow?.getComputedStyle) return 16
+      return editorWindow.getComputedStyle(fallbackTarget).fontSize
     },
 
     wrapTextNodesInRange(range, fontSize) {
@@ -2385,6 +2441,12 @@ export default {
 
     updateDocElDimensions() {
       const previousHiddenGroups = this.hiddenGroups || {}
+      const previousWidth = this.docEl.dimension.w
+      const previousScrollWidth = this.docEl.dimension.scrollWidth
+      const previousWindowWidth = this.windowWidth
+      const previousPageTreeWidth = this.pageTreeWidth
+      const previousAlwaysActiveWidth = this.alwaysActiveWidth
+      const previousFontSizeWidth = this.fontSizeWidth
       const newW = this.$el ? this.$el.clientWidth : document.documentElement.clientWidth
       const newScrollW = this.$el ? this.$el.scrollWidth : 0
       this.docEl.dimension.w = newW
@@ -2406,7 +2468,23 @@ export default {
       const nextHiddenGroups = this.getResponsiveLayout().hiddenMap
       this.hiddenGroups = nextHiddenGroups
 
+      const layoutChanged = previousWidth !== newW ||
+        previousScrollWidth !== newScrollW ||
+        previousWindowWidth !== this.windowWidth ||
+        previousPageTreeWidth !== newPageTreeWidth ||
+        previousAlwaysActiveWidth !== newAlwaysActiveWidth ||
+        (newFontSizeWidth > 0 && previousFontSizeWidth !== newFontSizeWidth)
+
+      if (layoutChanged) {
+        this.openGroups = {}
+        this.exitResponsiveMenuGroup()
+      }
+
       const hiddenGroupsChanged = JSON.stringify(previousHiddenGroups) !== JSON.stringify(nextHiddenGroups)
+      if (layoutChanged || hiddenGroupsChanged) {
+        this.layoutPing += 1
+        this.pingRichToolbar()
+      }
       if (hiddenGroupsChanged) {
         this.$nextTick(() => {
           this.scheduleDocElDimensionsUpdate()
