@@ -37,6 +37,24 @@ function waitForElement(selector, callback) {
   }, 10000);
 }
 
+function initHotReload() {
+  if (!window.EventSource) {
+    return;
+  }
+
+  const hostname = window.location.hostname;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return;
+  }
+
+  const source = new window.EventSource(`http://${hostname}:35729/events`);
+  source.addEventListener('reload', () => {
+    window.location.reload();
+  });
+}
+
+initHotReload();
+
 waitForElement('.user-info .username', (el) => {
   if (el.getAttribute('title') !== 'admin') {
     document.head.insertAdjacentHTML('beforeend', `

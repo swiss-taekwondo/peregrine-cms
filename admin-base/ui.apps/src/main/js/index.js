@@ -25,10 +25,27 @@
 import PerAdminApp from './perAdminApp'
 import PerAdminImpl from './apiImpl'
 
+function initHotReload() {
+    if (!window.EventSource) {
+        return
+    }
+
+    const hostname = window.location.hostname
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        return
+    }
+
+    const source = new window.EventSource(`http://${hostname}:35729/events`)
+    source.addEventListener('reload', () => {
+        window.location.reload()
+    })
+}
+
+initHotReload()
+
 var $pappView = {}
 var $papp = new PerAdminApp($pappView)
 var $perApi = new PerAdminImpl($papp)
 $papp.setApi($perApi)
 var $logger = $papp.getLogger('index.js')
 $papp.getApi().populateTools().then(() => { $logger.info(JSON.stringify($pappView, true, 2)) } ).catch( (error) => $logger.info('failed test', error) )
-
