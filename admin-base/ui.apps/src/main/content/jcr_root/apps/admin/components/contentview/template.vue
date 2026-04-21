@@ -461,6 +461,7 @@ export default {
           }
         }
         vm.unselect(vm)
+        if (!vm.target && !templatePath) return
         this.toast.templateComponent = $perAdminApp.toast(`
             <div>${vm.$i18n('fromTemplateNotifyMsg')}</div>
             ${templatePath ? `<div><a class="btn" style="white-space: nowrap;" href="/content/admin/pages/templates/edit.html/path:${templatePath}">modify</a></div>` : ''}
