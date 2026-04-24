@@ -124,6 +124,34 @@ function getDeepestLastTextNode(node) {
   return last
 }
 
+function getFormatBlockElement(range, container) {
+  if (!range || !container) return null
+  const blockQuery = 'p, h1, h2, h3, h4, h5, h6'
+  let node = range.startContainer
+  if (node?.nodeType === Node.TEXT_NODE) {
+    node = node.parentElement
+  }
+
+  if (!node) return null
+
+  if (node === container) {
+    const childNode = container.childNodes[range.startOffset] || container.firstElementChild
+    if (childNode?.nodeType === Node.ELEMENT_NODE && childNode.matches?.(blockQuery)) {
+      return childNode
+    }
+  }
+
+  const block = typeof node.closest === 'function'
+    ? node.closest(blockQuery)
+    : node.parentElement?.closest?.(blockQuery)
+  return block && container.contains(block) ? block : null
+}
+
+function isEffectivelyEmptyBlock(element) {
+  if (!element) return true
+  return !element.textContent.trim() && !element.querySelector('img, ul, ol')
+}
+
 function findComponentWithMethodFromElement(element, methodName) {
   let current = element
   while (current) {
@@ -334,6 +362,7 @@ export default {
         updateFontSize: this.updateFontSize,
         undo: this.undo,
         redo: this.redo,
+        formatBlock: this.formatBlock,
         superscript: this.toggleSuperscript,
         subscript: this.toggleSubscript,
         insertOrderedList: () => this.toggleList('insertOrderedList'),
@@ -1370,6 +1399,101 @@ export default {
 
     toggleSubscript() {
       this.toggleScriptTag('SUB', 'subscript')
+    },
+
+    formatBlock(tagName) {
+      if (!tagName) return
+
+      let doc = this.getInlineDoc()
+      let container = this.getInlineContainer()
+
+      if (!doc || !container) {
+        doc = this.getLastDoc()
+        container = this.getLastContainer()
+      }
+
+      if (!doc || !container) return
+
+      const normalizedTag = String(tagName).toLowerCase()
+      const isEditor = isSidebarTextEditor(container)
+
+      if (isEditor && this._savedRange && doc.defaultView) {
+        const selection = doc.defaultView.getSelection()
+        if (selection) {
+          selection.removeAllRanges()
+          selection.addRange(this._savedRange.cloneRange())
+        }
+      }
+
+      const selection = doc.defaultView?.getSelection?.()
+      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+      const currentBlock = getFormatBlockElement(range, container)
+      const shouldReplaceEmptyBlock = !range || (range.collapsed && isEffectivelyEmptyBlock(currentBlock))
+
+      if (shouldReplaceEmptyBlock) {
+        let nextBlock = currentBlock
+
+        if (!nextBlock) {
+          nextBlock = doc.createElement(normalizedTag)
+          nextBlock.appendChild(doc.createElement('br'))
+          container.innerHTML = ''
+          container.appendChild(nextBlock)
+        } else if (nextBlock.tagName.toLowerCase() !== normalizedTag) {
+          const replacement = doc.createElement(normalizedTag)
+          while (nextBlock.firstChild) {
+            replacement.appendChild(nextBlock.firstChild)
+          }
+          if (!replacement.childNodes.length) {
+            replacement.appendChild(doc.createElement('br'))
+          }
+          nextBlock.replaceWith(replacement)
+          nextBlock = replacement
+        } else if (!nextBlock.childNodes.length) {
+          nextBlock.appendChild(doc.createElement('br'))
+        }
+
+        if (selection) {
+          const caretRange = doc.createRange()
+          caretRange.setStart(nextBlock, 0)
+          caretRange.collapse(true)
+          selection.removeAllRanges()
+          selection.addRange(caretRange)
+        }
+      } else {
+        doc.execCommand('formatBlock', false, normalizedTag)
+      }
+
+      const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
+      if (!freshContainer) return
+
+      const ownerComponent = findComponentWithMethodFromElement(freshContainer, 'textEditorWriteToModel')
+      const foundEditor = !!ownerComponent
+      if (ownerComponent) {
+        ownerComponent.textEditorWriteToModel(ownerComponent)
+      }
+
+      if (!foundEditor) {
+        this.saveToModel(freshContainer)
+      }
+
+      if (isEditor) {
+        const focusedSelection = doc.defaultView?.getSelection?.()
+        if (focusedSelection && focusedSelection.rangeCount > 0) {
+          this._savedRange = focusedSelection.getRangeAt(0).cloneRange()
+        }
+        this.selection.doc = doc
+        this.selection.container = freshContainer
+        this.selection.buffer = saveSelection(freshContainer, doc)
+        if (typeof freshContainer.focus === 'function') {
+          freshContainer.focus()
+        }
+        if (focusedSelection && this._savedRange) {
+          focusedSelection.removeAllRanges()
+          focusedSelection.addRange(this._savedRange.cloneRange())
+        }
+      }
+
+      this.pingRichToolbar()
     },
 
     toggleList(cmd) {

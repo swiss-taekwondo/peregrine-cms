@@ -84,6 +84,12 @@ function removeUnwantedStyles(htmlText) {
   return tempDiv.innerHTML
 }
 
+function shouldTreatAsEmpty(htmlText) {
+  const textCheckDiv = document.createElement('div')
+  textCheckDiv.innerHTML = htmlText
+  return !textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')
+}
+
 export default {
   components: {Richtoolbar},
   mixins: [VueFormGenerator.abstractField],
@@ -125,7 +131,11 @@ export default {
         event.preventDefault()
         const digit = key >= Key.NUMPAD_0 ? key - Key.NUMPAD_0 : key - Key.DIGIT_0
         const value = digit === 0 ? 'p' : `h${digit}`
-        document.execCommand('formatBlock', false, value)
+        if (this.$refs.richtoolbar) {
+          this.$refs.richtoolbar.exec('formatBlock', value)
+        } else {
+          document.execCommand('formatBlock', false, value)
+        }
         this.$nextTick(() => this.pingToolbar())
       } else if (key === Key.B && ctrlOrCmd) {
         event.preventDefault()
@@ -172,9 +182,10 @@ export default {
     },
     textEditorWriteToModel(vm = this) {
       const content = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
+      const normalizedContent = shouldTreatAsEmpty(content) ? '' : content
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
-      vm.model.text = content;
+      vm.model.text = normalizedContent;
     },
     pingToolbar() {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
@@ -213,17 +224,6 @@ export default {
       set(view, '/state/inline/lastDoc', vm.doc)
       set(view, '/state/inline/doc', vm.doc)
     },
-  },
-  watch: {
-    value() {
-      if (!this.value) return
-      const textCheckDiv = document.createElement('div')
-      textCheckDiv.innerHTML = this.value
-      // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
-      // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
-      // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
-      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
-    }
   }
 }
 </script>
