@@ -13,7 +13,8 @@
     "build:css:patch": "cd admin-base/materialize && npm run build:patch",
     "build:patch:all": "npm run build:patch && npm run build:css:patch",
     "watch": "npm run build:patch:all && node ./watcher.js",
-    "mvn:install": "mvn clean install -P autoInstallPackage"
+    "mvn:install": "mvn clean install -P autoInstallPackage",
+    "mvn:install:full": "CMS_DIR=$(pwd) && cd $CMS_DIR/admin-base/core && mvn clean install -P autoInstallBundle && cd $CMS_DIR/platform/base && mvn clean install -P autoInstallBundle && cd $CMS_DIR/admin-base/materialize && mvn clean install -P autoInstallPackage && cd $CMS_DIR/admin-base/ui.apps && mvn clean install -P autoInstallPackage && cd $CMS_DIR/pagerenderer/vue/ui.apps && mvn clean install -P autoInstallPackage"
   },
   "author": "headwire.com, Inc",
   "license": "Apache-2.0",

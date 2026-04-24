@@ -202,7 +202,13 @@
         <admin-components-publishinginfo v-bind:node="nodeFromPath" v-if="nodeFromPath"/>
 
         <div v-if="allowOperations && node" class="action-list">
-          <div class="action" :title="`Open Web Publishing ${nodeType} Dialog`" @click="openPublishingModal()">
+          <div v-if="hasJavaScriptErrors" class="action operationDisabledOnActivatedItem" :title="`Publishing not possible as there are some errors`">
+            <span>
+              <i class="material-icons">warning</i>
+              Publish to Web ({{nodeType}})
+            </span>
+          </div>
+          <div v-else class="action" :title="`Open Web Publishing ${nodeType} Dialog`" @click="openPublishingModal()">
             <i class="material-icons">publish</i>
             Publish to Web ({{nodeType}})
           </div>
@@ -515,6 +521,12 @@ export default {
     },
     hasReferences() {
       return this.nodeTypeGroups.references.indexOf(this.nodeType) > -1;
+    },
+    hasJavaScriptErrors() {
+      if (!this.nodeFromPath) return false;
+      if (this.nodeFromPath.hasJavaScriptErrors === true) return true;
+      if (this.nodeFromPath['jcr:content'] && this.nodeFromPath['jcr:content'].hasJavaScriptErrors === true) return true;
+      return false;
     },
     referencedBy() {
       if ($perAdminApp.getView().state.referencedBy) {

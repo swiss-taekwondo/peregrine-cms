@@ -159,6 +159,13 @@ public final class ReplicationServlet extends ReplicationServletBase {
             toBeReplicated.remove(resource);
         }
 
+        // Block publishing if page has JavaScript errors
+        for (Resource r : toBeReplicated) {
+            if (r.getValueMap().get("hasJavaScriptErrors", false)) {
+                throw new ReplicationException("Cannot publish page with JavaScript errors: " + r.getPath());
+            }
+        }
+
         toBeReplicated = replication.prepare(toBeReplicated);
         List<String> toBeReplicatedPaths = new ArrayList<>();
         HashSet<String> allReplicatedPaths = new HashSet<>();
