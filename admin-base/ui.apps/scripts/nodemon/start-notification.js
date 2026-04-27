@@ -1,5 +1,3 @@
-const os = require('os')
-if (os.userInfo().username === 'patrick') process.exit(0)
 const path = require('path');
 const notifier = require('node-notifier');
 
