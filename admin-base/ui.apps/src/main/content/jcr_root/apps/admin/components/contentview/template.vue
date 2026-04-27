@@ -396,7 +396,7 @@ export default {
     },
     'toast.showDeleteToast'(val, old) {
       if (old) {
-        old.remove()
+        old.timeRemaining = 0
       }
     }
   },
@@ -1365,7 +1365,7 @@ export default {
       vm.redoItem = null
       const toastObj = $perAdminApp.toast(
         `<span style="flex: 1;">Component deleted.</span><a class="btn per-undo-btn" style="white-space: nowrap; margin-left: 16px;">Undo</a>`,
-        'delete'
+        'delete',
       )
       vm.toast.showDeleteToast = toastObj
       const undoBtn = toastObj.el.querySelector('.per-undo-btn')
