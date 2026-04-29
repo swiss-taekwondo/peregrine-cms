@@ -248,7 +248,8 @@ export default {
     },
   },
   watch: {
-    value() {
+    value(newVal) {
+   console.log('newVal', newVal) 
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = this.value

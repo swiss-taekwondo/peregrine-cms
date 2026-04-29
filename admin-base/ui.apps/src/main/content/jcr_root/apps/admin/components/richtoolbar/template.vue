@@ -192,6 +192,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    schema: {
+      type: Object,
+      default: null,
+    },
   },
 
   data() {
@@ -367,6 +371,9 @@ export default {
         const anchorClickHold = lastAnchorClickAt && (Date.now() - lastAnchorClickAt < 250)
         const hasSelection = !!selectionRange || anchorClickHold
         this.hasEditorSelection = hasSelection
+       console.log('this.hasEditorSelection', this.hasEditorSelection, {
+       selectionRange, view, lastAnchorClickAt, anchorClickHold, hasSelection
+       }) 
         if (selectionRange) {
           this._savedRange = selectionRange.cloneRange()
           const editorEl = this.getEditorFrom(selectionRange)
@@ -1629,6 +1636,23 @@ export default {
       const getEditorFromEl = typeof range.startContainer.closest === 'function'
         ? range.startContainer
         : range.startContainer.parentElement
+      	// console.log('getEditorFrom', this.schema, $perAdminApp.getNodeFromView('/state/editor/path'))
+       
+       
+       const view = $perAdminApp.getView()
+      console.log('view', view) 
+       // if (!view || !view.pageView || !view.pageView.page) return false
+
+       const editorPath = $perAdminApp.getNodeFromView('/state/editor/path')
+      console.log('editorPath', editorPath) 
+       const pageNode = view.pageView.page
+      console.log('pageNode', pageNode) 
+
+       let parentProp
+       if (editorPath) {
+         parentProp = $perAdminApp.findNodeFromPath(pageNode, editorPath)
+       }
+       console.log('parentProp', parentProp) 
       return getEditorFromEl?.closest('.inline-edit[contenteditable="true"], .text-editor') || null
     },
 
@@ -1641,6 +1665,13 @@ export default {
       }
       const elementRange = textEditor.ownerDocument.createRange()
       elementRange.selectNodeContents(textEditor)
+      console.log('isRangeInEditor', (
+              range.compareBoundaryPoints(Range.START_TO_START, elementRange) >= 0 &&
+              range.compareBoundaryPoints(Range.END_TO_END, elementRange) <= 0
+            ),
+            { 
+            range, textEditor, elementRange,
+            })
       return (
         range.compareBoundaryPoints(Range.START_TO_START, elementRange) >= 0 &&
         range.compareBoundaryPoints(Range.END_TO_END, elementRange) <= 0
@@ -2547,13 +2578,15 @@ export default {
           sel.addRange(range)
 
           const editor = this.getEditorFrom(range)
+         console.log('editor', editor) 
           if (editor) editor.dispatchEvent(new Event('input'))
         }
 
-        $perAdminApp.action(this, 'writeInlineToModel')
-        this.$nextTick(() => {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        })
+        // This might be required for something else? But it causes empty RTE images to be overwritten with inline (empty) content when added in sidebar
+        // $perAdminApp.action(this, 'writeInlineToModel')
+        // this.$nextTick(() => {
+        //   $perAdminApp.action(this, 'textEditorWriteToModel')
+        // })
       }
     },
 
