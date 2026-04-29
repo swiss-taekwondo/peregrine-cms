@@ -41,10 +41,11 @@
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
-       @click="pingToolbar"
+       @click="onSelectionChange"
        @dblclick="onDblClick"
        @keydown="onKeyDown"
-       @keyup="pingToolbar">
+       @mouseup="onSelectionChange"
+       @keyup="onSelectionChange">
        </div>
   </div>
 </template>
@@ -84,6 +85,12 @@ function removeUnwantedStyles(htmlText) {
   return tempDiv.innerHTML
 }
 
+function getAnchorFromSelection(selection) {
+  const anchorNode = selection && selection.rangeCount > 0 ? selection.anchorNode : null
+  const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
+  return el ? el.closest('a') : null
+}
+
 export default {
   components: {Richtoolbar},
   mixins: [VueFormGenerator.abstractField],
@@ -114,6 +121,7 @@ export default {
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/editorModel', this.model)
       this.editing = true
+      this.syncToolbarSelection()
       this.pingToolbar()
     },
     onKeyDown(event) {
@@ -145,10 +153,8 @@ export default {
       const view = this.view
       if (!view) return
       const sel = document.getSelection()
-      const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
-      const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
       set(view, '/state/inline/rich', true)
-      set(view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
+      set(view, '/state/inline/lastAnchor', getAnchorFromSelection(sel))
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/lastDoc', this.doc)
       set(view, '/state/inline/lastSelectionBuffer', saveSelection(this.$refs.textEditor, this.doc))
@@ -156,6 +162,35 @@ export default {
       set(view, '/state/inline/editorModel', null)
       this.editing = false
       this.pingToolbar()
+    },
+    onSelectionChange() {
+      this.syncToolbarSelection()
+      this.pingToolbar()
+    },
+    syncToolbarSelection(vm = this) {
+      const toolbar = vm.$refs.richtoolbar
+      const container = vm.$refs.textEditor
+      const selection = document.getSelection()
+      if (!toolbar || !container || !selection || selection.rangeCount <= 0) return
+
+      const range = selection.getRangeAt(0)
+      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return
+
+      const anchor = getAnchorFromSelection(selection)
+      toolbar.selection.doc = vm.doc
+      toolbar.selection.container = container
+      toolbar.selection.buffer = saveSelection(container, vm.doc)
+      toolbar._savedRange = range.cloneRange()
+      toolbar.activeAnchor = anchor
+      toolbar.hasEditorSelection = true
+
+      const view = vm.view
+      if (view) {
+        set(view, '/state/inline/lastAnchor', anchor)
+        set(view, '/state/inline/lastContainer', container)
+        set(view, '/state/inline/lastDoc', vm.doc)
+        set(view, '/state/inline/doc', vm.doc)
+      }
     },
     onInput(event) {
       const content = event.target.innerHTML;
@@ -206,9 +241,7 @@ export default {
       const view = $perAdminApp.getView()
       if (!view) return
       const sel = document.getSelection()
-      const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
-      const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
-      set(view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
+      vm.syncToolbarSelection()
       set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
       set(view, '/state/inline/lastDoc', vm.doc)
       set(view, '/state/inline/doc', vm.doc)

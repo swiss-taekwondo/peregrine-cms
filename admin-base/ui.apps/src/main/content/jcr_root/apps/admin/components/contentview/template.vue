@@ -645,6 +645,36 @@ export default {
     },
 
     onInlineClick(event) {
+      const target = event.target
+      const anchor = target?.closest ? target.closest('a') : null
+      const editor = event.currentTarget
+      if (anchor && editor && editor.contains(anchor)) {
+        this.target = editor
+        const doc = this.iframe.doc
+        const selection = doc?.defaultView?.getSelection?.()
+        const selectionBuffer = selection ? saveSelection(editor, doc) : null
+        const savedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
+        const emitSelectionState = () => window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
+          detail: {
+            hasEditorSelection: true,
+            doc,
+            container: editor,
+            buffer: selectionBuffer,
+            savedRange,
+            activeAnchor: anchor,
+            source: 'inline-click',
+          },
+        }))
+        set(this.view, '/state/inline/lastAnchor', anchor)
+        set(this.view, '/state/inline/lastContainer', editor)
+        set(this.view, '/state/inline/lastDoc', doc)
+        set(this.view, '/state/inline/lastSelectionBuffer', selectionBuffer)
+        set(this.view, '/state/inline/lastAnchorClickAt', Date.now())
+        set(this.view, '/state/inline/doc', doc)
+        emitSelectionState()
+        requestAnimationFrame(emitSelectionState)
+        setTimeout(emitSelectionState, 75)
+      }
       this.pingToolbar()
     },
 

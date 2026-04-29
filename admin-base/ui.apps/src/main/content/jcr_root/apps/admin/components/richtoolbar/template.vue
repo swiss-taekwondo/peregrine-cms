@@ -204,9 +204,11 @@ export default {
         container: null,
         content: null,
       },
+      activeAnchor: null,
       param: {
         cmd: null,
         value: null,
+        anchor: null,
       },
       browser: {
         element: null,
@@ -360,7 +362,10 @@ export default {
 
       this._updateEditorSelection = () => {
         const selectionRange = this.getEditorSelection()
-        const hasSelection = !!selectionRange
+        const view = $perAdminApp.getView()
+        const lastAnchorClickAt = get(view, '/state/inline/lastAnchorClickAt', 0) || 0
+        const anchorClickHold = lastAnchorClickAt && (Date.now() - lastAnchorClickAt < 250)
+        const hasSelection = !!selectionRange || anchorClickHold
         this.hasEditorSelection = hasSelection
         if (selectionRange) {
           this._savedRange = selectionRange.cloneRange()
@@ -369,7 +374,14 @@ export default {
             this.selection.doc = editorEl.ownerDocument
             this.selection.container = editorEl
             this.selection.buffer = saveSelection(editorEl, editorEl.ownerDocument)
+            const anchor = this.getAnchorFromRange(selectionRange)
+            this.activeAnchor = anchor || null
+            if (view) set(view, '/state/inline/lastAnchor', anchor || null)
           }
+        } else if (!this.browser.open && !this.param.cmd) {
+          this._savedRange = null
+          this.activeAnchor = null
+          if (view) set(view, '/state/inline/lastAnchor', null)
         }
         window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
           detail: {
@@ -378,6 +390,8 @@ export default {
             container: this.selection.container,
             buffer: this.selection.buffer,
             savedRange: this._savedRange ? this._savedRange.cloneRange() : null,
+            activeAnchor: this.activeAnchor,
+            source: anchorClickHold ? 'inline-click' : 'selectionchange',
           },
         }))
       }
@@ -386,6 +400,7 @@ export default {
       this.$watch('inline', (val) => {
         if (!val) {
           this.hasEditorSelection = false
+          this.activeAnchor = null
           window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
             detail: {
               hasEditorSelection: false,
@@ -393,12 +408,14 @@ export default {
               container: null,
               buffer: null,
               savedRange: null,
+              activeAnchor: null,
             },
           }))
         } else {
           const iframe = document.querySelector('iframe#editview')
           if (iframe?.contentDocument && !this._iframeSelectionListenerRegistered) {
             iframe.contentDocument.addEventListener('selectionchange', this._updateEditorSelection)
+            iframe.contentDocument.addEventListener('mousedown', this._closeDropdowns)
             this._iframeSelectionListenerRegistered = true
           }
         }
@@ -411,11 +428,33 @@ export default {
       window.addEventListener('richtoolbar:history', this._historyHandler)
 
       this._selectionHandler = (e) => {
-        this.hasEditorSelection = e.detail.hasEditorSelection
+        this.hasEditorSelection = !!e.detail.hasEditorSelection || !!e.detail.activeAnchor
         this.selection.doc = e.detail.doc || null
         this.selection.container = e.detail.container || null
         this.selection.buffer = e.detail.buffer || null
         this._savedRange = e.detail.savedRange ? e.detail.savedRange.cloneRange() : null
+        const inlineClickAnchor = e.detail.source === 'inline-click' ? e.detail.activeAnchor || null : null
+        if (inlineClickAnchor) {
+          this.activeAnchor = inlineClickAnchor
+          if (this._inlineClickStickyTimer) {
+            clearTimeout(this._inlineClickStickyTimer)
+          }
+          this._inlineClickStickyUntil = Date.now() + 500
+          this._inlineClickStickyTimer = setTimeout(() => {
+            this._inlineClickStickyTimer = null
+            if (this._inlineClickStickyUntil && Date.now() >= this._inlineClickStickyUntil) {
+              this._inlineClickStickyUntil = 0
+            }
+          }, 500)
+        } else {
+          const stickyAnchorActive = this._inlineClickStickyUntil && Date.now() < this._inlineClickStickyUntil
+          this.activeAnchor = e.detail.activeAnchor || (stickyAnchorActive ? this.activeAnchor : null)
+          if (!stickyAnchorActive) {
+            this._inlineClickStickyUntil = 0
+          }
+        }
+        this.layoutPing += 1
+        this.$forceUpdate()
       }
       window.addEventListener('richtoolbar:selection', this._selectionHandler)
     }
@@ -443,11 +482,16 @@ export default {
     if (this._selectionHandler) {
       window.removeEventListener('richtoolbar:selection', this._selectionHandler)
     }
+    if (this._inlineClickStickyTimer) {
+      clearTimeout(this._inlineClickStickyTimer)
+      this._inlineClickStickyTimer = null
+    }
     if (this._updateEditorSelection) {
       document.removeEventListener('selectionchange', this._updateEditorSelection)
       const iframe = document.querySelector('iframe#editview')
       if (iframe?.contentDocument && this._iframeSelectionListenerRegistered) {
         iframe.contentDocument.removeEventListener('selectionchange', this._updateEditorSelection)
+        iframe.contentDocument.removeEventListener('mousedown', this._closeDropdowns)
       }
     }
     document.removeEventListener('mousedown', this._closeDropdowns)
@@ -879,12 +923,14 @@ export default {
         if (itemRules && itemRules[i] && !itemRules[i]()) return false
         return true
       })
+      const forceLinkDropdown = label === 'link' && !!this.getActiveAnchor(false)
+      const dropdownItems = forceLinkDropdown ? items : realItems
 
       if (group.collapse) {
         const groupIsActive = this.groupIsActive(group)
 
-        if (realItems.length <= 1) {
-          const singleItem = realItems[0]
+        if (!forceLinkDropdown && dropdownItems.length <= 1) {
+          const singleItem = dropdownItems[0]
           const clickFn = group.toggleClick
             ? () => group.toggleClick()
             : singleItem
@@ -1046,7 +1092,7 @@ export default {
             h('div', { class: 'rtb-dropdown-items-list' }, [backBtn, ...menuItems]),
           ]
         } else {
-          menuItems = realItems.map((btn, i) => {
+          menuItems = dropdownItems.map((btn, i) => {
             if (this.isResponsiveMenuGroup(group) && btn?.isFontSizeControl) {
               return this._renderGroup(h, btn, false)
             }
@@ -1114,7 +1160,8 @@ export default {
     },
 
     _closeDropdowns(e) {
-      if (!this.$el || !this.$el.contains(e.target)) {
+      const clickedOutsideToolbar = !this.$el || !this.$el.contains(e.target)
+      if (clickedOutsideToolbar) {
         this.openGroups = {}
         this.exitResponsiveMenuGroup()
       }
@@ -1549,29 +1596,49 @@ export default {
     },
 
     getEditorSelection(returnRange = true) {
-      const selection = window.getSelection()
-      const iframeSelection = document.querySelector('iframe#editview')?.contentDocument.getSelection()
-      if (selection?.rangeCount > 0) {
-        const range = selection.getRangeAt(0)
-        if (this.isRangeInEditor(range)) return returnRange ? range : selection
+      const getSelectionFromDoc = (doc, container = null) => {
+        const selection = doc?.defaultView?.getSelection?.()
+        if (selection?.rangeCount > 0) {
+          const range = selection.getRangeAt(0)
+          if (this.isRangeInEditor(range, container)) return returnRange ? range : selection
+        }
+        return null
       }
-      if (iframeSelection?.rangeCount > 0) {
-        const iframeRange = iframeSelection.getRangeAt(0)
-        if (this.isRangeInEditor(iframeRange)) return returnRange ? iframeRange : iframeSelection
-      }
+
+      const selectedContainer = this.selection.container?.classList?.contains('inline-editing')
+        ? this.selection.container
+        : null
+      const selectedContainerSelection = selectedContainer
+        ? getSelectionFromDoc(selectedContainer.ownerDocument, selectedContainer)
+        : null
+      if (selectedContainerSelection) return selectedContainerSelection
+
+      const iframeDoc = document.querySelector('iframe#editview')?.contentDocument
+      const iframeContainer = iframeDoc?.querySelector?.('.inline-edit.inline-editing')
+      const iframeSelection = iframeContainer ? getSelectionFromDoc(iframeDoc, iframeContainer) : null
+      if (iframeSelection) return iframeSelection
+
+      const sidebarContainer = document.querySelector('.text-editor.inline-edit.inline-editing')
+      const sidebarSelection = sidebarContainer ? getSelectionFromDoc(document, sidebarContainer) : null
+      if (sidebarSelection) return sidebarSelection
+
+      return null
     },
 
     getEditorFrom(range) {
       const getEditorFromEl = typeof range.startContainer.closest === 'function'
         ? range.startContainer
         : range.startContainer.parentElement
-      return getEditorFromEl.closest('.inline-edit[contenteditable="true"], .text-editor')
+      return getEditorFromEl?.closest('.inline-edit[contenteditable="true"], .text-editor') || null
     },
 
-    isRangeInEditor(range) {
+    isRangeInEditor(range, editor = null) {
       if (!range) return false
-      const textEditor = this.getEditorFrom(range)
-      if (!textEditor) return false
+      const textEditor = editor || this.getEditorFrom(range)
+      if (!textEditor || textEditor.ownerDocument !== range.startContainer.ownerDocument) return false
+      if (!textEditor.contains(range.startContainer) || !textEditor.contains(range.endContainer)) {
+        return false
+      }
       const elementRange = textEditor.ownerDocument.createRange()
       elementRange.selectNodeContents(textEditor)
       return (
@@ -1767,6 +1834,10 @@ export default {
     },
 
     link() {
+      if (this.onSubNav) {
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'link' } }))
+        return
+      }
       this.insertLink()
     },
 
@@ -1782,7 +1853,63 @@ export default {
       return $perAdminApp.getNodeFromViewOrNull('/state/inline/lastDoc')
     },
 
+    getAnchorFromRange(range) {
+      if (!range) return null
+      const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
+      const start = toEl(range.startContainer)
+      const end = toEl(range.endContainer)
+      return (
+        (start && start.closest && start.closest('a')) ||
+        (end && end.closest && end.closest('a')) ||
+        null
+      )
+    },
+
+    getActiveAnchor(useStoredAnchor = true) {
+      if (this.onSubNav) {
+        if (this.activeAnchor && this.activeAnchor.parentNode) {
+          return this.activeAnchor
+        }
+        if (useStoredAnchor && this.param.anchor && this.param.anchor.parentNode) {
+          return this.param.anchor
+        }
+        return null
+      }
+
+      if (this.hasEditorSelection) {
+        if (this.activeAnchor && this.activeAnchor.parentNode) {
+          return this.activeAnchor
+        }
+        if (!useStoredAnchor || this.selection.container?.classList?.contains('inline-editing')) {
+          return null
+        }
+      }
+
+      const range = this.getEditorSelection()
+      const anchor = this.getAnchorFromRange(range)
+      if (anchor) {
+        return anchor
+      }
+
+      if (!useStoredAnchor) return null
+
+      if (this._savedRange) {
+        const savedAnchor = this.getAnchorFromRange(this._savedRange)
+        if (savedAnchor && savedAnchor.parentNode) {
+          return savedAnchor
+        }
+      }
+
+      const lastAnchor = this.getLastAnchor()
+      if (lastAnchor && lastAnchor.parentNode) {
+      }
+      return lastAnchor && lastAnchor.parentNode ? lastAnchor : null
+    },
+
     getAnchorAtSelection() {
+      const activeAnchor = this.getActiveAnchor()
+      if (activeAnchor) return activeAnchor
+
       const doc = this.getInlineDoc() || this.getLastDoc()
       if (!doc) {
         const lastDoc = this.getLastDoc()
@@ -1806,6 +1933,10 @@ export default {
     },
 
     insertLink() {
+      if (this.onSubNav) {
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'insertLink' } }))
+        return
+      }
       const doc = this.getInlineDoc() || this.getLastDoc()
       const container = this.getInlineContainer() || this.getLastContainer()
       if (!doc || !container) {
@@ -1814,6 +1945,7 @@ export default {
 
       const startPath = this.roots.pages
       this.param.cmd = 'insertLink'
+      this.param.anchor = null
       this.browser.header = this.$i18n('Insert Link')
       this.browser.path.current = startPath
       this.browser.path.selected = null
@@ -1841,7 +1973,12 @@ export default {
     },
 
     editLink() {
-      let anchor = this.getAnchorAtSelection() || this.getLastAnchor()
+      if (this.onSubNav) {
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'editLink' } }))
+        return
+      }
+      let anchor = this.getActiveAnchor()
+      
       if (anchor && (!this.getInlineDoc() || !this.getLastDoc())) {
         const anchorDoc = anchor.ownerDocument
         if (anchorDoc) {
@@ -1885,6 +2022,7 @@ export default {
       }
 
       this.param.cmd = 'editLink'
+      this.param.anchor = anchor
       this.browser.header = this.$i18n('Edit Link')
       this.browser.withLinkTab = true
       this.browser.newWindow = target === '_blank'
@@ -1922,7 +2060,11 @@ export default {
     },
 
     removeLink() {
-      let anchor = this.getAnchorAtSelection() || this.getLastAnchor()
+      if (this.onSubNav) {
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'removeLink' } }))
+        return
+      }
+      let anchor = this.getActiveAnchor()
 
       if (!anchor) {
         const inlineDoc = this.getInlineDoc()
@@ -1964,7 +2106,6 @@ export default {
         return
       }
 
-      container.focus()
       this.$nextTick(() => {
         const win = doc.defaultView || window
         const sel = win.getSelection ? win.getSelection() : null
@@ -2143,6 +2284,9 @@ export default {
     },
 
     itemIsTag(tagName) {
+      if (tagName.toUpperCase() === 'A') {
+        return !!this.getActiveAnchor(false)
+      }
       const selection = this.getSelection(0)
       if (selection) {
         const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
@@ -2181,6 +2325,7 @@ export default {
     onBrowserCancel() {
       this.browser.open = false
       this.browser.withImageTab = false
+      this.param.anchor = null
       if (this.selection.restore) {
         this.restoreSelection()
         this.selection.restore = false
@@ -2206,6 +2351,7 @@ export default {
         this.execCmd(this.param.cmd, this.param.value)
         this.param.cmd = null
         this.param.value = null
+        this.param.anchor = null
         this.browser.path.selected = null
         this.browser.linkTitle = null
         this.browser.img.width = null
@@ -2295,7 +2441,10 @@ export default {
           $perAdminApp.action(this, 'textEditorWriteToModel')
         })
       } else {
-        let anchor = this.getLastAnchor()
+        let anchor = this.param.anchor
+        if (!anchor || !anchor.parentNode) {
+          anchor = this.getLastAnchor()
+        }
         if (!anchor || !anchor.parentNode) {
           anchor = this.getAnchorAtSelection()
         }
@@ -2316,13 +2465,22 @@ export default {
         }
         if (!anchor || !anchor.parentNode) return
         applyLinkAttributes(anchor)
-        $perAdminApp.action(this, 'textEditorWriteToModel')
+        const inlineContainer = anchor.closest('[data-per-inline]')
+        if (inlineContainer) {
+          if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
+            $perAdminApp.action(this, 'reWrapEditable')
+          }
+          $perAdminApp.action(this, 'writeElementToModel', inlineContainer)
+        } else {
+          $perAdminApp.action(this, 'textEditorWriteToModel')
+        }
         const view = $perAdminApp.getView()
         if (view) {
           const state = view.state || (view.state = {})
           const inline = state.inline || (state.inline = {})
           inline.lastAnchor = anchor
         }
+        this.param.anchor = null
       }
     },
 
