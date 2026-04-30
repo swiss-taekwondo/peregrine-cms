@@ -141,7 +141,25 @@ function removeUnwantedStyles(htmlText) {
   return tempDiv.innerHTML
 }
 
+function resolveHeadingShortcutDigit(event, Key) {
+  const { code } = event
+  if (typeof code === 'string') {
+    const digitMatch = code.match(/^Digit([0-6])$/)
+    if (digitMatch) return Number(digitMatch[1])
+    const numpadMatch = code.match(/^Numpad([0-6])$/)
+    if (numpadMatch) return Number(numpadMatch[1])
+  }
 
+  const key = event.which || event.keyCode
+  if (key >= Key.DIGIT_0 && key <= Key.DIGIT_6) {
+    return key - Key.DIGIT_0
+  }
+  if (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6) {
+    return key - Key.NUMPAD_0
+  }
+
+  return null
+}
 
 export default {
   props: ['model'],
@@ -582,6 +600,44 @@ export default {
       if (keyStr) parentProp[keyStr] = content
     },
 
+    formatInlineBlock(element, tagName) {
+      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
+      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+
+      const selection = this.iframe.win.getSelection()
+      if (!selection || selection.rangeCount === 0) return false
+
+      const range = selection.getRangeAt(0)
+      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
+        ? range.startContainer.parentElement
+        : range.startContainer
+      const editorElement = element || this.target
+      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+        || (editorElement && editorElement.matches && editorElement.matches('p, h1, h2, h3, h4, h5, h6') ? editorElement : null)
+        || (editorElement ? editorElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+      if (!block) return false
+      if (block.tagName === normalizedTagName) return true
+
+      const replacement = this.iframe.doc.createElement(normalizedTagName)
+      for (const attr of Array.from(block.attributes)) {
+        replacement.setAttribute(attr.name, attr.value)
+      }
+      while (block.firstChild) {
+        replacement.appendChild(block.firstChild)
+      }
+      block.replaceWith(replacement)
+
+      const nextRange = this.iframe.doc.createRange()
+      nextRange.selectNodeContents(replacement)
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+      const modelElement = editorElement?.closest?.('[data-per-inline]') || editorElement
+      modelElement.dispatchEvent(new Event('input', { bubbles: true }))
+      this.writeElementToModel(this, modelElement)
+      this.pingToolbar()
+      return true
+    },
+
     onInlineEdit(event) {
       if (!this.inlineEdit.firstTime.includes(event.target)) {
         this.inlineEdit.firstTime.push(event.target)
@@ -730,6 +786,7 @@ export default {
       const key = event.which
       const shift = event.shiftKey
       const ctrlOrCmd = event.ctrlKey || event.metaKey
+      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event, Key) : null
       const backspaceOrDelete = key === Key.BACKSPACE || key === Key.DELETE
       const arrowKey = key >= Key.ARROW_LEFT && key <= Key.ARROW_DOWN
 
@@ -746,11 +803,15 @@ export default {
       } else if (key === Key.U && ctrlOrCmd) {
         event.preventDefault()
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
-      } else if (ctrlOrCmd && event.altKey && ((key >= Key.DIGIT_0 && key <= Key.DIGIT_6) || (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6))) {
+      } else if (headingDigit !== null) {
         event.preventDefault()
-        const digit = key >= Key.NUMPAD_0 ? key - Key.NUMPAD_0 : key - Key.DIGIT_0
-        const value = digit === 0 ? 'p' : `h${digit}`
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
+        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
+        const editorElement = this.target || event.target
+        if (!this.formatInlineBlock(editorElement, value)) {
+          this.iframe.doc.execCommand('formatBlock', false, `<${value}>`)
+          this.writeElementToModel(this, editorElement?.closest?.('[data-per-inline]') || editorElement)
+          this.pingToolbar()
+        }
       } else if (key === Key.Z && ctrlOrCmd) {
         event.preventDefault()
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))

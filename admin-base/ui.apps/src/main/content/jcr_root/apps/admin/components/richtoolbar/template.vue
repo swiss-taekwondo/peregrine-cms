@@ -124,6 +124,23 @@ function getDeepestLastTextNode(node) {
   return last
 }
 
+function getSelectedBlockFromRange(range, editor) {
+  if (!range || !editor) return null
+  const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
+    ? range.startContainer.parentElement
+    : range.startContainer
+  const exactText = range.toString().trim()
+  return (
+    (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+    || (exactText
+      ? Array.from(editor.querySelectorAll('p, h1, h2, h3, h4, h5, h6')).find(
+        (element) => (element.textContent || '').trim() === exactText,
+      ) || null
+      : null)
+    || (editor.matches && editor.matches('p, h1, h2, h3, h4, h5, h6') ? editor : null)
+  )
+}
+
 function findComponentWithMethodFromElement(element, methodName) {
   let current = element
   while (current) {
@@ -157,19 +174,22 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
     class: classes,
     attrs: { title: title, type: 'button' },
     domProps: { disabled: isDisabled },
-    on: {
-      mousedown: (e) => {
-        e.preventDefault()
-        if (inDropdown) e.stopPropagation()
+      on: {
+        mousedown: (e) => {
+          e.preventDefault()
+          if (inDropdown) e.stopPropagation()
+        },
+        click: (e) => {
+          if (inDropdown) e.stopPropagation()
+          if (isDisabled) return
+          if (closeDropdown) closeDropdown()
+          if (vm && typeof vm.restoreSelection === 'function') {
+            vm.restoreSelection()
+          }
+          if (btn.click) btn.click(); else vm.exec(btn.cmd)
+        },
       },
-      click: (e) => {
-        if (inDropdown) e.stopPropagation()
-        if (isDisabled) return
-        if (closeDropdown) closeDropdown()
-        if (btn.click) btn.click(); else vm.exec(btn.cmd)
-      },
-    },
-  }, children)
+    }, children)
 }
 
 export default {
@@ -327,6 +347,7 @@ export default {
     },
     specialCases() {
       return {
+        formatBlock: this.formatBlock,
         link: this.insertLink,
         insertImage: this.insertImage,
         editImage: this.editImage,
@@ -1322,6 +1343,24 @@ export default {
       return false
     },
 
+    writeEditorToModel(textEditor) {
+      const wrapper = textEditor?.closest?.('.text-editor-wrapper')
+      let comp = textEditor?.__vue__ || wrapper?.__vue__ || this.$parent
+
+      while (comp) {
+        if (typeof comp.textEditorWriteToModel === 'function') {
+          comp.textEditorWriteToModel(comp)
+          return true
+        }
+        comp = comp.$parent
+      }
+
+      if (textEditor && this.saveToModel(textEditor)) return true
+
+      $perAdminApp.action(this, 'textEditorWriteToModel')
+      return false
+    },
+
     toggleScriptTag(tagName, cmd) {
       if (window.__savedDoc) {
         window.__savedSel = null
@@ -1632,6 +1671,66 @@ export default {
       return getEditorFromEl?.closest('.inline-edit[contenteditable="true"], .text-editor') || null
     },
 
+    formatBlock(tagName) {
+      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
+      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+
+      const savedRange = this._savedRange
+      let range = savedRange || this.getEditorSelection()
+      let textEditor = range ? this.getEditorFrom(range) : null
+
+      if (!range && this.selection?.container && this.selection?.buffer) {
+        const doc = this.selection.doc || this.selection.container.ownerDocument
+        restoreSelection(this.selection.container, this.selection.buffer, doc)
+        range = this.getEditorSelection()
+        textEditor = range ? this.getEditorFrom(range) : null
+      }
+
+      if (!range || !textEditor) return false
+      if (!this.isRangeInEditor(range, textEditor)) {
+        if (this.selection?.container && this.selection?.buffer) {
+          const doc = this.selection.doc || this.selection.container.ownerDocument
+          restoreSelection(this.selection.container, this.selection.buffer, doc)
+          range = this.getEditorSelection()
+          textEditor = range ? this.getEditorFrom(range) : null
+        }
+        if (!range || !textEditor || !this.isRangeInEditor(range, textEditor)) return false
+      }
+
+      const block = getSelectedBlockFromRange(range, textEditor)
+      let resolvedBlock = block
+      if (!resolvedBlock && this.selection?.container && this.selection?.buffer) {
+        const doc = this.selection.doc || this.selection.container.ownerDocument
+        restoreSelection(this.selection.container, this.selection.buffer, doc)
+        range = this.getEditorSelection()
+        textEditor = range ? this.getEditorFrom(range) : null
+        resolvedBlock = range && textEditor ? getSelectedBlockFromRange(range, textEditor) : null
+      }
+      if (!resolvedBlock) return false
+      if (resolvedBlock.tagName === normalizedTagName) return true
+
+      const replacement = textEditor.ownerDocument.createElement(normalizedTagName)
+      for (const attr of Array.from(resolvedBlock.attributes)) {
+        replacement.setAttribute(attr.name, attr.value)
+      }
+      while (resolvedBlock.firstChild) {
+        replacement.appendChild(resolvedBlock.firstChild)
+      }
+      resolvedBlock.replaceWith(replacement)
+
+      const nextRange = textEditor.ownerDocument.createRange()
+      nextRange.selectNodeContents(replacement)
+      const selection = textEditor.ownerDocument.defaultView?.getSelection?.()
+      if (selection) {
+        selection.removeAllRanges()
+        selection.addRange(nextRange)
+      }
+      this.writeEditorToModel(textEditor)
+      textEditor.dispatchEvent(new Event('input'))
+      this.pingRichToolbar()
+      return true
+    },
+
     isRangeInEditor(range, editor = null) {
       if (!range) return false
       const textEditor = editor || this.getEditorFrom(range)
@@ -1697,6 +1796,11 @@ export default {
         setFontSizeOfEl(fontSizeParent, fontSize)
         fontSizeParent.style.fontSize = fontSize
         textEditor.dispatchEvent(new Event('input'))
+        if (textEditor.ownerDocument.querySelector('iframe#editview')) {
+          $perAdminApp.action(this, 'textEditorWriteToModel')
+        } else {
+          $perAdminApp.action(this, 'writeInlineToModel')
+        }
         return
       }
 
@@ -1716,6 +1820,11 @@ export default {
           span.style.fontSize = fontSize
           range.surroundContents(span)
           this.selectNodes([span])
+          if (textEditor.ownerDocument.querySelector('iframe#editview')) {
+            $perAdminApp.action(this, 'textEditorWriteToModel')
+          } else {
+            $perAdminApp.action(this, 'writeInlineToModel')
+          }
           return
         } else {
           setFontSizeOfEl(range.startContainer, fontSize)

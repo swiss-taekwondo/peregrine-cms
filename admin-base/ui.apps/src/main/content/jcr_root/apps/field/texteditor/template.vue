@@ -91,6 +91,26 @@ function getAnchorFromSelection(selection) {
   return el ? el.closest('a') : null
 }
 
+function resolveHeadingShortcutDigit(event) {
+  const { code } = event
+  if (typeof code === 'string') {
+    const digitMatch = code.match(/^Digit([0-6])$/)
+    if (digitMatch) return Number(digitMatch[1])
+    const numpadMatch = code.match(/^Numpad([0-6])$/)
+    if (numpadMatch) return Number(numpadMatch[1])
+  }
+
+  const key = event.which || event.keyCode
+  if (key >= Key.DIGIT_0 && key <= Key.DIGIT_6) {
+    return key - Key.DIGIT_0
+  }
+  if (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6) {
+    return key - Key.NUMPAD_0
+  }
+
+  return null
+}
+
 export default {
   components: {Richtoolbar},
   mixins: [VueFormGenerator.abstractField],
@@ -113,6 +133,40 @@ export default {
   },
 
   methods: {
+    formatBlock(tagName) {
+      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
+      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+
+      const selection = document.getSelection()
+      if (!selection || selection.rangeCount === 0) return false
+
+      const range = selection.getRangeAt(0)
+      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
+        ? range.startContainer.parentElement
+        : range.startContainer
+      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+        || (this.$refs.textEditor && this.$refs.textEditor.matches && this.$refs.textEditor.matches('p, h1, h2, h3, h4, h5, h6') ? this.$refs.textEditor : null)
+        || (this.$refs.textEditor ? this.$refs.textEditor.closest('p, h1, h2, h3, h4, h5, h6') : null)
+      if (!block || !this.$refs.textEditor.contains(block)) return false
+      if (block.tagName === normalizedTagName) return true
+
+      const replacement = document.createElement(normalizedTagName)
+      for (const attr of Array.from(block.attributes)) {
+        replacement.setAttribute(attr.name, attr.value)
+      }
+      while (block.firstChild) {
+        replacement.appendChild(block.firstChild)
+      }
+      block.replaceWith(replacement)
+
+      const nextRange = document.createRange()
+      nextRange.selectNodeContents(replacement)
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+      this.textEditorWriteToModel()
+      this.$nextTick(() => this.pingToolbar())
+      return true
+    },
     onFocusIn(event) {
       const view = this.view
       if (!view) return
@@ -128,13 +182,16 @@ export default {
       this.pingToolbar()
       const key = event.which
       const ctrlOrCmd = event.ctrlKey || event.metaKey
+      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event) : null
 
-      if (ctrlOrCmd && event.altKey && ((key >= Key.DIGIT_0 && key <= Key.DIGIT_6) || (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6))) {
+      if (headingDigit !== null) {
         event.preventDefault()
-        const digit = key >= Key.NUMPAD_0 ? key - Key.NUMPAD_0 : key - Key.DIGIT_0
-        const value = digit === 0 ? 'p' : `h${digit}`
-        document.execCommand('formatBlock', false, value)
-        this.$nextTick(() => this.pingToolbar())
+        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
+        if (!this.formatBlock(value)) {
+          document.execCommand('formatBlock', false, `<${value}>`)
+          this.textEditorWriteToModel()
+          this.$nextTick(() => this.pingToolbar())
+        }
       } else if (key === Key.B && ctrlOrCmd) {
         event.preventDefault()
         document.execCommand('bold', false, null)
