@@ -89,6 +89,13 @@ function removeUnwantedStyles(tempDiv) {
     el.className = newClassName;
   })
 
+  tempDiv.querySelectorAll('[data-per-inline]').forEach((el) => {
+    el.removeAttribute('data-per-inline')
+  })
+  tempDiv.querySelectorAll('[contenteditable]').forEach((el) => {
+    el.removeAttribute('contenteditable')
+  })
+
   tempDiv.querySelectorAll('[id]').forEach((el) => {
     el.removeAttribute('id')
   })
