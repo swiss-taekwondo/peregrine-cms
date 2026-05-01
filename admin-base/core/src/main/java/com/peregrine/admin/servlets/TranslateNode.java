@@ -79,6 +79,7 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
         SERVICE_DESCRIPTION + EQUALS + PER_PREFIX + "translate node at servlet",
         SERVICE_VENDOR + EQUALS + PER_VENDOR,
         SLING_SERVLET_METHODS + EQUALS + POST,
+        SLING_SERVLET_METHODS + EQUALS + GET,
         SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_TRANSLATE
     }
 )
@@ -145,6 +146,20 @@ public class TranslateNode extends AbstractBaseServlet {
 
     @Override
     protected Response handleRequest(Request request) throws IOException {
+        // Handle GET request to expose the language map
+        if ("GET".equalsIgnoreCase(request.getRequest().getMethod())) {
+            JsonResponse jsonResponse = new JsonResponse();
+            jsonResponse.writeObject("languageMap");
+
+            // Iterate over the private memory map and write it to the JSON response
+            for (Map.Entry<String, String> entry : languageMap.entrySet()) {
+                jsonResponse.writeAttribute(entry.getKey(), entry.getValue());
+            }
+
+            jsonResponse.writeClose();
+            return jsonResponse;
+        }
+
         try {
             ResourceResolver resourceResolver = request.getResourceResolver();
 

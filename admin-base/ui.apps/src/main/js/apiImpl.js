@@ -201,9 +201,6 @@ function autoTranslate(path, translations, changedProperties = null) {
     return Promise.resolve("Target path not found in translations payload.")
   }
 
-  const languages = ['de', 'fr', 'it']
-  const translationPromises = []
-
   function hasTranslatableText(htmlString) {
     if (!htmlString || !htmlString.trim()) return false
     const parser = new DOMParser()
@@ -241,25 +238,47 @@ function autoTranslate(path, translations, changedProperties = null) {
     return Promise.resolve("No translatable properties found for this node.")
   }
 
-  languages.forEach(lang => {
-    const formData = new FormData()
-    formData.append('_charset_', 'UTF-8')
-    formData.append('lang', lang)
-    formData.append('override', 'true')
+  // Fetch the configured languages dynamically
+  return axios.get('/perapi/admin/translateNode.json')
+    .then(response => {
+      const languageMap = (response.data && response.data.languageMap) ? response.data.languageMap : {};
+      const languages = Object.keys(languageMap);
 
-    propertiesToTranslate.forEach(prop => {
-      formData.append('properties[]', prop)
-    })
+      if (languages.length === 0) {
+        return Promise.resolve("No languages configured for translation.");
+      }
 
-    const requestPromise = axios.post('/perapi/admin/translateNode.json' + targetNode.path, formData)
-      .then(response => {
-        return response.data
+      const translationPromises = []
+
+      languages.forEach(lang => {
+        const formData = new FormData()
+        formData.append('_charset_', 'UTF-8')
+        formData.append('lang', lang)
+        formData.append('override', 'true')
+
+        propertiesToTranslate.forEach(prop => {
+          formData.append('properties[]', prop)
+        })
+
+        const requestPromise = axios.post('/perapi/admin/translateNode.json' + targetNode.path, formData)
+          .then(response => {
+            return response.data
+          })
+          .catch(error => {
+            // Catching individual translation errors so a single failed language doesn't kill the Promise.all
+            console.error(`Failed to auto-translate to ${lang}:`, error);
+            return `Failed to translate to ${lang}`;
+          });
+
+        translationPromises.push(requestPromise)
       })
 
-    translationPromises.push(requestPromise)
-  })
-
-  return Promise.all(translationPromises)
+      return Promise.all(translationPromises)
+    })
+    .catch(error => {
+      console.error("Failed to fetch configured languages:", error);
+      throw new Error("Could not load translation language map.");
+    });
 }
 
 function fetch(path) {
