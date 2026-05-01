@@ -69,9 +69,6 @@ const allowedStylesElementsMap = {
   IMG: true,
 }
 function removeUnwantedStyles(tempDiv) {
-  // const tempDiv = document.createElement('div')
-  // tempDiv.innerHTML = htmlText
-
   tempDiv.querySelectorAll('[style]').forEach((span) => {
     if (allowedStylesElementsMap[span.nodeName]) return;
     const propertiesToRemove = []
@@ -89,9 +86,7 @@ function removeUnwantedStyles(tempDiv) {
 
   tempDiv.querySelectorAll('[class]').forEach((el) => {
     const newClassName = Array.from(el.classList).filter((cls) => allowedClassesMap[cls]).join(' ')
-    console.log('newClassName', newClassName.length, allowedClassesMap, el) 
     el.className = newClassName;
-    console.log('el.className, newClassName', el.className) 
   })
 
   tempDiv.querySelectorAll('[id]').forEach((el) => {
@@ -169,7 +164,7 @@ export default {
       const view = this.view
       if (!view) return
       const sel = document.getSelection()
-      set(view, '/state/inline/rich', false)
+      set(view, '/state/inline/rich', true)
       set(view, '/state/inline/lastAnchor', getAnchorFromSelection(sel))
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/lastDoc', this.doc)
@@ -222,7 +217,7 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
-      // const content = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
+      const content = vm.$refs.textEditor.innerHTML;
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
@@ -264,8 +259,7 @@ export default {
     },
   },
   watch: {
-    value(newVal) {
-   console.log('newVal', newVal) 
+    value(newValue) {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = this.value
