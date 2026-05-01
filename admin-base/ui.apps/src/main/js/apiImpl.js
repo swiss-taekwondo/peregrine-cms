@@ -25,8 +25,8 @@
 // var axios = require('axios')
 
 import {LoggerFactory} from './logger'
-import {objectToFormData, stripNulls} from './utils'
-import {Field} from './constants'
+import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
+import {Field, Toast} from './constants'
 import Notifier from './utils/notifier'
 
 let logger = LoggerFactory.logger('apiImpl').setLevelDebug()
@@ -37,6 +37,7 @@ const postConfig = {
 }
 
 let callbacks
+let translationModel = null
 
 function blob(content) {
   return new Blob([ content ], {type: 'application/json; charset=utf-8'})
@@ -45,6 +46,220 @@ function blob(content) {
 function json(data) {
   const content = JSON.stringify(data)
   return blob(content)
+}
+
+// Shared Diffing Helper: Finds exact paths of nodes with string changes AND their changed properties
+function getModifiedPaths({ oldObj = {}, newObj = {}, pagePath, currentObjPath, modifiedPathsMap = {} }) {
+  const keys = Object.keys(newObj);
+  let nodeChangedProps = [];
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+
+    // Ignore structural properties, fields starting with an underscore, & internal state tracking keys
+    if (key === 'path' || key === 'name' || key === 'component' || key === 'jcr:primaryType' || key === 'sling:resourceType' || key === 'per:TranslateRef' || key.indexOf('_') === 0 || key.indexOf('per:') === 0) {
+      continue;
+    }
+
+    const newVal = newObj[key];
+    const oldVal = oldObj[key];
+
+    if (typeof newVal === 'string') {
+      const effectiveOldVal = oldVal === undefined ? "" : String(oldVal);
+
+      // Ignore typical non-translatable form-injected defaults if they weren't explicitly set before
+      const isNewEmptyOrDefault = (newVal === "" || newVal === "[]" || newVal === "{}" || newVal === "false" || newVal === "true");
+
+      if (effectiveOldVal === "" && isNewEmptyOrDefault) {
+        // Ignore form serializer initialization artifacts
+      } else if (newVal !== effectiveOldVal) {
+        nodeChangedProps.push(key);
+      }
+    } else if (typeof newVal === 'object' && newVal !== null) {
+      let childOldVal = oldVal;
+
+      // Handle cases where child was previously serialized as a string
+      if (typeof oldVal === 'string') {
+        try { childOldVal = JSON.parse(oldVal); } catch(e) { childOldVal = {}; }
+      } else if (typeof oldVal !== 'object' || oldVal === null) {
+        childOldVal = Array.isArray(newVal) ? [] : {};
+      }
+
+      if (Array.isArray(newVal)) {
+        for (let j = 0; j < newVal.length; j++) {
+          let itemPath = currentObjPath;
+          // If nested array items contain their own JCR path, reconstruct it
+          if (newVal[j] && typeof newVal[j] === 'object' && newVal[j].path) {
+            itemPath = newVal[j].path.indexOf('/jcr:content') === 0
+              ? (pagePath + newVal[j].path).replace(/\/\//g, '/')
+              : newVal[j].path;
+          } else {
+            itemPath = currentObjPath + '/' + key + '/' + j;
+          }
+          getModifiedPaths({
+            oldObj: childOldVal[j],
+            newObj: newVal[j],
+            pagePath,
+            currentObjPath: itemPath,
+            modifiedPathsMap
+          });
+        }
+      } else {
+        let childPath = currentObjPath;
+        if (newVal.path) {
+          childPath = newVal.path.indexOf('/jcr:content') === 0
+            ? (pagePath + newVal.path).replace(/\/\//g, '/')
+            : newVal.path;
+        } else {
+          childPath = currentObjPath + '/' + key;
+        }
+        getModifiedPaths({
+          oldObj: childOldVal,
+          newObj: newVal,
+          pagePath,
+          currentObjPath: childPath,
+          modifiedPathsMap
+        });
+      }
+    }
+  }
+
+  if (nodeChangedProps.length > 0) {
+    if (!modifiedPathsMap[currentObjPath]) {
+      modifiedPathsMap[currentObjPath] = [];
+    }
+    // Merge to avoid duplicates
+    nodeChangedProps.forEach(prop => {
+      if (modifiedPathsMap[currentObjPath].indexOf(prop) === -1) {
+        modifiedPathsMap[currentObjPath].push(prop);
+      }
+    })
+  }
+
+  return modifiedPathsMap;
+}
+
+function getTranslationModel() {
+  if (translationModel) {
+    return Promise.resolve(translationModel)
+  }
+
+  const tenantName = $perAdminApp.getView().state.tenant.name
+
+  if (!tenantName) {
+    return Promise.reject(new Error("Could not determine tenant name."))
+  }
+
+  return axios.get('/content/' + tenantName + '.json')
+    .then(tenantRes => {
+      const tenantConfig = tenantRes.data
+      const sourceSite = tenantConfig.sourceSite ? tenantConfig.sourceSite : tenantName
+      return axios.get('/apps/' + sourceSite + '/i18n/model.json')
+    })
+    .then(modelRes => {
+      translationModel = modelRes.data
+      return translationModel
+    })
+}
+
+function listTranslations(path, model) {
+  const content = JSON.stringify(model)
+  const modelBlob = new Blob([content], { type: 'application/json; charset=utf-8' })
+
+  const formData = new FormData()
+  formData.append('model', modelBlob)
+
+  return axios.post('/perapi/admin/listTranslations.json' + path, formData)
+    .then(response => {
+      return response.data
+    })
+}
+
+function autoTranslate(path, translations, changedProperties = null) {
+  if (!translations || !translations.nodes || translations.nodes.length === 0) {
+    return Promise.resolve("No nodes found to translate.")
+  }
+
+  // Check if there's at least one node with translations anywhere in the tree
+  // To avoid auto translations, one can simply delete all translations
+  let hasAnyTranslation = false
+  for (let i = 0; i < translations.nodes.length; i++) {
+    if (translations.nodes[i].translations) {
+      hasAnyTranslation = true
+      break
+    }
+  }
+
+  if (!hasAnyTranslation) {
+    return Promise.resolve("No existing translations found. Skipping auto-translation.")
+  }
+
+  // Find the exact node matching the requested path
+  const targetNode = translations.nodes.find(n => n.path === path)
+
+  if (!targetNode) {
+    return Promise.resolve("Target path not found in translations payload.")
+  }
+
+  const languages = ['de', 'fr', 'it']
+  const translationPromises = []
+
+  function hasTranslatableText(htmlString) {
+    if (!htmlString || !htmlString.trim()) return false
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(htmlString, 'text/html')
+
+    function walk(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent.trim().length > 0
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = node.tagName.toLowerCase()
+        const ignoredTags = ['script', 'style', 'noscript', 'iframe', 'object']
+        if (ignoredTags.indexOf(tagName) !== -1) return false
+        for (let j = 0; j < node.childNodes.length; j++) {
+          if (walk(node.childNodes[j])) return true
+        }
+      }
+      return false
+    }
+    return walk(doc.body)
+  }
+
+  const propertiesToTranslate = []
+
+  if (targetNode.original) {
+    Object.keys(targetNode.original).forEach(key => {
+      const isChanged = !changedProperties || changedProperties.includes(key);
+      if (isChanged && hasTranslatableText(targetNode.original[key])) {
+        propertiesToTranslate.push(key)
+      }
+    })
+  }
+
+  if (propertiesToTranslate.length === 0) {
+    return Promise.resolve("No translatable properties found for this node.")
+  }
+
+  languages.forEach(lang => {
+    const formData = new FormData()
+    formData.append('_charset_', 'UTF-8')
+    formData.append('lang', lang)
+    formData.append('override', 'true')
+
+    propertiesToTranslate.forEach(prop => {
+      formData.append('properties[]', prop)
+    })
+
+    const requestPromise = axios.post('/perapi/admin/translateNode.json' + targetNode.path, formData)
+      .then(response => {
+        return response.data
+      })
+
+    translationPromises.push(requestPromise)
+  })
+
+  return Promise.all(translationPromises)
 }
 
 function fetch(path) {
@@ -938,7 +1153,6 @@ class PerAdminImpl {
 
   uploadFiles(path, files, callback) {
     const me = this
-    let uploaded = []
 
     function onUploadProgress(progressEvent) {
       callback(Math.floor((progressEvent.loaded * 100) / progressEvent.total))
@@ -1116,77 +1330,236 @@ class PerAdminImpl {
       }
       stripNulls(nodeData)
 
-      if (isPage) {
-        // Delete tags
-        const formDataTags = new FormData();
-        formDataTags.append('content', json({tags: {_opDelete: true}}));
+      // Sanitize the target path for backend calls
+      const targetNodePath = (path + node.path).replace(/\/\//g, '/');
 
-        updateWithForm('/admin/updateResource.json' + path + node.path, formDataTags)
-          // .then( (data) => this.populateNodesForBrowser(parentPath) )
-          .then(() => {
+      axios.get(pagePathToDataPath(path))
+        .then(res => res.data)
+        .catch(e => {
+          console.warn("Could not fetch current content for diffing", e);
+          return {};
+        })
+        .then((pageViewPage) => {
+          let currentData = {};
+          try {
+            currentData = $perAdminApp.findNodeFromPath(pageViewPage, node.path) || {};
+          } catch (e) {
+            console.warn("Could not find current content for diffing", e);
+          }
+
+          // 3. Determine which specific nested paths need translation
+          const pathsToTranslateMap = getModifiedPaths({
+            oldObj: currentData,
+            newObj: nodeData,
+            pagePath: path,
+            currentObjPath: targetNodePath
+          });
+          const pathsToTranslate = Object.keys(pathsToTranslateMap);
+          console.log("Paths marked for translation diff:", pathsToTranslateMap);
+
+          // 4. Processing logic run after the form updates are completed
+          function processTranslations() {
+            if (pathsToTranslate.length === 0) {
+              console.log("No translatable string changes detected. Skipping translation.");
+              resolve();
+              return;
+            }
+
+            console.log("Starting auto-translation for modified paths...");
+
+            // 1. Get Model -> 2. List Translations ONCE -> 3. Loop and Auto-Translate
+            getTranslationModel()
+              .then(model => listTranslations(path, model))
+              .then(translations => {
+                const translationTasks = [];
+
+                pathsToTranslate.forEach(translatePath => {
+                  const changedProps = pathsToTranslateMap[translatePath];
+
+                  const task = autoTranslate(translatePath, translations, changedProps)
+                    .then(results => {
+                      if (typeof results === 'string') {
+                        console.log(results);
+                        return false;
+                      }
+
+                      if (Array.isArray(results) && results.length > 0) {
+                        console.log('Translations generated for:', translatePath);
+                        return true;
+                      }
+                      return false;
+                    });
+                  translationTasks.push(task);
+                });
+
+                return Promise.all(translationTasks);
+              })
+              .then(results => {
+                if (results.indexOf(true) !== -1) {
+                  console.log('Translations generated successfully.');
+                }
+                resolve();
+              })
+              .catch(error => {
+                $perAdminApp.toast('Auto-translation failed: ' + error.message, Toast.Level.WARNING);
+                console.error('Translation error:', error);
+                resolve();
+              });
+          }
+
+          // Execute Form Updates
+          if (isPage) {
+            // Delete tags
+            const formDataTags = new FormData();
+            formDataTags.append('content', json({tags: {_opDelete: true}}));
+
+            updateWithForm('/admin/updateResource.json' + targetNodePath, formDataTags)
+              .then(() => {
+                const formData = new FormData()
+                formData.append('content', json(nodeData))
+
+                updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
+                  .then(() => processTranslations())
+                  .catch(error => {
+                    logger.error('Failed to save page: ' + error)
+                    reject('Unable to save change. ' + error)
+                  })
+              })
+              .catch((error) => {
+                logger.error('Failed to save page: ' + error)
+                reject('Unable to save change. ' + error)
+              });
+          }
+          else {
             const formData = new FormData()
             formData.append('content', json(nodeData))
 
-            updateWithForm('/admin/updateResource.json' + path + node.path, formData)
-              // .then( (data) => this.populateNodesForBrowser(parentPath) )
-              .then(() => resolve())
-              .catch(error => {
+            updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
+              .then(() => processTranslations())
+              .catch(function (error) {
                 logger.error('Failed to save page: ' + error)
                 reject('Unable to save change. ' + error)
-              })
-          })
-          .catch((error) => {
-            logger.error('Failed to save page: ' + error)
-            reject('Unable to save change. ' + error)
-          });
-      }
-      else {
-        const formData = new FormData()
-        formData.append('content', json(nodeData))
-
-        updateWithForm('/admin/updateResource.json' + path + node.path, formData)
-          // .then( (data) => this.populateNodesForBrowser(parentPath) )
-          .then(() => resolve())
-          .catch(function (error) {
-            logger.error('Failed to save page: ' + error)
-            reject('Unable to save change. ' + error)
-          });
-      }
-    })
+              });
+          }
+        });
+    });
   }
 
   saveObjectEdit(path, node, schema) {
-    let formData = new FormData()
-    // convert to a new object
-    let nodeData = JSON.parse(JSON.stringify(node))
-    stripNulls(nodeData)
-    delete nodeData['jcr:created']
-    delete nodeData['jcr:createdBy']
-    delete nodeData['jcr:lastModified']
-    delete nodeData['jcr:lastModifiedBy']
+    return new Promise((resolve, reject) => {
+      const formData = new FormData()
+      // convert to a new object
+      const nodeData = JSON.parse(JSON.stringify(node))
+      stripNulls(nodeData)
+      delete nodeData['jcr:created']
+      delete nodeData['jcr:createdBy']
+      delete nodeData['jcr:lastModified']
+      delete nodeData['jcr:lastModifiedBy']
 
-    if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
-      if (nodeData[field.model] && field.multifield && field.serialized) {
-        const list = [];
-        Object.values(nodeData[field.model]).forEach((item) => {
-          list.push(item)
+      if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
+        if (nodeData[field.model] && field.multifield && field.serialized) {
+          const list = [];
+          Object.values(nodeData[field.model]).forEach((item) => {
+            list.push(item)
+          });
+          nodeData[field.model] = JSON.stringify(list)
+        }
+      })
+
+      if (nodeData.tags) {
+        const tags = []
+        Object.keys(nodeData.tags).forEach((tag) => {
+          tags.push(nodeData.tags[tag])
         });
-        nodeData[field.model] = JSON.stringify(list)
+        nodeData.tags = JSON.stringify(tags)
+      } else {
+        nodeData.tags = JSON.stringify([])
       }
-    })
-    if (nodeData.tags) {
-      const tags = []
-      Object.keys(nodeData.tags).forEach((tag) => {
-        tags.push(nodeData.tags[tag])
-      });
-      nodeData.tags = JSON.stringify(tags)
-    }
-    else {
-      nodeData.tags = JSON.stringify([])
-    }
 
-    formData.append('content', json(nodeData))
-    return updateWithForm('/admin/updateResource.json' + path, formData)
+      formData.append('content', json(nodeData))
+
+      // Fetch the current object state for diffing before saving
+      fetch('/admin/getObject.json' + path)
+        .catch(e => {
+          console.warn("Could not fetch current object content for diffing", e);
+          return {};
+        })
+        .then(currentData => {
+          // Check if the object has a valid translation reference in the data
+          const hasTranslateRef = currentData['per:TranslateRef']
+            && currentData['per:TranslateRef'].trim() !== ''
+            && nodeData['per:TranslateRef']
+            && nodeData['per:TranslateRef'].trim() !== '';
+
+          // Compare old and new object states
+          const pathsToTranslateMap = getModifiedPaths({
+            oldObj: currentData,
+            newObj: nodeData,
+            pagePath: path,
+            currentObjPath: path
+          });
+          const pathsToTranslate = Object.keys(pathsToTranslateMap);
+
+          // Update the backend with the new data
+          updateWithForm('/admin/updateResource.json' + path, formData)
+            .then(() => {
+              // Bail early if there's no translation reference
+              if (!hasTranslateRef) {
+                console.log("No per:TranslateRef found on object. Skipping auto-translation.");
+                resolve();
+                return;
+              }
+
+              // Bail early if nothing actually changed
+              if (pathsToTranslate.length === 0) {
+                console.log("No translatable string changes detected for object. Skipping auto-translation.");
+                resolve();
+                return;
+              }
+
+              console.log("Starting auto-translation for modified object properties...");
+
+              // 1. Get Model -> 2. List Translations ONCE -> 3. Loop and Auto-Translate
+              getTranslationModel()
+                .then(model => listTranslations(path, model))
+                .then(translations => {
+                  const translationTasks = [];
+
+                  pathsToTranslate.forEach(translatePath => {
+                    const changedProps = pathsToTranslateMap[translatePath];
+
+                    const task = autoTranslate(translatePath, translations, changedProps)
+                      .then(results => {
+                        if (typeof results === 'string') {
+                          console.log(results);
+                          return false;
+                        }
+
+                        if (Array.isArray(results) && results.length > 0) {
+                          return true;
+                        }
+                        return false;
+                      });
+                    translationTasks.push(task);
+                  });
+
+                  return Promise.all(translationTasks);
+                })
+                .then(results => {
+                  if (results.indexOf(true) !== -1) {
+                    console.log('Translations generated successfully.');
+                  }
+                  resolve();
+                })
+                .catch(error => {
+                  $perAdminApp.toast('Auto-translation failed: ' + error.message, Toast.Level.WARNING);
+                  console.error('Translation error:', error);
+                  resolve();
+                });
+            })
+            .catch(reject);
+        });
+    });
   }
 
   saveAssetProperties(node) {
