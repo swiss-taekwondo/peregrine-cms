@@ -1376,15 +1376,15 @@ class PerAdminImpl {
           const pathsToTranslate = Object.keys(pathsToTranslateMap);
           console.log("Paths marked for translation diff:", pathsToTranslateMap);
 
-          // 4. Processing logic run after the form updates are completed
+          // 4. Processing logic run asynchronously after the form updates are completed
           function processTranslations() {
             if (pathsToTranslate.length === 0) {
               console.log("No translatable string changes detected. Skipping translation.");
-              resolve();
               return;
             }
 
             console.log("Starting auto-translation for modified paths...");
+            $perAdminApp.toast('Auto-translation in progress...', Toast.Level.INFO);
 
             // 1. Get Model -> 2. List Translations ONCE -> 3. Loop and Auto-Translate
             getTranslationModel()
@@ -1399,30 +1399,43 @@ class PerAdminImpl {
                     .then(results => {
                       if (typeof results === 'string') {
                         console.log(results);
-                        return false;
+                        return 'skipped';
                       }
 
                       if (Array.isArray(results) && results.length > 0) {
-                        console.log('Translations generated for:', translatePath);
-                        return true;
+                        // Check if any specific language failed (autoTranslate returns "Failed..." strings on error)
+                        const hasErrors = results.some(r => typeof r === 'string' && r.startsWith('Failed'));
+                        const hasSuccess = results.some(r => typeof r !== 'string' || !r.startsWith('Failed'));
+
+                        if (hasErrors && !hasSuccess) return 'error';
+                        if (hasErrors && hasSuccess) return 'partial';
+                        return 'success';
                       }
-                      return false;
-                    });
+                      return 'skipped';
+                    })
+                    .catch(() => 'error'); // Catch any unhandled rejection
+
                   translationTasks.push(task);
                 });
 
                 return Promise.all(translationTasks);
               })
-              .then(results => {
-                if (results.indexOf(true) !== -1) {
+              .then(statuses => {
+                const hasSuccess = statuses.includes('success') || statuses.includes('partial');
+                const hasError = statuses.includes('error') || statuses.includes('partial');
+
+                if (hasError && hasSuccess) {
+                  $perAdminApp.toast('Auto-translation completed with some errors.', Toast.Level.WARNING);
+                } else if (hasError && !hasSuccess) {
+                  $perAdminApp.toast('Auto-translation failed.', Toast.Level.WARNING);
+                } else if (hasSuccess) {
                   console.log('Translations generated successfully.');
+                  $perAdminApp.toast('Auto-translation completed successfully.', Toast.Level.SUCCESS);
                 }
-                resolve();
               })
               .catch(error => {
                 $perAdminApp.toast('Auto-translation failed: ' + error.message, Toast.Level.WARNING);
                 console.error('Translation error:', error);
-                resolve();
               });
           }
 
@@ -1438,7 +1451,10 @@ class PerAdminImpl {
                 formData.append('content', json(nodeData))
 
                 updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
-                  .then(() => processTranslations())
+                  .then(() => {
+                    resolve(); // Unblock the UI immediately
+                    processTranslations(); // Run translations in the background
+                  })
                   .catch(error => {
                     logger.error('Failed to save page: ' + error)
                     reject('Unable to save change. ' + error)
@@ -1454,7 +1470,10 @@ class PerAdminImpl {
             formData.append('content', json(nodeData))
 
             updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
-              .then(() => processTranslations())
+              .then(() => {
+                resolve(); // Unblock the UI immediately
+                processTranslations(); // Run translations in the background
+              })
               .catch(function (error) {
                 logger.error('Failed to save page: ' + error)
                 reject('Unable to save change. ' + error)
@@ -1522,21 +1541,22 @@ class PerAdminImpl {
           // Update the backend with the new data
           updateWithForm('/admin/updateResource.json' + path, formData)
             .then(() => {
+              resolve(); // Unblock the UI immediately
+
               // Bail early if there's no translation reference
               if (!hasTranslateRef) {
                 console.log("No per:TranslateRef found on object. Skipping auto-translation.");
-                resolve();
                 return;
               }
 
               // Bail early if nothing actually changed
               if (pathsToTranslate.length === 0) {
                 console.log("No translatable string changes detected for object. Skipping auto-translation.");
-                resolve();
                 return;
               }
 
               console.log("Starting auto-translation for modified object properties...");
+              $perAdminApp.toast('Auto-translation in progress...', Toast.Level.INFO);
 
               // 1. Get Model -> 2. List Translations ONCE -> 3. Loop and Auto-Translate
               getTranslationModel()
@@ -1551,29 +1571,42 @@ class PerAdminImpl {
                       .then(results => {
                         if (typeof results === 'string') {
                           console.log(results);
-                          return false;
+                          return 'skipped';
                         }
 
                         if (Array.isArray(results) && results.length > 0) {
-                          return true;
+                          const hasErrors = results.some(r => typeof r === 'string' && r.startsWith('Failed'));
+                          const hasSuccess = results.some(r => typeof r !== 'string' || !r.startsWith('Failed'));
+
+                          if (hasErrors && !hasSuccess) return 'error';
+                          if (hasErrors && hasSuccess) return 'partial';
+                          return 'success';
                         }
-                        return false;
-                      });
+                        return 'skipped';
+                      })
+                      .catch(() => 'error');
+
                     translationTasks.push(task);
                   });
 
                   return Promise.all(translationTasks);
                 })
-                .then(results => {
-                  if (results.indexOf(true) !== -1) {
+                .then(statuses => {
+                  const hasSuccess = statuses.includes('success') || statuses.includes('partial');
+                  const hasError = statuses.includes('error') || statuses.includes('partial');
+
+                  if (hasError && hasSuccess) {
+                    $perAdminApp.toast('Auto-translation completed with some errors.', Toast.Level.WARNING);
+                  } else if (hasError && !hasSuccess) {
+                    $perAdminApp.toast('Auto-translation failed.', Toast.Level.WARNING);
+                  } else if (hasSuccess) {
                     console.log('Translations generated successfully.');
+                    $perAdminApp.toast('Auto-translation completed successfully.', Toast.Level.SUCCESS);
                   }
-                  resolve();
                 })
                 .catch(error => {
                   $perAdminApp.toast('Auto-translation failed: ' + error.message, Toast.Level.WARNING);
                   console.error('Translation error:', error);
-                  resolve();
                 });
             })
             .catch(reject);
