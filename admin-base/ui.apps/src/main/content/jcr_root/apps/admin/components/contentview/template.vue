@@ -109,6 +109,9 @@ import {
 } from '../../../../../../js/utils'
 
 
+const allowedClassesMap = {
+  'peregrine-icon': true,
+}
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
   'text-align':true,
@@ -118,27 +121,6 @@ const allowedStylesMap = {
 }
 const allowedStylesElementsMap = {
   IMG: true,
-}
-function removeUnwantedStyles(htmlText) {
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = htmlText
-
-  tempDiv.querySelectorAll('[style]').forEach((span) => {
-    if (allowedStylesElementsMap[span.nodeName]) return;
-    const propertiesToRemove = []
-    for (let i = 0; i < span.style.length; i++) {
-      const property = span.style.item(i);
-      if (!allowedStylesMap[property]) {
-        propertiesToRemove.push(property);
-      }
-    }
-    // must be done in later step, otherwise length changes
-    for (let i = 0; i < propertiesToRemove.length; i++) {
-      span.style.removeProperty(propertiesToRemove[i]);
-    }
-  })
-
-  return tempDiv.innerHTML
 }
 
 function resolveHeadingShortcutDigit(event, Key) {
@@ -573,7 +555,6 @@ export default {
       let content = ''
       if (vm.isRich) {
         content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
-        content = removeUnwantedStyles(content);
       } else {
         content = vm.target.innerText
       }
@@ -589,7 +570,6 @@ export default {
 
     writeElementToModel(vm = this, element) {
       let content = element.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
-      content = removeUnwantedStyles(content)
       const dataInline = (element.getAttribute('data-per-inline') || '').split('.').slice(1)
       dataInline.reverse()
       let parentProp = vm.node
