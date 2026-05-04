@@ -18,7 +18,7 @@
 
       <ul>
         <template v-for="sizePreset in fontSizeSelections">
-          <li :key="sizePreset" @click="onListSelect(sizePreset)">
+          <li :key="sizePreset" @mousedown="onPresetMouseDown(sizePreset)" @click="onListSelect(sizePreset)">
             {{ sizePreset }}
           </li>
         </template>
@@ -63,13 +63,14 @@ export default {
     },
   },
 
-  data() {
-    return {
+    data() {
+      return {
       fontSizeSelections: [ 8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96 ],
       selectionRange: null,
       inputValue: "",
       inlineListenerInterval: null,
       focused: false,
+      presetSelectionActive: false,
     };
   },
 
@@ -106,6 +107,36 @@ export default {
   },
 
   methods: {
+    getInlineState() {
+      const view = window.$perAdminApp?.getView?.()
+      if (!view) return null
+      view.state = view.state || {}
+      view.state.inline = view.state.inline || {}
+      return view.state.inline
+    },
+
+    getPresetState() {
+      if (!window.__rteFontSizePreset) {
+        window.__rteFontSizePreset = { active: false, value: null }
+      }
+      return window.__rteFontSizePreset
+    },
+
+    setPresetSelectionActive(active, sizePreset = null) {
+      window.__rteFontSizePreset = {
+        active,
+        value: active ? sizePreset : null,
+      }
+      const inlineState = this.getInlineState()
+      if (!inlineState) return
+      inlineState.fontSizePresetActive = active
+      inlineState.fontSizePresetValue = active ? sizePreset : null
+    },
+
+    isPresetSelectionActive() {
+      return !!this.getPresetState()?.active
+    },
+
     syncInputValueFromSelection(selectionRange = null) {
       const range = selectionRange || this.getEditorSelection()
       if (!range || !this.isRangeInEditor(range)) {
@@ -146,6 +177,7 @@ export default {
     onSelectionChange(event) {
       // skip if no selection is present or input is being focused
       const iframeDoc = document.querySelector("iframe#editview")?.contentDocument
+      if (this.isPresetSelectionActive()) return
       const currSelection = event.currentTarget.getSelection()
       if (currSelection.rangeCount <= 0) return
       if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
@@ -196,11 +228,21 @@ export default {
 
     onListSelect(sizePreset) {
       this.inputValue = sizePreset;
+      this.exec("restoreSelection");
       this.applyFontSize();
       this.$nextTick(() => {
         this.$refs.inputRef.parentElement.blur();
         this.$refs.inputRef.blur();
+        this.presetSelectionActive = false
+        this.setPresetSelectionActive(false)
       });
+    },
+
+    onPresetMouseDown(sizePreset) {
+      this.presetSelectionActive = true
+      this.inputValue = sizePreset
+      this.exec("saveSelection");
+      this.setPresetSelectionActive(true, sizePreset)
     },
 
     // save/load selection between manual inputs
@@ -212,9 +254,10 @@ export default {
         selection.removeAllRanges();
         selection.addRange(this.selectionRange);
       }
-      this.$nextTick(() => {
-        this.applyFontSize();
-      });
+      const presetSelectionActive = this.isPresetSelectionActive()
+      if (presetSelectionActive) {
+        return
+      }
     },
     onFocusIn(e) {
       this.focused = true

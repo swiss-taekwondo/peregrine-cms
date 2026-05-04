@@ -3,7 +3,7 @@
       class="btn"
       :class="{'active': active}"
       :title="vTitle"
-      @mousedown.prevent="() => {}"
+      @mousedown.prevent="restoreOwnerSelection"
       @click="$emit('click')">
     <admin-components-icon v-if="vIcon" :icon="vIcon" :lib="iconLib"/>
   </button>
@@ -26,7 +26,7 @@ export default {
       title: [String, Function],
       active: Boolean
     },
-    computed: {
+  computed: {
       vTitle() {
         let title = this.title
         if (typeof title === 'function') {
@@ -39,8 +39,20 @@ export default {
         if (typeof icon === 'function') {
           icon = icon()
         }
-        return icon
+      return icon
+    }
+  },
+  methods: {
+    restoreOwnerSelection() {
+      let current = this.$parent
+      while (current) {
+        if (typeof current.restoreSelection === 'function') {
+          current.restoreSelection()
+          return
+        }
+        current = current.$parent
       }
     }
   }
+}
 </script>

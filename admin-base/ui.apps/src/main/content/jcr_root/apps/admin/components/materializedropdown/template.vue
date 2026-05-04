@@ -150,8 +150,19 @@ export default {
     })
   },
   methods: {
+    restoreOwnerSelection() {
+      let current = this.$parent
+      while (current) {
+        if (typeof current.restoreSelection === 'function') {
+          current.restoreSelection()
+          return
+        }
+        current = current.$parent
+      }
+    },
     onItemClick(item, index) {
       if (!item.disabled) {
+        this.restoreOwnerSelection()
         if (item.click) {
           item.click()
         } else {
