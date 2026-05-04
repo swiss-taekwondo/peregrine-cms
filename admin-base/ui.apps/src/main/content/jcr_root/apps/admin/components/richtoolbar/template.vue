@@ -400,7 +400,6 @@ export default {
             if (view) set(view, '/state/inline/lastAnchor', anchor || null)
           }
         } else if (!this.browser.open && !this.param.cmd) {
-          this._savedRange = null
           this.activeAnchor = null
           if (view) set(view, '/state/inline/lastAnchor', null)
         }
@@ -1753,17 +1752,17 @@ export default {
     },
 
     selectNodes(nodeArray) {
-      const selection = this.getEditorSelection(false)
-      selection.removeAllRanges()
+      const selection = nodeArray[0].ownerDocument.getSelection()
       const reselectRange = nodeArray[0].ownerDocument.createRange()
       reselectRange.setStart(nodeArray[0], 0)
       reselectRange.setEnd(nodeArray[nodeArray.length - 1], nodeArray[nodeArray.length - 1].childNodes.length)
+      selection.removeAllRanges()
       selection.addRange(reselectRange)
     },
 
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`
-      const range = this.getEditorSelection()
+      const range = this._savedRange || this.getEditorSelection()
       const textEditor = this.getEditorFrom(range)
       if (!this.isRangeInEditor(range, textEditor)) {
         console.warn('Selection range outside of Richtext Editor')
@@ -1825,7 +1824,6 @@ export default {
           } else {
             $perAdminApp.action(this, 'writeInlineToModel')
           }
-          return
         } else {
           setFontSizeOfEl(range.startContainer, fontSize)
         }

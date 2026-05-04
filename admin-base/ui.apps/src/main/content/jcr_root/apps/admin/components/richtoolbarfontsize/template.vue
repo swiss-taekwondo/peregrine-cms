@@ -258,9 +258,6 @@ export default {
       if (presetSelectionActive) {
         return
       }
-      this.$nextTick(() => {
-        this.applyFontSize();
-      });
     },
     onFocusIn(e) {
       this.focused = true
