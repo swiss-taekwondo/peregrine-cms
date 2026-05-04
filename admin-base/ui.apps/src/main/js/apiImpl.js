@@ -1556,7 +1556,7 @@ class PerAdminImpl {
               }
 
               console.log("Starting auto-translation for modified object properties...");
-              $perAdminApp.toast('Auto-translation in progress...', Toast.Level.INFO);
+              // $perAdminApp.toast('Auto-translation in progress...', Toast.Level.INFO);
 
               // 1. Get Model -> 2. List Translations ONCE -> 3. Loop and Auto-Translate
               getTranslationModel()
