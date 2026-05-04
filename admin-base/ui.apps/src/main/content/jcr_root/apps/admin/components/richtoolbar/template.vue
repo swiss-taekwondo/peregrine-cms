@@ -366,7 +366,7 @@ export default {
         const lastAnchorClickAt = get(view, '/state/inline/lastAnchorClickAt', 0) || 0
         const anchorClickHold = lastAnchorClickAt && (Date.now() - lastAnchorClickAt < 250)
         const hasSelection = !!selectionRange || anchorClickHold
-        this.hasEditorSelection = hasSelection
+        this.hasEditorSelection = selectionRange && get(view, '/state/inline/rich')
         if (selectionRange) {
           this._savedRange = selectionRange.cloneRange()
           const editorEl = this.getEditorFrom(selectionRange)
@@ -2550,10 +2550,11 @@ export default {
           if (editor) editor.dispatchEvent(new Event('input'))
         }
 
-        $perAdminApp.action(this, 'writeInlineToModel')
-        this.$nextTick(() => {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        })
+        // This might be required for something else? But it causes empty RTE images to be overwritten with inline (empty) content when added in sidebar
+        // $perAdminApp.action(this, 'writeInlineToModel')
+        // this.$nextTick(() => {
+        //   $perAdminApp.action(this, 'textEditorWriteToModel')
+        // })
       }
     },
 

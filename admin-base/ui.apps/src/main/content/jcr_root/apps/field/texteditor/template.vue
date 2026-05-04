@@ -55,18 +55,20 @@ import {Key} from '../../../../../js/constants'
 import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 
+const allowedClassesMap = {
+  'peregrine-icon': true,
+}
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
   "text-align": true,
-  "font-size": true
+  "font-size": true,
+  'width':true,
+  'height':true,
 };
 const allowedStylesElementsMap = {
   IMG: true,
 }
-function removeUnwantedStyles(htmlText) {
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = htmlText
-
+function removeUnwantedStyles(tempDiv) {
   tempDiv.querySelectorAll('[style]').forEach((span) => {
     if (allowedStylesElementsMap[span.nodeName]) return;
     const propertiesToRemove = []
@@ -82,7 +84,23 @@ function removeUnwantedStyles(htmlText) {
     }
   })
 
-  return tempDiv.innerHTML
+  tempDiv.querySelectorAll('[class]').forEach((el) => {
+    const newClassName = Array.from(el.classList).filter((cls) => allowedClassesMap[cls]).join(' ')
+    el.className = newClassName;
+  })
+
+  tempDiv.querySelectorAll('[data-per-inline]').forEach((el) => {
+    el.removeAttribute('data-per-inline')
+  })
+  tempDiv.querySelectorAll('[contenteditable]').forEach((el) => {
+    el.removeAttribute('contenteditable')
+  })
+
+  tempDiv.querySelectorAll('[id]').forEach((el) => {
+    el.removeAttribute('id')
+  })
+
+  return tempDiv
 }
 
 function getAnchorFromSelection(selection) {
@@ -206,7 +224,7 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
-      const content = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
+      const content = vm.$refs.textEditor.innerHTML;
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
@@ -248,11 +266,16 @@ export default {
     },
   },
   watch: {
-    value() {
+    value(newValue) {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = this.value
-      if (!textCheckDiv.textContent.trim()) this.value = '';
+      // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
+      // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
+      // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
+      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
+      removeUnwantedStyles(textCheckDiv)
+      this.value = textCheckDiv.innerHTML
     }
   }
 }

@@ -6,6 +6,7 @@ export default (vm) => {
     icon: 'picture-o',
     iconLib: IconLib.FONT_AWESOME,
     cmd: 'insertImage',
-    isDisabled: () => false
+    // isDisabled: () => false,
+    isDisabled: () => !vm.hasEditorSelection,
   }
 }
