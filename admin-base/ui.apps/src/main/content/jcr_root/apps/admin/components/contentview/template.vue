@@ -109,6 +109,9 @@ import {
 } from '../../../../../../js/utils'
 
 
+const allowedClassesMap = {
+  'peregrine-icon': true,
+}
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
   'text-align':true,
@@ -119,29 +122,26 @@ const allowedStylesMap = {
 const allowedStylesElementsMap = {
   IMG: true,
 }
-function removeUnwantedStyles(htmlText) {
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = htmlText
 
-  tempDiv.querySelectorAll('[style]').forEach((span) => {
-    if (allowedStylesElementsMap[span.nodeName]) return;
-    const propertiesToRemove = []
-    for (let i = 0; i < span.style.length; i++) {
-      const property = span.style.item(i);
-      if (!allowedStylesMap[property]) {
-        propertiesToRemove.push(property);
-      }
-    }
-    // must be done in later step, otherwise length changes
-    for (let i = 0; i < propertiesToRemove.length; i++) {
-      span.style.removeProperty(propertiesToRemove[i]);
-    }
-  })
+function resolveHeadingShortcutDigit(event, Key) {
+  const { code } = event
+  if (typeof code === 'string') {
+    const digitMatch = code.match(/^Digit([0-6])$/)
+    if (digitMatch) return Number(digitMatch[1])
+    const numpadMatch = code.match(/^Numpad([0-6])$/)
+    if (numpadMatch) return Number(numpadMatch[1])
+  }
 
-  return tempDiv.innerHTML
+  const key = event.which || event.keyCode
+  if (key >= Key.DIGIT_0 && key <= Key.DIGIT_6) {
+    return key - Key.DIGIT_0
+  }
+  if (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6) {
+    return key - Key.NUMPAD_0
+  }
+
+  return null
 }
-
-
 
 export default {
   props: ['model'],
@@ -396,7 +396,7 @@ export default {
     },
     'toast.showDeleteToast'(val, old) {
       if (old) {
-        old.remove()
+        old.timeRemaining = 0
       }
     }
   },
@@ -555,7 +555,6 @@ export default {
       let content = ''
       if (vm.isRich) {
         content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
-        content = removeUnwantedStyles(content);
       } else {
         content = vm.target.innerText
       }
@@ -571,7 +570,6 @@ export default {
 
     writeElementToModel(vm = this, element) {
       let content = element.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
-      content = removeUnwantedStyles(content)
       const dataInline = (element.getAttribute('data-per-inline') || '').split('.').slice(1)
       dataInline.reverse()
       let parentProp = vm.node
@@ -580,6 +578,44 @@ export default {
       }
       const keyStr = dataInline.pop()
       if (keyStr) parentProp[keyStr] = content
+    },
+
+    formatInlineBlock(element, tagName) {
+      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
+      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+
+      const selection = this.iframe.win.getSelection()
+      if (!selection || selection.rangeCount === 0) return false
+
+      const range = selection.getRangeAt(0)
+      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
+        ? range.startContainer.parentElement
+        : range.startContainer
+      const editorElement = element || this.target
+      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+        || (editorElement && editorElement.matches && editorElement.matches('p, h1, h2, h3, h4, h5, h6') ? editorElement : null)
+        || (editorElement ? editorElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+      if (!block) return false
+      if (block.tagName === normalizedTagName) return true
+
+      const replacement = this.iframe.doc.createElement(normalizedTagName)
+      for (const attr of Array.from(block.attributes)) {
+        replacement.setAttribute(attr.name, attr.value)
+      }
+      while (block.firstChild) {
+        replacement.appendChild(block.firstChild)
+      }
+      block.replaceWith(replacement)
+
+      const nextRange = this.iframe.doc.createRange()
+      nextRange.selectNodeContents(replacement)
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+      const modelElement = editorElement?.closest?.('[data-per-inline]') || editorElement
+      modelElement.dispatchEvent(new Event('input', { bubbles: true }))
+      this.writeElementToModel(this, modelElement)
+      this.pingToolbar()
+      return true
     },
 
     onInlineEdit(event) {
@@ -645,6 +681,36 @@ export default {
     },
 
     onInlineClick(event) {
+      const target = event.target
+      const anchor = target?.closest ? target.closest('a') : null
+      const editor = event.currentTarget
+      if (anchor && editor && editor.contains(anchor)) {
+        this.target = editor
+        const doc = this.iframe.doc
+        const selection = doc?.defaultView?.getSelection?.()
+        const selectionBuffer = selection ? saveSelection(editor, doc) : null
+        const savedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
+        const emitSelectionState = () => window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
+          detail: {
+            hasEditorSelection: true,
+            doc,
+            container: editor,
+            buffer: selectionBuffer,
+            savedRange,
+            activeAnchor: anchor,
+            source: 'inline-click',
+          },
+        }))
+        set(this.view, '/state/inline/lastAnchor', anchor)
+        set(this.view, '/state/inline/lastContainer', editor)
+        set(this.view, '/state/inline/lastDoc', doc)
+        set(this.view, '/state/inline/lastSelectionBuffer', selectionBuffer)
+        set(this.view, '/state/inline/lastAnchorClickAt', Date.now())
+        set(this.view, '/state/inline/doc', doc)
+        emitSelectionState()
+        requestAnimationFrame(emitSelectionState)
+        setTimeout(emitSelectionState, 75)
+      }
       this.pingToolbar()
     },
 
@@ -700,6 +766,7 @@ export default {
       const key = event.which
       const shift = event.shiftKey
       const ctrlOrCmd = event.ctrlKey || event.metaKey
+      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event, Key) : null
       const backspaceOrDelete = key === Key.BACKSPACE || key === Key.DELETE
       const arrowKey = key >= Key.ARROW_LEFT && key <= Key.ARROW_DOWN
 
@@ -716,11 +783,15 @@ export default {
       } else if (key === Key.U && ctrlOrCmd) {
         event.preventDefault()
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
-      } else if (ctrlOrCmd && event.altKey && ((key >= Key.DIGIT_0 && key <= Key.DIGIT_6) || (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6))) {
+      } else if (headingDigit !== null) {
         event.preventDefault()
-        const digit = key >= Key.NUMPAD_0 ? key - Key.NUMPAD_0 : key - Key.DIGIT_0
-        const value = digit === 0 ? 'p' : `h${digit}`
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
+        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
+        const editorElement = this.target || event.target
+        if (!this.formatInlineBlock(editorElement, value)) {
+          this.iframe.doc.execCommand('formatBlock', false, `<${value}>`)
+          this.writeElementToModel(this, editorElement?.closest?.('[data-per-inline]') || editorElement)
+          this.pingToolbar()
+        }
       } else if (key === Key.Z && ctrlOrCmd) {
         event.preventDefault()
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
@@ -1365,7 +1436,7 @@ export default {
       vm.redoItem = null
       const toastObj = $perAdminApp.toast(
         `<span style="flex: 1;">Component deleted.</span><a class="btn per-undo-btn" style="white-space: nowrap; margin-left: 16px;">Undo</a>`,
-        'delete'
+        'delete',
       )
       vm.toast.showDeleteToast = toastObj
       const undoBtn = toastObj.el.querySelector('.per-undo-btn')

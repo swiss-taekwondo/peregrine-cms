@@ -163,7 +163,7 @@ export default {
       loading: false,
       error: null,
       nodes: [],
-      languages: ['de', 'fr', 'it'],
+      languages: [],
       translationModel: null,
       processingMap: {},
       saveSuccess: {},
@@ -195,6 +195,24 @@ export default {
     }
   },
   methods: {
+    async fetchLanguages() {
+      if (this.languages && this.languages.length > 0) return;
+      try {
+        const response = await fetch('/perapi/admin/translateNode.json');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch language configuration. Status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data && data.languageMap) {
+          this.languages = Object.keys(data.languageMap);
+        } else {
+          this.languages = [];
+        }
+      } catch (err) {
+        console.error(err);
+        throw new Error(`Language Configuration Error: ${err.message}`);
+      }
+    },
     open() {
       this.$refs.materializemodal.open();
       if (this.path) {
@@ -206,6 +224,7 @@ export default {
     close() {
       this.$refs.materializemodal.close();
       this.nodes = [];
+      this.languages = [];
       this.error = null;
       this.pageLastModified = null;
       this.rawPageLastModified = null;
@@ -370,7 +389,12 @@ export default {
       this.rawPageLastModified = null;
 
       try {
-        await this.fetchTranslationModel();
+        // Fetch both the translation model and the language map concurrently
+        await Promise.all([
+          this.fetchTranslationModel(),
+          this.fetchLanguages()
+        ]);
+
         try {
           const pageRes = await fetch(`${this.path}.json`);
           if(pageRes.ok) {

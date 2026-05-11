@@ -41,10 +41,11 @@
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
-       @click="pingToolbar"
+       @click="onSelectionChange"
        @dblclick="onDblClick"
        @keydown="onKeyDown"
-       @keyup="pingToolbar">
+       @mouseup="onSelectionChange"
+       @keyup="onSelectionChange">
        </div>
   </div>
 </template>
@@ -54,18 +55,20 @@ import {Key} from '../../../../../js/constants'
 import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 
+const allowedClassesMap = {
+  'peregrine-icon': true,
+}
 const allowedStylesMap = {
   // bold, italic, etc handled by html tags
   "text-align": true,
-  "font-size": true
+  "font-size": true,
+  'width':true,
+  'height':true,
 };
 const allowedStylesElementsMap = {
   IMG: true,
 }
-function removeUnwantedStyles(htmlText) {
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = htmlText
-
+function removeUnwantedStyles(tempDiv) {
   tempDiv.querySelectorAll('[style]').forEach((span) => {
     if (allowedStylesElementsMap[span.nodeName]) return;
     const propertiesToRemove = []
@@ -81,7 +84,49 @@ function removeUnwantedStyles(htmlText) {
     }
   })
 
-  return tempDiv.innerHTML
+  tempDiv.querySelectorAll('[class]').forEach((el) => {
+    const newClassName = Array.from(el.classList).filter((cls) => allowedClassesMap[cls]).join(' ')
+    el.className = newClassName;
+  })
+
+  tempDiv.querySelectorAll('[data-per-inline]').forEach((el) => {
+    el.removeAttribute('data-per-inline')
+  })
+  tempDiv.querySelectorAll('[contenteditable]').forEach((el) => {
+    el.removeAttribute('contenteditable')
+  })
+
+  tempDiv.querySelectorAll('[id]').forEach((el) => {
+    el.removeAttribute('id')
+  })
+
+  return tempDiv
+}
+
+function getAnchorFromSelection(selection) {
+  const anchorNode = selection && selection.rangeCount > 0 ? selection.anchorNode : null
+  const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
+  return el ? el.closest('a') : null
+}
+
+function resolveHeadingShortcutDigit(event) {
+  const { code } = event
+  if (typeof code === 'string') {
+    const digitMatch = code.match(/^Digit([0-6])$/)
+    if (digitMatch) return Number(digitMatch[1])
+    const numpadMatch = code.match(/^Numpad([0-6])$/)
+    if (numpadMatch) return Number(numpadMatch[1])
+  }
+
+  const key = event.which || event.keyCode
+  if (key >= Key.DIGIT_0 && key <= Key.DIGIT_6) {
+    return key - Key.DIGIT_0
+  }
+  if (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6) {
+    return key - Key.NUMPAD_0
+  }
+
+  return null
 }
 
 export default {
@@ -106,6 +151,40 @@ export default {
   },
 
   methods: {
+    formatBlock(tagName) {
+      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
+      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+
+      const selection = document.getSelection()
+      if (!selection || selection.rangeCount === 0) return false
+
+      const range = selection.getRangeAt(0)
+      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
+        ? range.startContainer.parentElement
+        : range.startContainer
+      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+        || (this.$refs.textEditor && this.$refs.textEditor.matches && this.$refs.textEditor.matches('p, h1, h2, h3, h4, h5, h6') ? this.$refs.textEditor : null)
+        || (this.$refs.textEditor ? this.$refs.textEditor.closest('p, h1, h2, h3, h4, h5, h6') : null)
+      if (!block || !this.$refs.textEditor.contains(block)) return false
+      if (block.tagName === normalizedTagName) return true
+
+      const replacement = document.createElement(normalizedTagName)
+      for (const attr of Array.from(block.attributes)) {
+        replacement.setAttribute(attr.name, attr.value)
+      }
+      while (block.firstChild) {
+        replacement.appendChild(block.firstChild)
+      }
+      block.replaceWith(replacement)
+
+      const nextRange = document.createRange()
+      nextRange.selectNodeContents(replacement)
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+      this.textEditorWriteToModel()
+      this.$nextTick(() => this.pingToolbar())
+      return true
+    },
     onFocusIn(event) {
       const view = this.view
       if (!view) return
@@ -114,19 +193,23 @@ export default {
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/editorModel', this.model)
       this.editing = true
+      this.syncToolbarSelection()
       this.pingToolbar()
     },
     onKeyDown(event) {
       this.pingToolbar()
       const key = event.which
       const ctrlOrCmd = event.ctrlKey || event.metaKey
+      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event) : null
 
-      if (ctrlOrCmd && event.altKey && ((key >= Key.DIGIT_0 && key <= Key.DIGIT_6) || (key >= Key.NUMPAD_0 && key <= Key.NUMPAD_6))) {
+      if (headingDigit !== null) {
         event.preventDefault()
-        const digit = key >= Key.NUMPAD_0 ? key - Key.NUMPAD_0 : key - Key.DIGIT_0
-        const value = digit === 0 ? 'p' : `h${digit}`
-        document.execCommand('formatBlock', false, value)
-        this.$nextTick(() => this.pingToolbar())
+        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
+        if (!this.formatBlock(value)) {
+          document.execCommand('formatBlock', false, `<${value}>`)
+          this.textEditorWriteToModel()
+          this.$nextTick(() => this.pingToolbar())
+        }
       } else if (key === Key.B && ctrlOrCmd) {
         event.preventDefault()
         document.execCommand('bold', false, null)
@@ -145,10 +228,8 @@ export default {
       const view = this.view
       if (!view) return
       const sel = document.getSelection()
-      const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
-      const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
       set(view, '/state/inline/rich', true)
-      set(view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
+      set(view, '/state/inline/lastAnchor', getAnchorFromSelection(sel))
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/lastDoc', this.doc)
       set(view, '/state/inline/lastSelectionBuffer', saveSelection(this.$refs.textEditor, this.doc))
@@ -156,6 +237,35 @@ export default {
       set(view, '/state/inline/editorModel', null)
       this.editing = false
       this.pingToolbar()
+    },
+    onSelectionChange() {
+      this.syncToolbarSelection()
+      this.pingToolbar()
+    },
+    syncToolbarSelection(vm = this) {
+      const toolbar = vm.$refs.richtoolbar
+      const container = vm.$refs.textEditor
+      const selection = document.getSelection()
+      if (!toolbar || !container || !selection || selection.rangeCount <= 0) return
+
+      const range = selection.getRangeAt(0)
+      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return
+
+      const anchor = getAnchorFromSelection(selection)
+      toolbar.selection.doc = vm.doc
+      toolbar.selection.container = container
+      toolbar.selection.buffer = saveSelection(container, vm.doc)
+      toolbar._savedRange = range.cloneRange()
+      toolbar.activeAnchor = anchor
+      toolbar.hasEditorSelection = true
+
+      const view = vm.view
+      if (view) {
+        set(view, '/state/inline/lastAnchor', anchor)
+        set(view, '/state/inline/lastContainer', container)
+        set(view, '/state/inline/lastDoc', vm.doc)
+        set(view, '/state/inline/doc', vm.doc)
+      }
     },
     onInput(event) {
       const content = event.target.innerHTML;
@@ -171,7 +281,7 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
-      const content = removeUnwantedStyles(vm.$refs.textEditor.innerHTML);
+      const content = vm.$refs.textEditor.innerHTML;
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
@@ -206,20 +316,23 @@ export default {
       const view = $perAdminApp.getView()
       if (!view) return
       const sel = document.getSelection()
-      const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
-      const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
-      set(view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
+      vm.syncToolbarSelection()
       set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
       set(view, '/state/inline/lastDoc', vm.doc)
       set(view, '/state/inline/doc', vm.doc)
     },
   },
   watch: {
-    value() {
+    value(newValue) {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = this.value
-      if (!textCheckDiv.textContent.trim()) this.value = '';
+      // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
+      // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
+      // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
+      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
+      removeUnwantedStyles(textCheckDiv)
+      this.value = textCheckDiv.innerHTML
     }
   }
 }
