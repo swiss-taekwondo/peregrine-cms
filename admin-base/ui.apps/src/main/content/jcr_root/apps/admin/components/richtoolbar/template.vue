@@ -2292,6 +2292,7 @@ export default {
       this.browser.img.width = null
       this.browser.img.height = null
       this.browser.img.objectFit = null
+      this.browser.path.selected = '';
       this.selection.doc = doc
       this.selection.container = container
 
