@@ -403,6 +403,8 @@ export default {
           this.activeAnchor = null
           if (view) set(view, '/state/inline/lastAnchor', null)
         }
+        this.layoutPing += 1
+        this.$forceUpdate()
         window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
           detail: {
             hasEditorSelection: hasSelection,
