@@ -403,6 +403,8 @@ export default {
           this.activeAnchor = null
           if (view) set(view, '/state/inline/lastAnchor', null)
         }
+        this.layoutPing += 1
+        this.$forceUpdate()
         window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
           detail: {
             hasEditorSelection: hasSelection,
@@ -2292,6 +2294,7 @@ export default {
       this.browser.img.width = null
       this.browser.img.height = null
       this.browser.img.objectFit = null
+      this.browser.path.selected = '';
       this.selection.doc = doc
       this.selection.container = container
 
@@ -2316,6 +2319,7 @@ export default {
         objectFit: target.style.objectFit || null,
       }
       vm.param.cmd = 'editImage'
+      vm.selection.restore = false
       vm.browser.header = vm.$i18n('Edit Image')
       vm.browser.path.selected = srcArr.join('/')
       srcArr.pop()
@@ -2621,10 +2625,8 @@ export default {
         if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
           $perAdminApp.action(this, 'reWrapEditable')
         }
-        $perAdminApp.action(this, 'writeInlineToModel')
-        this.$nextTick(() => {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        })
+        const editor = imgEl.closest('[contenteditable="true"]')
+        if (editor) editor.dispatchEvent(new Event('input'))
         this.browser.element = null
       } else {
         const doc = this.selection.doc || this.getInlineDoc() || document
