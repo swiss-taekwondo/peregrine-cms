@@ -38,6 +38,7 @@ import com.peregrine.replication.ReplicationUtil;
 import com.peregrine.replication.ReplicationsContainerWithDefault;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.models.factory.ModelFactory;
 import org.jetbrains.annotations.NotNull;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -123,6 +124,9 @@ public final class ReplicationServlet extends ReplicationServletBase {
     @Reference
     private AdminResourceHandler resourceManagement;
 
+    @Reference
+    private ModelFactory modelFactory;
+
     protected ReplicationsContainerWithDefault getReplications() {
         return replications;
     }
@@ -159,12 +163,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
             toBeReplicated.remove(resource);
         }
 
-        // Block publishing if page has JavaScript errors
-        for (Resource r : toBeReplicated) {
-            if (r.getValueMap().get("hasJavaScriptErrors", false)) {
-                throw new ReplicationException("Cannot publish page with JavaScript errors: " + r.getPath());
-            }
-        }
+        ReplicationValidationUtil.validateRenderableContent(toBeReplicated, modelFactory);
 
         toBeReplicated = replication.prepare(toBeReplicated);
         List<String> toBeReplicatedPaths = new ArrayList<>();

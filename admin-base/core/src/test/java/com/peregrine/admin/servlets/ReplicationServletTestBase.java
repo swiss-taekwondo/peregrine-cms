@@ -9,6 +9,7 @@ import com.peregrine.replication.Replication;
 import com.peregrine.replication.ReplicationsContainerWithDefault;
 import junitx.util.PrivateAccessor;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.factory.ModelFactory;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ public class ReplicationServletTestBase extends SlingServletTest {
 
     private final AdminResourceHandler resourceManagement = mock(AdminResourceHandler.class);
     private final ReplicationsContainerWithDefault replications = mock(ReplicationsContainerWithDefault.class);
+    private final ModelFactory modelFactory = mock(ModelFactory.class);
 
     private final Replication replication = mock(Replication.class);
     private final PerReplicable replicable = mock(PerReplicable.class);
@@ -37,6 +39,7 @@ public class ReplicationServletTestBase extends SlingServletTest {
         this.servlet = servlet;
         setField("replications", replications);
         setField("resourceManagement", resourceManagement);
+        setFieldIfPresent("modelFactory", modelFactory);
 
         when(replications.getOrDefault(anyString())).thenReturn(replication);
 
@@ -57,6 +60,13 @@ public class ReplicationServletTestBase extends SlingServletTest {
         PrivateAccessor.setField(servlet, name, value);
     }
 
+    protected void setFieldIfPresent(final String name, final Object value) {
+        try {
+            setField(name, value);
+        } catch (NoSuchFieldException ignored) {
+        }
+    }
+
     protected void performReplicationResponseContains(final PageMock page, final String... substrings) throws IOException {
         request.putParameter(PATH, page.getPath());
         final AbstractBaseServlet.Request request = new AbstractBaseServlet.Request(this.request, response);
@@ -75,6 +85,16 @@ public class ReplicationServletTestBase extends SlingServletTest {
                 .map(Resource::getPath)
                 .toArray(String[]::new)
         );
+    }
+
+    protected ModelFactory getModelFactory() {
+        return modelFactory;
+    }
+
+    protected String performReplicationResponse() throws IOException {
+        request.putParameter(PATH, page.getPath());
+        final AbstractBaseServlet.Request request = new AbstractBaseServlet.Request(this.request, response);
+        return servlet.handleRequest(request).getContent();
     }
 
 }

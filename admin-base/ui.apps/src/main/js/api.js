@@ -323,6 +323,10 @@ class PerApi {
         return impl.isReferencedInPublish(path)
     }
 
+    isPublishable(path) {
+        return impl.isPublishable(path)
+    }
+
     _postFormData(url, data, config) {
         return impl._postFormDataImpl(url, data, config);
     }

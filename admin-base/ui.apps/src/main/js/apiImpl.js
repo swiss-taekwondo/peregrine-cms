@@ -1739,14 +1739,14 @@ class PerAdminImpl {
           .then(() => resolve())
           .catch(error => {
             clearInterval(noticeFunction)
+            const reason = (error && error.response && error.response.data
+                && error.response.data.message)
+                || (error && error.message)
+                || String(error)
             $perAdminApp.notifyUser('Errors',
                 `were encountered when ${deactivate ? 'un'
-                    : ''}publishing ${path}. Please check with your admin.`)
-            if (error.response && error.response.data
-                && error.response.data.message) {
-              reject(error.response.data.message)
-            }
-            reject(error)
+                    : ''}publishing ${path}. ${reason}`)
+            reject(reason)
           })
     })
   }
@@ -1834,7 +1834,11 @@ class PerAdminImpl {
   }
 
   isReferencedInPublish(path) {
-    return fetch(`/admin/isReferencedInPublish.json${path}`)
+    return fetch(`/admin/isReferencedInPublish.json?path=${encodeURIComponent(path)}`)
+  }
+
+  isPublishable(path) {
+    return fetch(`/admin/isPublishable.json?path=${encodeURIComponent(path)}`)
   }
 
   _postFormDataImpl(url, data, config) {

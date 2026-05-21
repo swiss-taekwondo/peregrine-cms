@@ -541,21 +541,25 @@ export default {
   },
   computed: {
     isRoot() {
-      return this.currentPath === this.browserRoot
+      return !!this.currentPath && !!this.browserRoot && this.currentPath === this.browserRoot
     },
     preview() {
+      const view = $perAdminApp.getView() || {}
+      const tree = view.admin && view.admin.pathBrowser
+      if (!tree) {
+        return {}
+      }
       if (this.previewType === 'selected') {
-        const view = $perAdminApp.getView()
-        return $perAdminApp.findNodeFromPath(view.admin.pathBrowser, this.selectedPath)
+        return $perAdminApp.findNodeFromPath(tree, this.selectedPath) || {}
       } else {
-        return this.nodes
+        return this.nodes || {}
       }
     },
     nodes() {
-      let view = $perAdminApp.getView()
-      let nodes = view.admin.pathBrowser
+      let view = $perAdminApp.getView() || {}
+      let nodes = view.admin && view.admin.pathBrowser
       if (nodes && this.currentPath) {
-        return $perAdminApp.findNodeFromPath(nodes, this.currentPath)
+        return $perAdminApp.findNodeFromPath(nodes, this.currentPath) || {}
       }
       return {}
     },
@@ -749,9 +753,6 @@ export default {
     isSelected(path) {
       return this.selectedPath === path
     },
-    hasPreview(item) {
-
-    },
     navigateFolder(item) {
       $perAdminApp.getApi()
             .populateNodesForBrowser(item.path, 'pathBrowser')
@@ -843,5 +844,12 @@ export default {
   font-size: 4rem;
   padding: .5rem;
   height: 6rem;
+}
+.pathbrowser-modal-mask {
+  z-index: 2005;
+}
+.pathbrowser-modal-mask .modal-wrapper,
+.pathbrowser-modal-mask .pathbrowser.modal-container {
+  z-index: 2006;
 }
 </style>

@@ -215,15 +215,5 @@
     "label": "No Follow",
     "default": false,
     "model": "noFollow"
-  },
-  {
-    "type": "materialswitch",
-    "label": "Has JavaScript Errors",
-    "model": "hasJavaScriptErrors",
-    "textOn": "yes",
-    "textOff": "no",
-    "valueOn": "true",
-    "valueOff": "false",
-    "hint": "If enabled, publishing will be blocked for this page."
   }
 ]}
