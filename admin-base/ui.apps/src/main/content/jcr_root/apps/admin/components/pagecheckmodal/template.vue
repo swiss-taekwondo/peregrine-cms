@@ -167,36 +167,18 @@
                 </div>
                 <div class="page-check-guidance" v-if="issue.finalStatus">Final status: {{ issue.finalStatus }}</div>
               </template>
-              <button
-                  v-if="isEditableLink(issue) && editingIssueId !== issue.id"
-                  class="waves-effect waves-green btn-flat page-check-edit"
-                  type="button"
-                  v-on:click="editLink(issue)">
-                <i class="material-icons">edit</i>
-                Edit
-              </button>
-              <div v-if="editingIssueId === issue.id && isEditableLink(issue)" class="page-check-property-editor">
-                <label>
-                  Link URL
-                  <input type="text" v-model="editingLinkValue"/>
-                </label>
-                <div class="page-check-image-actions">
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(issue)" v-bind:disabled="isSavingLink">
-                    <i class="material-icons">folder_open</i>
-                    Browse
-                  </button>
-                  <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(issue)" v-bind:disabled="isSavingLink">
-                    <i class="fa fa-chain-broken"></i>
-                    Remove
-                  </button>
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
-                    Cancel
-                  </button>
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveLink(issue)" v-bind:disabled="isSavingLink">
-                    Save
-                  </button>
-                </div>
-              </div>
+              <link-editor
+                  :item="issue"
+                  :editing-id="editingIssueId"
+                  :value="editingLinkValue"
+                  :saving="isSavingLink"
+                  @update:value="editingLinkValue = $event"
+                  @edit="editLink(issue)"
+                  @browse="openLinkBrowser(issue)"
+                  @remove="removeLink(issue)"
+                  @cancel="cancelLink"
+                  @save="saveLink(issue)">
+              </link-editor>
             </template>
             <template v-else>
             <div class="page-check-message">{{ issue.message }}</div>
@@ -751,6 +733,8 @@
 <script>
 import MaterializeModal from '../materializemodal/template.vue'
 import PathBrowser from '../pathbrowser/template.vue'
+import LinkEditor from '../linkeditor/template.vue'
+import ImageAltEditor from '../imagealtedtor/template.vue'
 
 const CHECKS = [
   { id: 'page-title', label: 'Page title' },
@@ -764,7 +748,9 @@ const CHECKS = [
 export default {
   components: {
     'admin-components-materializemodal': MaterializeModal,
-    'path-browser': PathBrowser
+    'path-browser': PathBrowser,
+    'link-editor': LinkEditor,
+    'image-alt-editor': ImageAltEditor
   },
   props: [
     'path',
