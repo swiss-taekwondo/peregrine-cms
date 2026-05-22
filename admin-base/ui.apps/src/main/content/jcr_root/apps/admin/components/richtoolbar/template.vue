@@ -1482,8 +1482,30 @@ export default {
       const savedSel = isEditor ? (bufferedSel || liveSel) : (liveSel || bufferedSel)
       const preSelection = doc.defaultView?.getSelection?.() || null
       const preRange = preSelection && preSelection.rangeCount > 0 ? preSelection.getRangeAt(0).cloneRange() : null
+
+      if (preSelection && preRange && !preRange.collapsed) {
+        const startNode = preRange.startContainer
+        if (startNode.nodeType === Node.TEXT_NODE && preRange.startOffset === startNode.textContent.length) {
+          const walker = doc.createTreeWalker(container, NodeFilter.SHOW_ALL)
+          walker.currentNode = startNode
+          let nextNode = walker.nextNode()
+
+          while (nextNode && nextNode.nodeName === 'BR') {
+            nextNode = walker.nextNode()
+          }
+
+          if (nextNode) {
+            const adjustedRange = preRange.cloneRange()
+            adjustedRange.setStart(nextNode, 0)
+            preSelection.removeAllRanges()
+            preSelection.addRange(adjustedRange)
+          }
+        }
+      }
+
       const collapsedSidebarRange = isEditor && preRange && preRange.collapsed ? preRange : null
       const collapsedInlineRange = !isEditor && preRange && preRange.collapsed ? preRange : null
+
       if (isEditor && this._savedRange && doc.defaultView) {
         const selection = doc.defaultView.getSelection()
         if (selection) {
@@ -1797,11 +1819,6 @@ export default {
         setFontSizeOfEl(fontSizeParent, fontSize)
         fontSizeParent.style.fontSize = fontSize
         textEditor.dispatchEvent(new Event('input'))
-        if (textEditor.ownerDocument.querySelector('iframe#editview')) {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        } else {
-          $perAdminApp.action(this, 'writeInlineToModel')
-        }
         return
       }
 
@@ -1821,11 +1838,7 @@ export default {
           span.style.fontSize = fontSize
           range.surroundContents(span)
           this.selectNodes([span])
-          if (textEditor.ownerDocument.querySelector('iframe#editview')) {
-            $perAdminApp.action(this, 'textEditorWriteToModel')
-          } else {
-            $perAdminApp.action(this, 'writeInlineToModel')
-          }
+          textEditor.dispatchEvent(new Event('input'))
         } else {
           setFontSizeOfEl(range.startContainer, fontSize)
         }
@@ -2539,7 +2552,7 @@ export default {
         }
 
         link.appendChild(range.extractContents())
-        if (link.textContent.trim().length < 1) {
+        if (link.textContent.trim().length < 1 && link.children.length === 0) {
           link.textContent = href
         }
         range.insertNode(link)

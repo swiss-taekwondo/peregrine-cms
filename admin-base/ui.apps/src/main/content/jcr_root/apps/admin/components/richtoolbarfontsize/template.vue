@@ -228,8 +228,6 @@ export default {
 
     onListSelect(sizePreset) {
       this.inputValue = sizePreset;
-      this.exec("restoreSelection");
-      this.applyFontSize();
       this.$nextTick(() => {
         this.$refs.inputRef.parentElement.blur();
         this.$refs.inputRef.blur();
@@ -254,10 +252,9 @@ export default {
         selection.removeAllRanges();
         selection.addRange(this.selectionRange);
       }
-      const presetSelectionActive = this.isPresetSelectionActive()
-      if (presetSelectionActive) {
-        return
-      }
+      this.$nextTick(() => {
+        this.applyFontSize();
+      });
     },
     onFocusIn(e) {
       this.focused = true

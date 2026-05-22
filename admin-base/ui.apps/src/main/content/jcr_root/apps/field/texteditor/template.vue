@@ -68,7 +68,7 @@ const allowedStylesMap = {
 const allowedStylesElementsMap = {
   IMG: true,
 }
-function removeUnwantedStyles(tempDiv) {
+function cleanupRteContent(tempDiv) {
   tempDiv.querySelectorAll('[style]').forEach((span) => {
     if (allowedStylesElementsMap[span.nodeName]) return;
     const propertiesToRemove = []
@@ -98,6 +98,11 @@ function removeUnwantedStyles(tempDiv) {
 
   tempDiv.querySelectorAll('[id]').forEach((el) => {
     el.removeAttribute('id')
+  })
+
+  // remove empty anchor tags, sometimes appearing when adding & removing lists
+  tempDiv.querySelectorAll('a:empty').forEach((el) => {
+    el.remove()
   })
 
   return tempDiv
@@ -327,7 +332,7 @@ export default {
     },
   },
   watch: {
-    value(newValue) {
+    value() {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = this.value
@@ -335,7 +340,7 @@ export default {
       // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
       // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
       if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
-      removeUnwantedStyles(textCheckDiv)
+      cleanupRteContent(textCheckDiv)
       this.value = textCheckDiv.innerHTML
     }
   }
