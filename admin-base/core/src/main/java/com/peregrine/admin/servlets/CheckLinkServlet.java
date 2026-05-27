@@ -1,8 +1,15 @@
 package com.peregrine.admin.servlets;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.peregrine.commons.servlets.AbstractBaseServlet;
 import org.apache.sling.api.SlingHttpServletRequest;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.Designate;
+import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,8 +48,21 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
         SLING_SERVLET_PATHS + EQUALS + "/extension/check-link"
     }
 )
+@Designate(ocd = CheckLinkServlet.Configuration.class)
 @SuppressWarnings("serial")
 public final class CheckLinkServlet extends AbstractBaseServlet {
+
+    @ObjectClassDefinition(name = "Peregrine: Check Link Servlet",
+            description = "Validates internal and external links")
+    @interface Configuration {
+        @AttributeDefinition(name = "URL",
+                description = "URL of the external link validation service")
+        String url() default "";
+
+        @AttributeDefinition(name = "Token",
+                description = "Bearer token for the external link validation service")
+        String token() default "";
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(CheckLinkServlet.class);
 
@@ -50,6 +70,27 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
     private static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
     private static final int MAX_CONCURRENT_REQUESTS = 10;
     private static final Semaphore REQUEST_SEMAPHORE = new Semaphore(MAX_CONCURRENT_REQUESTS);
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private volatile String checkerUrl;
+    private volatile String checkerToken;
+
+    @Activate
+    @SuppressWarnings("unused")
+    void activate(final Configuration configuration) {
+        setup(configuration);
+    }
+
+    @Modified
+    @SuppressWarnings("unused")
+    void modified(final Configuration configuration) {
+        setup(configuration);
+    }
+
+    private void setup(final Configuration configuration) {
+        checkerUrl = configuration.url();
+        checkerToken = configuration.token();
+    }
 
     private static final Pattern SCRIPT_TAG_PATTERN = Pattern.compile("<script\\b[^>]*>.*?</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern SPA_ROOT_PATTERN = Pattern.compile("<div[^>]*\\bid\\s*=\\s*[\"'](?:app|root|peregrine-app|nuxt|vue-app|__nuxt|__next)[\"']", Pattern.CASE_INSENSITIVE);
@@ -213,6 +254,12 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
                 .writeAttribute("ok", false)
                 .writeAttribute("status", 0)
                 .writeAttribute("error", "Invalid URL");
+        }
+
+        final URI uri = URI.create(urlParam);
+        final String host = uri.getHost();
+        if (host != null && !isServerAddress(host, serverAddresses)) {
+            return proxyExternalToWorker(urlParam);
         }
 
         try {
@@ -428,6 +475,60 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
     private static String stripScriptTags(final String html) {
         if (html == null) return "";
         return SCRIPT_TAG_PATTERN.matcher(html).replaceAll("");
+    }
+
+    private Response proxyExternalToWorker(final String url) throws IOException {
+        if (isBlank(checkerUrl) || isBlank(checkerToken)) {
+            return new JsonResponse()
+                .writeAttribute("ok", false)
+                .writeAttribute("status", 0)
+                .writeAttribute("checkerError", true)
+                .writeAttribute("error", "External link checker is not configured");
+        }
+        try {
+            final HttpClient client = HttpClient.newHttpClient();
+            final HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(checkerUrl + "?url=" + java.net.URLEncoder.encode(url, "UTF-8")))
+                .header("Authorization", "Bearer " + checkerToken)
+                .timeout(java.time.Duration.ofSeconds(15))
+                .GET()
+                .build();
+            final HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                return new JsonResponse()
+                    .writeAttribute("ok", false)
+                    .writeAttribute("status", 0)
+                    .writeAttribute("checkerError", true)
+                    .writeAttribute("error", "External link checker returned " + response.statusCode());
+            }
+            final JsonNode data = MAPPER.readTree(response.body());
+            final boolean valid = data.path("valid").asBoolean(false);
+            final boolean redirected = data.path("redirected").asBoolean(false);
+            final int status = data.path("status").asInt(0);
+            final String finalUrl = data.path("finalUrl").asText(null);
+
+            final JsonResponse jsonResponse = new JsonResponse()
+                .writeAttribute("ok", valid)
+                .writeAttribute("status", status);
+
+            if (redirected && finalUrl != null) {
+                jsonResponse.writeAttribute("redirect", true)
+                    .writeAttribute("redirectUrl", url)
+                    .writeAttribute("finalUrl", finalUrl)
+                    .writeAttribute("finalStatus", status)
+                    .writeAttribute("finalOk", valid);
+            }
+
+            logger.debug("CheckLink: external url={}, checker valid={}, redirected={}, finalUrl={}", url, valid, redirected, finalUrl);
+            return jsonResponse;
+        } catch (final Exception e) {
+            logger.warn("CheckLink: checker request failed for url={}", url, e);
+            return new JsonResponse()
+                .writeAttribute("ok", false)
+                .writeAttribute("status", 0)
+                .writeAttribute("checkerError", true)
+                .writeAttribute("error", "External link checker is not available");
+        }
     }
 
     private static boolean isSpaShell(final String rawHtml, final String strippedHtml) {

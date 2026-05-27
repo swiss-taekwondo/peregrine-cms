@@ -1336,6 +1336,12 @@ var PerAdminApp = {
       .replace(/\W/g, separator)
       .toLowerCase();
   },
+
+  clearWaitState() {
+    while (waitStack.length > 0) {
+      exitWaitState();
+    }
+  },
 };
 
 export default PerAdminApp

@@ -206,7 +206,7 @@
             <i class="material-icons">warning</i>
             <span>{{ publishabilityReason || 'Publishing not possible as there are some errors' }}</span>
           </div>
-          <div v-if="nodeType === NodeType.PAGE" class="action" v-bind:class="{'operationDisabledOnActivatedItem': isPageCheckSummaryLoading || isVerifyingLinks}" title="Check the page before publishing" @click="isPageCheckSummaryLoading || isVerifyingLinks ? null : openPageCheckModal()">
+          <div v-if="nodeType === NodeType.PAGE || nodeType === NodeType.TEMPLATE" class="action" v-bind:class="{'operationDisabledOnActivatedItem': isPageCheckSummaryLoading || isVerifyingLinks}" title="Check the page before publishing" @click="isPageCheckSummaryLoading || isVerifyingLinks ? null : openPageCheckModal()">
             <i class="material-icons">playlist_add_check</i>
             <span>Page Check</span>
             <admin-components-materializespinner v-if="isPageCheckSummaryLoading || isVerifyingLinks" class="page-check-spinner"/>
@@ -273,7 +273,7 @@
       </admin-components-pagecheckmodal>
 
       <admin-components-pagecheckmodal
-          v-if="isPageCheckSummaryLoading && nodeType === NodeType.PAGE && pageCheckNode"
+          v-if="isPageCheckSummaryLoading && (nodeType === NodeType.PAGE || nodeType === NodeType.TEMPLATE) && pageCheckNode"
           v-bind:isOpen="false"
           v-bind:autoOpen="false"
           v-bind:path="currentObject"
@@ -497,7 +497,7 @@ export default {
         allowCopy: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
         allowDelete: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
         allowTranslate: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.OBJECT],
-        allowWebPublish: [NodeType.PAGE, NodeType.FILE],
+        allowWebPublish: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.FILE],
       },
       path: {
         current: null,
@@ -916,7 +916,7 @@ export default {
       this.isPageCheckDialogOpen = true;
     },
     startPageCheckSummaryLoad() {
-      if (this.nodeType !== NodeType.PAGE) {
+      if (this.nodeType !== NodeType.PAGE && this.nodeType !== NodeType.TEMPLATE) {
         return;
       }
       this.isPageCheckSummaryLoading = true;
@@ -962,39 +962,34 @@ export default {
       return String(tag || '').replace(/<[^>]*>/g, '').trim();
     },
     findLinkKey(owner) {
-      const keys = ['link', 'url', 'href', 'buttonlink', 'logourl', 'slidelink'];
-      for (let i = 0; i < keys.length; i++) {
-        if (owner && owner[keys[i]] !== undefined && owner[keys[i]] !== null) {
-          return keys[i];
+      for (const key of Object.keys(owner || {})) {
+        const lower = key.toLowerCase();
+        if ((lower.endsWith('link') || lower.endsWith('url') || lower === 'href')
+            && typeof owner[key] === 'string') {
+          return key;
         }
       }
       return 'link';
     },
     linkTextFromStructuredLink(owner, propertyKey) {
       const node = owner || {};
-      const candidates = ['buttonlabel', 'buttontext', 'linktext', 'label', 'title', 'text', propertyKey];
-      for (let i = 0; i < candidates.length; i++) {
-        if (node[candidates[i]] !== undefined && node[candidates[i]] !== null) {
-          return String(node[candidates[i]]).replace(/<[^>]*>/g, '').trim();
+      for (const key of Object.keys(node)) {
+        const lower = key.toLowerCase();
+        if ((lower.endsWith('label') || lower.endsWith('text') || lower === 'title')
+            && node[key] !== undefined && node[key] !== null) {
+          return String(node[key]).replace(/<[^>]*>/g, '').trim();
         }
       }
-      return '';
+      const fallback = node[propertyKey];
+      return String(fallback || '').replace(/<[^>]*>/g, '').trim();
     },
     looksLikeRequiredLinkField(record) {
       const key = record.key.toLowerCase();
-      const linkKeys = ['href', 'url', 'link', 'buttonlink', 'logourl', 'slidelink'];
-      if (linkKeys.indexOf(key) === -1) {
-        return false;
-      }
-      const owner = record.owner || {};
-      const component = String(owner.component || owner['sling:resourceType'] || owner.resourceType || '').toLowerCase();
-      const anchorComponents = ['viewlink', 'listlinks', 'socialicons', 'header', 'footer'];
-      for (let i = 0; i < anchorComponents.length; i++) {
-        if (component.indexOf(anchorComponents[i]) > -1) {
-          return true;
-        }
-      }
-      return owner.htmlelement && String(owner.htmlelement).toLowerCase() === 'a';
+      const isLinkKey = (key.endsWith('link') || key.endsWith('url') || key === 'href') && key !== 'canonicalurl';
+      if (!isLinkKey) return false;
+      const value = record.value;
+      if (typeof value !== 'string') return false;
+      return value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://');
     },
     collectRecords(value, path, records, ancestors) {
       if (value === null || value === undefined) return;
@@ -1013,8 +1008,10 @@ export default {
         if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
           records.push({ key, value: item, owner: value, path });
         } else {
-          const childPath = item && item.path ? item.path : `${path}/${key}`;
-          this.collectRecords(item, childPath, records, nextAncestors);
+          // Always use the accumulated path, not item.path.
+          // item.path is a relative JCR path that breaks the accumulated
+          // hierarchy and causes path inconsistency in records.
+          this.collectRecords(item, `${path}/${key}`, records, nextAncestors);
         }
       });
     },
@@ -1024,12 +1021,10 @@ export default {
         const response = await fetch(apiUrl, { method: 'GET', credentials: 'same-origin' });
         if (response.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
         const data = await response.json();
+        if (data.checkerError) return { ok: false, checkerError: true, error: data.error || 'External link checker unavailable' };
         if (data.error) return { ok: false, status: data.status || 0, error: data.error };
         if (data.redirect) {
           return { ok: data.finalOk !== false, status: data.status, redirect: true, redirectUrl: data.redirectUrl, finalUrl: data.finalUrl, finalStatus: data.finalStatus, finalOk: data.finalOk, loginRedirect: data.loginRedirect || false };
-        }
-        if (data.spaRedirect) {
-          return { ok: false, status: data.status, spaRedirect: true };
         }
         return { ok: data.ok, status: data.status };
       } catch (e) {
@@ -1046,9 +1041,6 @@ export default {
         if (data.redirect) {
           return { ok: data.finalOk !== false, status: data.status, redirect: true, redirectUrl: data.redirectUrl, finalUrl: data.finalUrl, finalStatus: data.finalStatus, finalOk: data.finalOk, loginRedirect: data.loginRedirect || false };
         }
-        if (data.spaRedirect) {
-          return { ok: false, status: data.status, spaRedirect: true };
-        }
         return { ok: data.ok, status: data.status };
       } catch (e) {
         return { ok: false, status: 0, error: 'Failed to verify internal link' };
@@ -1062,22 +1054,22 @@ export default {
       return `${basePath}${value}`;
     },
     async verifyLinks() {
-      if (this.nodeType !== NodeType.PAGE) {
+      if (this.nodeType !== NodeType.PAGE && this.nodeType !== NodeType.TEMPLATE) {
         this.isVerifyingLinks = false;
         this.linkVerificationResults = [];
         return;
       }
       this.isVerifyingLinks = true;
 
-      let pageData = get($perAdminApp.getView(), '/pageView/page', null);
-      if (!pageData) {
-        try {
-          await $perAdminApp.getApi().populatePageView(this.currentObject);
-          pageData = get($perAdminApp.getView(), '/pageView/page', null);
-        } catch (e) {
-          this.isVerifyingLinks = false;
-          return;
-        }
+      // Always re-fetch the page data so newly added content is included.
+      // pageView.page may contain stale data from a previous editor session.
+      let pageData = null;
+      try {
+        await $perAdminApp.getApi().populatePageView(this.currentObject);
+        pageData = get($perAdminApp.getView(), '/pageView/page', null);
+      } catch (e) {
+        this.isVerifyingLinks = false;
+        return;
       }
       if (!pageData) {
         this.isVerifyingLinks = false;
@@ -1088,11 +1080,13 @@ export default {
       const records = [];
       this.collectRecords(content, this.currentObject, records, []);
       const allLinks = [];
-      const seen = {};
+      const occurrenceMap = {};
       const addLink = (href, location, linkText, meta) => {
-        if (this.isEmptyHref(href) || seen[href]) return;
-        seen[href] = true;
-        allLinks.push({ href, location, linkText, ...meta });
+        if (this.isEmptyHref(href)) return;
+        const entry = { href, location, linkText, ...meta };
+        if (!occurrenceMap[href]) occurrenceMap[href] = [];
+        occurrenceMap[href].push(entry);
+        allLinks.push(entry);
       };
       records.forEach(record => {
         if (typeof record.value === 'string') {
@@ -1132,42 +1126,86 @@ export default {
         this.linkVerificationResults = [];
         return;
       }
+      const uniqueHrefs = [...new Set(allLinks.map(l => l.href))];
       const batchSize = 5;
       const newResults = [];
-      for (let i = 0; i < allLinks.length; i += batchSize) {
-        const batch = allLinks.slice(i, i + batchSize);
-        const results = await Promise.all(batch.map(async (link) => {
+      for (let i = 0; i < uniqueHrefs.length; i += batchSize) {
+        const batch = uniqueHrefs.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(async (href) => {
           let result;
-          if (this.isExternalLink(link.href)) {
-            result = await this.verifyLink(link.href);
-          } else if (this.isInternalLink(link.href)) {
-            result = await this.verifyInternalLink(this.resolveInternalLink(link.href));
+          if (this.isExternalLink(href)) {
+            result = await this.verifyLink(href);
+          } else if (this.isInternalLink(href)) {
+            result = await this.verifyInternalLink(this.resolveInternalLink(href));
           } else {
             result = { ok: true, status: 0, error: null };
           }
-          return { link, result };
+          return { href, result };
         }));
-        results.forEach(({ link, result }) => {
-          newResults.push({
-            href: this.isInternalLink(link.href) ? this.resolveInternalLink(link.href) : link.href,
-            linkText: link.linkText,
-            location: link.location,
-            ok: result.ok,
-            status: result.status,
-            error: result.error,
-            redirect: result.redirect || false,
-            redirectUrl: result.redirectUrl || null,
-            finalUrl: result.finalUrl || null,
-            finalStatus: result.finalStatus || null,
-            finalOk: result.finalOk !== undefined ? result.finalOk : null,
-            spaRedirect: result.spaRedirect || false,
-            loginRedirect: result.loginRedirect || false,
-            owner: link.owner || null,
-            saveOwner: link.saveOwner || null,
-            propertyKey: link.propertyKey || null,
-            htmlTag: link.htmlTag || null,
-            htmlValue: link.htmlValue || null,
-            linkType: link.type || null
+        results.forEach(({ href, result }) => {
+          const occurrences = occurrenceMap[href] || [];
+          // Multiple records from the same component instance should count as a
+          // single occurrence. In Peregrine, a component instance is the node
+          // at the deepest array-indexed segment that is NOT a structural wrapper
+          // (children[N] or experiences[N]). Everything after that segment is
+          // either a property or a nested child of the same component.
+          const componentLocation = (loc) => {
+            if (!loc) return loc;
+            // Strip translation-variant segments first
+            let path = loc.replace(/\/experiences(?:\/lang_[^\/]+|\[\d+\])/g, '');
+            // Find all array-indexed segments like /children[2], /columns[1]
+            const segments = path.match(/\/\w+\[\d+\]/g) || [];
+            // Find the last segment that is NOT a structural wrapper
+            let cutoff = -1;
+            for (let i = segments.length - 1; i >= 0; i--) {
+              const seg = segments[i];
+              if (!seg.startsWith('/children[')) {
+                cutoff = path.indexOf(seg) + seg.length;
+                break;
+              }
+            }
+            if (cutoff >= 0) {
+              return path.substring(0, cutoff);
+            }
+            // Fallback: deepest array-indexed segment
+            if (segments.length > 0) {
+              const lastSeg = segments[segments.length - 1];
+              const idx = path.indexOf(lastSeg);
+              return path.substring(0, idx + lastSeg.length);
+            }
+            return path;
+          };
+          const baseLocs = new Set(occurrences.map((link, index) => {
+            // HTML links in the same text field are distinct occurrences
+            if (link.htmlTag) {
+              return link.location + '#' + index;
+            }
+            return componentLocation(link.location);
+          }));
+          const totalCount = baseLocs.size;
+          occurrences.forEach(link => {
+            newResults.push({
+              href: this.isInternalLink(link.href) ? this.resolveInternalLink(link.href) : link.href,
+              linkText: link.linkText,
+              location: link.location,
+              ok: result.ok,
+              status: result.status,
+              error: result.error,
+              checkerError: result.checkerError || false,
+              redirect: result.redirect || false,
+              redirectUrl: result.redirectUrl || null,
+              finalUrl: result.finalUrl || null,
+              finalStatus: result.finalStatus || null,
+              finalOk: result.finalOk !== undefined ? result.finalOk : null,
+              loginRedirect: result.loginRedirect || false,
+              owner: link.owner || null,
+              saveOwner: link.saveOwner || null,
+              propertyKey: link.propertyKey || null,
+              htmlTag: link.htmlTag || null,
+              htmlValue: link.htmlValue || null,
+              linkType: link.type || null,
+              _totalOccurrences: totalCount
+            });
           });
         });
       }

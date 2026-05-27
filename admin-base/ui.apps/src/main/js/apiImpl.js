@@ -695,7 +695,7 @@ class PerAdminImpl {
   }
 
   populatePageView(path) {
-    return fetch('/admin/readNode.json' + path)
+    return fetch('/admin/readNode.json' + path + '?_=' + Date.now())
         .then((data) => populateView('/pageView', 'page', data))
   }
 

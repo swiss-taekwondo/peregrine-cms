@@ -647,6 +647,7 @@ export default {
       }
     },
     getFileExt(item) {
+      if (!item || !item.name) return ''
       return item.name.split('.').pop()
     },
     getFileIcon(item) {

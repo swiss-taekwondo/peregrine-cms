@@ -115,11 +115,15 @@ export default function(me, target) {
     log.fine(target)
     let view = me.getView()
 
-    if (view.state.editor && view.state.editor.path === target) {
+    const path = typeof target === 'object' ? target.path : target
+
+    if (view.state.editor && view.state.editor.path === path) {
         return Promise.resolve()
     }
 
     return new Promise((resolve, reject) => {
-        bringUpEditor(me, view, target).then(() => { resolve() }).catch(() => reject())
+        bringUpEditor(me, view, path).then(() => {
+            resolve()
+        }).catch(() => reject())
     })
 }

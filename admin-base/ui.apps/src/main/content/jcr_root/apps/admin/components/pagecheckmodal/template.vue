@@ -29,6 +29,7 @@
         ref="materializemodal"
         class="page-check-modal"
         v-on:complete="$emit('complete',$event)"
+        v-on:ready="onModalReady"
         v-bind:modalTitle="modalTitle">
 
     <div class="page-check-summary" v-bind:class="{'page-check-summary-ok': !hasIssues}">
@@ -70,11 +71,10 @@
             Redirects - Incorrect ({{ redirectIncorrectCount }})
           </button>
           <button
-              v-if="check.id === 'valid-links' && loginRedirectCount > 0"
+              v-if="check.id === 'valid-links' && manualTestCount > 0"
               v-bind:class="{'active': activeTab(check.id) === 'manual-test'}"
-              type="button"
               v-on:click.stop="setCheckTab(check.id, 'manual-test')">
-            Manual Test ({{ loginRedirectCount }})
+            Manual Test ({{ manualTestCount }})
           </button>
           <button
               v-if="check.id === 'valid-links' && manualApprovedCount > 0"
@@ -98,11 +98,32 @@
             Redirects Changed ({{ redirectChangedCount }})
           </button>
           <button
+              v-if="check.id === 'valid-links' && failedTestCount > 0"
+              v-bind:class="{'active': activeTab(check.id) === 'failed-test'}"
+              type="button"
+              v-on:click.stop="setCheckTab(check.id, 'failed-test')">
+            Failed Test ({{ failedTestCount }})
+          </button>
+          <button
               v-if="check.id === 'valid-links' && redirectCorrectCount > 0"
               v-bind:class="{'active': activeTab(check.id) === 'redirects-correct'}"
               type="button"
               v-on:click.stop="setCheckTab(check.id, 'redirects-correct')">
             Redirects - Correct ({{ redirectCorrectCount }})
+          </button>
+          <button
+              v-if="check.id === 'valid-links' && redirectUnreviewedCount > 0"
+              v-bind:class="{'active': activeTab(check.id) === 'redirects-unreviewed'}"
+              type="button"
+              v-on:click.stop="setCheckTab(check.id, 'redirects-unreviewed')">
+            Redirects - Unreviewed ({{ redirectUnreviewedCount }})
+          </button>
+          <button
+              v-if="check.id === 'valid-links' && redirectDisapprovedCount > 0"
+              v-bind:class="{'active': activeTab(check.id) === 'redirects-disapproved'}"
+              type="button"
+              v-on:click.stop="setCheckTab(check.id, 'redirects-disapproved')">
+            Redirects - Disapproved ({{ redirectDisapprovedCount }})
           </button>
           <button
               v-bind:class="{'active': activeTab(check.id) === 'correct'}"
@@ -115,7 +136,7 @@
           <i class="material-icons">info_outline</i>
           <span>{{ check.hint }}</span>
         </div>
-        <div v-if="isCheckOpen(check.id) && check.id === 'valid-links' && (redirectIncorrectCount > 0 || redirectCorrectCount > 0 || loginRedirectCount > 0) && (activeTab(check.id) === 'redirects-incorrect' || activeTab(check.id) === 'redirects-correct' || activeTab(check.id) === 'manual-test')" class="page-check-hint-message page-check-redirect-warning">
+        <div v-if="isCheckOpen(check.id) && check.id === 'valid-links' && (redirectIncorrectCount > 0 || redirectCorrectCount > 0 || redirectUnreviewedCount > 0 || manualTestCount > 0) && (activeTab(check.id) === 'redirects-incorrect' || activeTab(check.id) === 'redirects-correct' || activeTab(check.id) === 'redirects-unreviewed' || activeTab(check.id) === 'redirects-disapproved' || activeTab(check.id) === 'manual-test')" class="page-check-hint-message page-check-redirect-warning">
           <i class="material-icons">warning</i>
           <span>Redirects can change at any time without notice. A link that works today may break tomorrow.</span>
         </div>
@@ -130,28 +151,17 @@
               <div class="page-check-message">{{ issue.message }}</div>
               <div class="page-check-location">{{ issue.location }}</div>
               <div class="page-check-guidance">Alt text: {{ issue.altText || 'Missing' }}</div>
-              <button
-                  v-if="editingIssueId !== issue.id && issue.altKey"
-                  class="waves-effect waves-green btn-flat page-check-edit"
-                  type="button"
-                  v-on:click="editImageAlt(issue)">
-                <i class="material-icons">edit</i>
-                Edit
-              </button>
-              <div v-if="editingIssueId === issue.id && issue.altKey" class="page-check-image-editor">
-                <label>
-                  Alt text
-                  <input type="text" v-model="editingAltText"/>
-                </label>
-                <div class="page-check-image-actions">
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelImageAlt" v-bind:disabled="isSavingAltText">
-                    Cancel
-                  </button>
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveImageAlt(issue)" v-bind:disabled="isSavingAltText">
-                    Save
-                  </button>
-                </div>
-              </div>
+              <image-alt-editor
+                  :editing-id="editingIssueId"
+                  :item-id="issue.id"
+                  :has-alt-key="!!issue.altKey"
+                  :value="editingAltText"
+                  :saving="isSavingAltText"
+                  @update:value="editingAltText = $event"
+                  @edit="editImageAlt(issue)"
+                  @cancel="cancelImageAlt"
+                  @save="saveImageAlt(issue)">
+              </image-alt-editor>
             </template>
             <template v-else-if="issue.type === 'broken-link'">
               <div class="page-check-message">{{ issue.message }}</div>
@@ -159,6 +169,7 @@
               <div v-if="issue.linkText" class="page-check-link-text">Link text: {{ issue.linkText }}</div>
               <div class="page-check-guidance">
                 URL: <a :href="issue.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ issue.href }}</a>
+                <span v-if="issue._totalOccurrences > 1" class="page-check-count-badge">{{ issue._totalOccurrences }} occurrences</span>
               </div>
               <div v-if="issue.status" class="page-check-guidance">Status: {{ issue.status }}</div>
               <template v-if="issue.isRedirect">
@@ -172,13 +183,59 @@
                   :editing-id="editingIssueId"
                   :value="editingLinkValue"
                   :saving="isSavingLink"
+                  :is-variant="isVariantIssue(issue) || allOccurrencesAreVariants(issue.href)"
+                  :is-template="isTemplateIssue(issue)"
                   @update:value="editingLinkValue = $event"
                   @edit="editLink(issue)"
+                  @go-to-component="goToPageEditorFromIssue(issue)"
                   @browse="openLinkBrowser(issue)"
                   @remove="removeLink(issue)"
                   @cancel="cancelLink"
                   @save="saveLink(issue)">
               </link-editor>
+              <div v-if="_showOccurrencePicker(issue)" class="page-check-occurrences">
+                <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+                <div v-for="(occ, idx) in occurrenceItems(issue.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                  <link-editor
+                      :item="_fakeIssue(occ, idx)"
+                      :editing-id="editingIssueId"
+                      :value="editingLinkValue"
+                      :saving="isSavingLink"
+                      :is-variant="isVariantIssue(occ)"
+                      :is-template="isTemplateIssue(occ)"
+                      @update:value="editingLinkValue = $event"
+                      @edit="editOccurrence(occ, idx)"
+                      @go-to-component="goToPageEditorFromIssue(occ)"
+                      @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                      @remove="removeLink(_fakeIssue(occ, idx))"
+                      @cancel="cancelOccurrence"
+                      @save="saveLink(_fakeIssue(occ, idx))">
+                  </link-editor>
+                </div>
+              </div>
+              <div v-if="showEditAll(issue)" class="page-check-manual-actions">
+                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(issue)" v-bind:disabled="isSavingLink">
+                  <i class="material-icons">edit</i>
+                  Edit all ({{ issue._totalOccurrences }} links)
+                </button>
+              </div>
+              <div v-if="editingAllHref === issue.href" class="page-check-all-editor">
+                <label>
+                  New URL:
+                  <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
+                </label>
+                <div class="page-check-image-actions">
+                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
+                    Cancel
+                  </button>
+                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveLink(issue)" v-bind:disabled="isSavingLink">
+                    Save
+                  </button>
+                </div>
+              </div>
             </template>
             <template v-else>
             <div class="page-check-message">{{ issue.message }}</div>
@@ -186,6 +243,9 @@
             <div v-if="issue.linkText" class="page-check-link-text">Link text: {{ issue.linkText }}</div>
             <div v-if="issue.type === 'html-link' || issue.type === 'link-field'" class="page-check-guidance">
               Link URL: <a :href="issue.guidance" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ issue.guidance }}</a>
+            </div>
+            <div v-else-if="issue.type === 'page-property' || issue.type === 'text-field'" class="page-check-guidance">
+              {{ issue.propertyLabel }}: {{ issue.guidance }}
             </div>
             <div v-else class="page-check-guidance">Link URL: {{ issue.guidance }}</div>
             <button
@@ -211,36 +271,20 @@
                 </button>
               </div>
             </div>
-            <button
-                v-if="isEditableLink(issue) && editingIssueId !== issue.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(issue)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === issue.id && isEditableLink(issue)" class="page-check-property-editor">
-              <label>
-                {{ issue.propertyLabel }}
-                <input type="text" v-model="editingLinkValue"/>
-              </label>
-              <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(issue)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
-                </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(issue)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
-                </button>
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
-                  Cancel
-                </button>
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveLink(issue)" v-bind:disabled="isSavingLink">
-                  Save
-                </button>
-              </div>
-            </div>
+            <link-editor
+                :item="issue"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(issue) || allOccurrencesAreVariants(issue.href)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(issue)"
+                @go-to-component="goToPageEditorFromIssue(issue)"
+                @browse="openLinkBrowser(issue)"
+                @remove="removeLink(issue)"
+                @cancel="cancelLink"
+                @save="saveLink(issue)">
+            </link-editor>
             </template>
           </li>
         </ul>
@@ -251,6 +295,7 @@
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
             </div>
             <div class="page-check-guidance">Redirect status: {{ item.status }}</div>
             <div class="page-check-guidance">
@@ -260,28 +305,55 @@
               Final status: {{ item.finalStatus }}
               <span class="page-check-status-error">(BROKEN)</span>
             </div>
-            <button
-                v-if="isEditableLink(item) && editingIssueId !== item.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(item)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === item.id && isEditableLink(item)" class="page-check-property-editor">
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                    @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                    @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
               <label>
-                Link URL
-                <input type="text" v-model="editingLinkValue"/>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
               </label>
               <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(item)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
-                </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(item)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
-                </button>
                 <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                   Cancel
                 </button>
@@ -299,6 +371,7 @@
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
             </div>
             <div class="page-check-guidance">Redirect status: {{ item.status }}</div>
             <div class="page-check-guidance">
@@ -308,28 +381,55 @@
               Final status: {{ item.finalStatus }}
               <span class="page-check-status-ok">(OK)</span>
             </div>
-            <button
-                v-if="isEditableLink(item) && editingIssueId !== item.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(item)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === item.id && isEditableLink(item)" class="page-check-property-editor">
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
               <label>
-                Link URL
-                <input type="text" v-model="editingLinkValue"/>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
               </label>
               <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(item)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
-                </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(item)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
-                </button>
                 <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                   Cancel
                 </button>
@@ -340,18 +440,22 @@
             </div>
           </li>
         </ul>
-        <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'manual-test' && loginRedirects.length" class="page-check-issues">
-          <li v-for="item in loginRedirects" v-bind:key="item.id">
-            <div class="page-check-message">Login required</div>
+        <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'redirects-unreviewed' && redirectsUnreviewed.length" class="page-check-issues">
+          <li v-for="item in redirectsUnreviewed" v-bind:key="item.id">
+            <div class="page-check-message">Redirects to: {{ item.finalUrl || item.redirectUrl }}</div>
             <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
-              URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
             </div>
-            <div class="page-check-guidance">Redirects to: {{ item.redirectUrl }}</div>
-            <div class="page-check-guidance page-check-manual-test-hint">
-              <i class="material-icons">info_outline</i>
-              <span>This link requires authentication. Please verify manually.</span>
+            <div class="page-check-guidance">Redirect status: {{ item.status }}</div>
+            <div class="page-check-guidance">
+              Final URL: <a :href="item.finalUrl || item.redirectUrl" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.finalUrl || item.redirectUrl }}</a>
+            </div>
+            <div class="page-check-guidance" v-if="item.finalStatus">
+              Final status: {{ item.finalStatus }}
+              <span class="page-check-status-ok">(OK)</span>
             </div>
             <div class="page-check-manual-actions">
               <button class="waves-effect waves-green btn-flat page-check-approve" type="button" v-on:click.stop="approveManualLink(item.href)" v-bind:disabled="isSavingManualCheck">
@@ -363,28 +467,241 @@
                 Disapprove
               </button>
             </div>
-            <button
-                v-if="isEditableLink(item) && editingIssueId !== item.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(item)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === item.id && isEditableLink(item)" class="page-check-property-editor">
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
               <label>
-                Link URL
-                <input type="text" v-model="editingLinkValue"/>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
               </label>
               <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(item)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
+                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
+                  Cancel
                 </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(item)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
+                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveLink(item)" v-bind:disabled="isSavingLink">
+                  Save
                 </button>
+              </div>
+            </div>
+          </li>
+        </ul>
+        <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'redirects-disapproved' && redirectsDisapproved.length" class="page-check-issues">
+          <li v-for="item in redirectsDisapproved" v-bind:key="item.id">
+            <div class="page-check-message">
+              <i class="material-icons page-check-disapproved-icon">cancel</i>
+              Redirect disapproved
+            </div>
+            <div class="page-check-location">{{ item.location }}</div>
+            <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
+            <div class="page-check-guidance">
+              Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
+            </div>
+            <div class="page-check-guidance">Redirect status: {{ item.status }}</div>
+            <div class="page-check-guidance">
+              Final URL: <a :href="item.finalUrl || item.redirectUrl" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.finalUrl || item.redirectUrl }}</a>
+            </div>
+            <div class="page-check-guidance" v-if="item.finalStatus">
+              Final status: {{ item.finalStatus }}
+              <span class="page-check-status-ok">(OK)</span>
+            </div>
+            <div class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat page-check-approve" type="button" v-on:click.stop="approveManualLink(item.href)" v-bind:disabled="isSavingManualCheck">
+                <i class="material-icons">check</i>
+                Approve
+              </button>
+            </div>
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
+              <label>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
+              </label>
+              <div class="page-check-image-actions">
+                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
+                  Cancel
+                </button>
+                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveLink(item)" v-bind:disabled="isSavingLink">
+                  Save
+                </button>
+              </div>
+            </div>
+          </li>
+        </ul>
+        <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'failed-test' && failedTests.length" class="page-check-issues">
+          <div class="page-check-hint-message page-check-checker-error-banner">
+            <i class="material-icons">warning</i>
+            <span>External link checker is not configured. See <strong>docs/readme.md</strong> for setup instructions.</span>
+          </div>
+          <li v-for="item in failedTests" v-bind:key="item.id">
+            <div class="page-check-message page-check-checker-error">External link checker is not available</div>
+            <div class="page-check-location">{{ item.location }}</div>
+            <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
+            <div class="page-check-guidance">
+              URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
+            </div>
+            <div class="page-check-guidance">{{ item.error }}</div>
+          </li>
+        </ul>
+        <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'manual-test' && manualTestItems.length" class="page-check-issues">
+          <li v-for="item in manualTestItems" v-bind:key="item.id">
+            <div class="page-check-message" v-if="item.isRateLimited">Rate limited (429)</div>
+            <div class="page-check-message" v-else>Login required</div>
+            <div class="page-check-location">{{ item.location }}</div>
+            <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
+            <div class="page-check-guidance">
+              URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
+            </div>
+            <div v-if="item.redirectUrl" class="page-check-guidance">Redirects to: {{ item.redirectUrl }}</div>
+            <div class="page-check-guidance page-check-manual-test-hint">
+              <i class="material-icons">info_outline</i>
+              <span v-if="item.isRateLimited">Rate limited by server. Please verify manually.</span>
+              <span v-else>This link requires authentication. Please verify manually.</span>
+            </div>
+            <div class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat page-check-approve" type="button" v-on:click.stop="approveManualLink(item.href)" v-bind:disabled="isSavingManualCheck">
+                <i class="material-icons">check</i>
+                Approve
+              </button>
+              <button class="waves-effect waves-green btn-flat page-check-disapprove" type="button" v-on:click.stop="disapproveManualLink(item.href)" v-bind:disabled="isSavingManualCheck">
+                <i class="material-icons">close</i>
+                Disapprove
+              </button>
+            </div>
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
+              <label>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
+              </label>
+              <div class="page-check-image-actions">
                 <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                   Cancel
                 </button>
@@ -405,6 +722,7 @@
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
             </div>
             <div class="page-check-guidance page-check-approved-timestamp">
               <i class="material-icons">schedule</i>
@@ -416,28 +734,55 @@
                 Disapprove
               </button>
             </div>
-            <button
-                v-if="isEditableLink(item) && editingIssueId !== item.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(item)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === item.id && isEditableLink(item)" class="page-check-property-editor">
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
               <label>
-                Link URL
-                <input type="text" v-model="editingLinkValue"/>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
               </label>
               <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(item)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
-                </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(item)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
-                </button>
                 <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                   Cancel
                 </button>
@@ -458,6 +803,7 @@
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
             </div>
             <div class="page-check-guidance page-check-disapproved-timestamp">
               <i class="material-icons">schedule</i>
@@ -469,28 +815,55 @@
                 Approve
               </button>
             </div>
-            <button
-                v-if="isEditableLink(item) && editingIssueId !== item.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(item)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === item.id && isEditableLink(item)" class="page-check-property-editor">
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
               <label>
-                Link URL
-                <input type="text" v-model="editingLinkValue"/>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
               </label>
               <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(item)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
-                </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(item)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
-                </button>
                 <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                   Cancel
                 </button>
@@ -511,6 +884,7 @@
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
+              <span v-if="item._totalOccurrences > 1" class="page-check-count-badge">{{ item._totalOccurrences }} occurrences</span>
             </div>
             <div class="page-check-guidance page-check-redirect-old">
               <i class="material-icons">arrow_back</i>
@@ -526,28 +900,55 @@
                 Approve New Destination
               </button>
             </div>
-            <button
-                v-if="isEditableLink(item) && editingIssueId !== item.id"
-                class="waves-effect waves-green btn-flat page-check-edit"
-                type="button"
-                v-on:click="editLink(item)">
-              <i class="material-icons">edit</i>
-              Edit
-            </button>
-            <div v-if="editingIssueId === item.id && isEditableLink(item)" class="page-check-property-editor">
+            <link-editor
+                :item="item"
+                :editing-id="editingIssueId"
+                :value="editingLinkValue"
+                :saving="isSavingLink"
+                :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
+                :is-template="isTemplateIssue(item)"
+                @update:value="editingLinkValue = $event"
+                @edit="editLink(item)"
+                @go-to-component="goToPageEditorFromIssue(item)"
+                @browse="openLinkBrowser(item)"
+                @remove="removeLink(item)"
+                @cancel="cancelLink"
+                @save="saveLink(item)">
+            </link-editor>
+            <div v-if="_showOccurrencePicker(item)" class="page-check-occurrences">
+              <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+              <div v-for="(occ, idx) in occurrenceItems(item.href)" class="page-check-occurrence-item">
+                  <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                  <div v-if="occ.saveOwner && isExperienceVariantPath(occ.saveOwner.path)" class="page-check-occurrence-variant">Page translation — edit in page editor</div>
+                  <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                <link-editor
+                    :item="_fakeIssue(occ, idx)"
+                    :editing-id="editingIssueId"
+                    :value="editingLinkValue"
+                    :saving="isSavingLink"
+                    :is-variant="isVariantIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                    @edit="editOccurrence(occ, idx)"
+                    @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                    @remove="removeLink(_fakeIssue(occ, idx))"
+                    @cancel="cancelOccurrence"
+                    @save="saveLink(_fakeIssue(occ, idx))">
+                </link-editor>
+              </div>
+            </div>
+            <div v-if="showEditAll(item)" class="page-check-manual-actions">
+              <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(item)" v-bind:disabled="isSavingLink">
+                <i class="material-icons">edit</i>
+                Edit all ({{ item._totalOccurrences }} links)
+              </button>
+            </div>
+            <div v-if="editingAllHref === item.href" class="page-check-all-editor">
               <label>
-                Link URL
-                <input type="text" v-model="editingLinkValue"/>
+                New URL:
+                <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
               </label>
               <div class="page-check-image-actions">
-                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(item)" v-bind:disabled="isSavingLink">
-                  <i class="material-icons">folder_open</i>
-                  Browse
-                </button>
-                <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(item)" v-bind:disabled="isSavingLink">
-                  <i class="fa fa-chain-broken"></i>
-                  Remove
-                </button>
                 <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                   Cancel
                 </button>
@@ -566,28 +967,17 @@
               <div class="page-check-location">{{ detail.location }}</div>
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div class="page-check-guidance">Alt text: {{ detail.altText || 'Missing' }}</div>
-              <button
-                  v-if="editingIssueId !== detail.id"
-                  class="waves-effect waves-green btn-flat page-check-edit"
-                  type="button"
-                  v-on:click="editImageAlt(detail)">
-                <i class="material-icons">edit</i>
-                Edit
-              </button>
-              <div v-if="editingIssueId === detail.id" class="page-check-image-editor">
-                <label>
-                  Alt text
-                  <input type="text" v-model="editingAltText"/>
-                </label>
-                <div class="page-check-image-actions">
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelImageAlt" v-bind:disabled="isSavingAltText">
-                    Cancel
-                  </button>
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveImageAlt(detail)" v-bind:disabled="isSavingAltText">
-                    Save
-                  </button>
-                </div>
-              </div>
+              <image-alt-editor
+                  :editing-id="editingIssueId"
+                  :item-id="detail.id"
+                  :has-alt-key="!!detail.altKey"
+                  :value="editingAltText"
+                  :saving="isSavingAltText"
+                  @update:value="editingAltText = $event"
+                  @edit="editImageAlt(detail)"
+                  @cancel="cancelImageAlt"
+                  @save="saveImageAlt(detail)">
+              </image-alt-editor>
             </template>
             <template v-else-if="detail.type === 'verified-link'">
               <div class="page-check-message">{{ detail.message }}</div>
@@ -595,30 +985,58 @@
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div class="page-check-guidance">
                 URL: <a :href="detail.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ detail.href }}</a>
+                <span v-if="detail._totalOccurrences > 1" class="page-check-count-badge">{{ detail._totalOccurrences }} occurrences</span>
               </div>
               <div class="page-check-guidance">Status: {{ detail.status }}</div>
-              <button
-                  v-if="isEditableLink(detail) && editingIssueId !== detail.id"
-                  class="waves-effect waves-green btn-flat page-check-edit"
-                  type="button"
-                  v-on:click="editLink(detail)">
-                <i class="material-icons">edit</i>
-                Edit
-              </button>
-              <div v-if="editingIssueId === detail.id && isEditableLink(detail)" class="page-check-property-editor">
+              <link-editor
+                  :item="detail"
+                  :editing-id="editingIssueId"
+                  :value="editingLinkValue"
+                  :saving="isSavingLink"
+                  :is-variant="isVariantIssue(detail) || allOccurrencesAreVariants(detail.href)"
+                  :is-template="isTemplateIssue(detail)"
+                @update:value="editingLinkValue = $event"
+                  @edit="editLink(detail)"
+                  @go-to-component="goToPageEditorFromIssue(detail)"
+                @browse="openLinkBrowser(detail)"
+                  @remove="removeLink(detail)"
+                  @cancel="cancelLink"
+                  @save="saveLink(detail)">
+              </link-editor>
+              <div v-if="_showOccurrencePicker(detail)" class="page-check-occurrences">
+                <div class="page-check-occurrences-title">Choose which occurrence to edit:</div>
+                <div v-for="(occ, idx) in occurrenceItems(detail.href)" class="page-check-occurrence-item">
+                    <div class="page-check-occurrence-location">{{ occ.location }}</div>
+                    <div v-if="occ.linkText" class="page-check-occurrence-link-text">Link text: {{ occ.linkText }}</div>
+                  <link-editor
+                      :item="_fakeIssue(occ, idx)"
+                      :editing-id="editingIssueId"
+                      :value="editingLinkValue"
+                      :saving="isSavingLink"
+                      :is-variant="isVariantIssue(occ)"
+                      :is-template="isTemplateIssue(occ)"
+                @update:value="editingLinkValue = $event"
+                      @edit="editOccurrence(occ, idx)"
+                      @go-to-component="goToPageEditorFromIssue(occ)"
+                @browse="openLinkBrowser(_fakeIssue(occ, idx))"
+                      @remove="removeLink(_fakeIssue(occ, idx))"
+                      @cancel="cancelOccurrence"
+                      @save="saveLink(_fakeIssue(occ, idx))">
+                  </link-editor>
+                </div>
+              </div>
+              <div v-if="showEditAll(detail)" class="page-check-manual-actions">
+                <button class="waves-effect waves-green btn-flat" type="button" v-on:click="editAllLinks(detail)" v-bind:disabled="isSavingLink">
+                  <i class="material-icons">edit</i>
+                  Edit all ({{ detail._totalOccurrences }} links)
+                </button>
+              </div>
+              <div v-if="editingAllHref === detail.href" class="page-check-all-editor">
                 <label>
-                  Link URL
-                  <input type="text" v-model="editingLinkValue"/>
+                  New URL:
+                  <input type="text" v-model="editingLinkValue" class="page-check-all-input"/>
                 </label>
                 <div class="page-check-image-actions">
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(detail)" v-bind:disabled="isSavingLink">
-                    <i class="material-icons">folder_open</i>
-                    Browse
-                  </button>
-                  <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(detail)" v-bind:disabled="isSavingLink">
-                    <i class="fa fa-chain-broken"></i>
-                    Remove
-                  </button>
                   <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
                     Cancel
                   </button>
@@ -634,6 +1052,9 @@
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div v-if="detail.type === 'html-link' || detail.type === 'link-field'" class="page-check-guidance">
                 Link URL: <a :href="detail.guidance" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ detail.guidance }}</a>
+              </div>
+              <div v-else-if="detail.type === 'page-property' || detail.type === 'text-field'" class="page-check-guidance">
+                {{ detail.propertyLabel }}: {{ detail.guidance }}
               </div>
               <div v-else class="page-check-guidance">Link URL: {{ detail.guidance }}</div>
               <button
@@ -659,36 +1080,21 @@
                   </button>
                 </div>
               </div>
-              <button
-                  v-if="isEditableLink(detail) && editingIssueId !== detail.id"
-                  class="waves-effect waves-green btn-flat page-check-edit"
-                  type="button"
-                  v-on:click="editLink(detail)">
-                <i class="material-icons">edit</i>
-                Edit
-              </button>
-              <div v-if="editingIssueId === detail.id && isEditableLink(detail)" class="page-check-property-editor">
-                <label>
-                  {{ detail.propertyLabel }}
-                  <input type="text" v-model="editingLinkValue"/>
-                </label>
-                <div class="page-check-image-actions">
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="openLinkBrowser(detail)" v-bind:disabled="isSavingLink">
-                    <i class="material-icons">folder_open</i>
-                    Browse
-                  </button>
-                  <button class="waves-effect waves-green btn-flat page-check-remove-link" type="button" v-on:click="removeLink(detail)" v-bind:disabled="isSavingLink">
-                    <i class="fa fa-chain-broken"></i>
-                    Remove
-                  </button>
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="cancelLink" v-bind:disabled="isSavingLink">
-                    Cancel
-                  </button>
-                  <button class="waves-effect waves-green btn-flat" type="button" v-on:click="saveLink(detail)" v-bind:disabled="isSavingLink">
-                    Save
-                  </button>
-                </div>
-              </div>
+              <link-editor
+                  :item="detail"
+                  :editing-id="editingIssueId"
+                  :value="editingLinkValue"
+                  :saving="isSavingLink"
+                  :is-variant="isVariantIssue(detail) || allOccurrencesAreVariants(detail.href)"
+                  :is-template="isTemplateIssue(detail)"
+                @update:value="editingLinkValue = $event"
+                  @edit="editLink(detail)"
+                  @go-to-component="goToPageEditorFromIssue(detail)"
+                @browse="openLinkBrowser(detail)"
+                  @remove="removeLink(detail)"
+                  @cancel="cancelLink"
+                  @save="saveLink(detail)">
+              </link-editor>
             </template>
           </li>
         </ul>
@@ -734,7 +1140,7 @@
 import MaterializeModal from '../materializemodal/template.vue'
 import PathBrowser from '../pathbrowser/template.vue'
 import LinkEditor from '../linkeditor/template.vue'
-import ImageAltEditor from '../imagealtedtor/template.vue'
+import ImageAltEditor from '../imagealteditor/template.vue'
 
 const CHECKS = [
   { id: 'page-title', label: 'Page title' },
@@ -763,6 +1169,8 @@ export default {
     return {
       checks: this.emptyChecks(),
       editingIssueId: '',
+      editingAllHref: '',
+      editingOccurrencesHref: '',
       editingAltText: '',
       isSavingAltText: false,
       openCheckIds: {},
@@ -781,6 +1189,7 @@ export default {
       isReverifyingLinks: false,
       manualChecks: {},
       redirectChecks: {},
+      refreshedNode: null,
     };
   },
   computed: {
@@ -791,140 +1200,306 @@ export default {
       return this.issueCount > 0;
     },
     warningTotal() {
-      return this.loginRedirectCount + this.redirectChangedCount;
+      return this.loginRedirectCount + this.rateLimitedLinks.length + this.redirectChangedCount + this.failedTestCount;
     },
     redirectIncorrectCount() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && !r.finalOk && !r.loginRedirect && !this.isRedirectResultChanged(r)).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return r.redirect && !r.finalOk && !r.loginRedirect && !this.isManualTestResult(r) && !this.isRedirectResultChanged(r);
+      }).length;
     },
     redirectCorrectCount() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.finalOk && !this.isRedirectResultChanged(r)).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return r.redirect && r.finalOk && !this.isRedirectResultChanged(r) && this.manualChecks[r.href] && this.manualChecks[r.href].approved;
+      }).length;
+    },
+    redirectUnreviewedCount() {
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return r.redirect && r.finalOk && !this.isRedirectResultChanged(r) && !this.manualChecks[r.href];
+      }).length;
+    },
+    redirectDisapprovedCount() {
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return r.redirect && r.finalOk && !this.isRedirectResultChanged(r) && this.manualChecks[r.href] && !this.manualChecks[r.href].approved;
+      }).length;
     },
     loginRedirectCount() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && !this.manualChecks[r.href]).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return r.redirect && r.loginRedirect && r.finalStatus !== 429 && !this.manualChecks[r.href];
+      }).length;
+    },
+    rateLimitedLinks() {
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => !this.manualChecks[r.href] && (r.status === 429 || r.finalStatus === 429)),
+        r => ({
+          id: `rate-limited-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          finalStatus: r.finalStatus,
+          redirectUrl: r.redirectUrl,
+          isRateLimited: true,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
+    },
+    manualTestCount() {
+      return this.loginRedirectCount + this.rateLimitedLinks.length;
+    },
+    manualTestItems() {
+      return [...this.loginRedirects, ...this.rateLimitedLinks];
     },
     redirectsIncorrect() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && !r.finalOk && !r.loginRedirect && !this.isRedirectResultChanged(r)).map(r => ({
-        id: `redirect-incorrect-${r.href}`,
-        href: r.href,
-        linkText: r.linkText,
-        location: r.location,
-        status: r.status,
-        redirectUrl: r.redirectUrl,
-        finalUrl: r.finalUrl,
-        finalStatus: r.finalStatus,
-        finalOk: r.finalOk,
-        type: 'broken-link',
-        owner: r.owner,
-        saveOwner: r.saveOwner,
-        propertyKey: r.propertyKey,
-        htmlTag: r.htmlTag,
-        htmlValue: r.htmlValue,
-        linkType: r.linkType
-      }));
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => r.redirect && !r.finalOk && !r.loginRedirect && !this.isManualTestResult(r) && !this.isRedirectResultChanged(r)),
+        r => ({
+          id: `redirect-incorrect-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          finalStatus: r.finalStatus,
+          finalOk: r.finalOk,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
     },
     loginRedirects() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && !this.manualChecks[r.href]).map(r => ({
-        id: `login-redirect-${r.href}`,
-        href: r.href,
-        linkText: r.linkText,
-        location: r.location,
-        status: r.status,
-        redirectUrl: r.redirectUrl,
-        finalUrl: r.finalUrl,
-        type: 'broken-link',
-        owner: r.owner,
-        saveOwner: r.saveOwner,
-        propertyKey: r.propertyKey,
-        htmlTag: r.htmlTag,
-        htmlValue: r.htmlValue,
-        linkType: r.linkType
-      }));
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && r.finalStatus !== 429 && !this.manualChecks[r.href]),
+        r => ({
+          id: `login-redirect-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
     },
     manualApprovedCount() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && this.manualChecks[r.href] && this.manualChecks[r.href].approved).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return this.isManualTestResult(r) && this.manualChecks[r.href] && this.manualChecks[r.href].approved;
+      }).length;
     },
     manualDisapprovedCount() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && this.manualChecks[r.href] && !this.manualChecks[r.href].approved).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return this.isManualTestResult(r) && this.manualChecks[r.href] && !this.manualChecks[r.href].approved;
+      }).length;
     },
     manualApprovedLinks() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && this.manualChecks[r.href] && this.manualChecks[r.href].approved).map(r => ({
-        id: `manual-approved-${r.href}`,
-        href: r.href,
-        linkText: r.linkText,
-        location: r.location,
-        status: r.status,
-        redirectUrl: r.redirectUrl,
-        finalUrl: r.finalUrl,
-        approvedAt: this.manualChecks[r.href].timestamp,
-        type: 'broken-link',
-        owner: r.owner,
-        saveOwner: r.saveOwner,
-        propertyKey: r.propertyKey,
-        htmlTag: r.htmlTag,
-        htmlValue: r.htmlValue,
-        linkType: r.linkType
-      }));
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => this.isManualTestResult(r) && this.manualChecks[r.href] && this.manualChecks[r.href].approved),
+        r => ({
+          id: `manual-approved-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          approvedAt: this.manualChecks[r.href].timestamp,
+          isRateLimited: r.status === 429 || r.finalStatus === 429,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
     },
     manualDisapprovedLinks() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.loginRedirect && this.manualChecks[r.href] && !this.manualChecks[r.href].approved).map(r => ({
-        id: `manual-disapproved-${r.href}`,
-        href: r.href,
-        linkText: r.linkText,
-        location: r.location,
-        disapprovedAt: this.manualChecks[r.href].timestamp,
-        type: 'broken-link',
-        owner: r.owner,
-        saveOwner: r.saveOwner,
-        propertyKey: r.propertyKey,
-        htmlTag: r.htmlTag,
-        htmlValue: r.htmlValue,
-        linkType: r.linkType
-      }));
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => this.isManualTestResult(r) && this.manualChecks[r.href] && !this.manualChecks[r.href].approved),
+        r => ({
+          id: `manual-disapproved-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          disapprovedAt: this.manualChecks[r.href].timestamp,
+          isRateLimited: r.status === 429 || r.finalStatus === 429,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
     },
     redirectChangedCount() {
-      const count = (this.linkVerificationResults || []).filter(r => {
-        if (!r.redirect || !r.finalUrl) return false;
-        const stored = this.redirectChecks[r.href];
-        return stored && stored.finalUrl !== r.finalUrl;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return !this.isManualTestResult(r) && this.isRedirectResultChanged(r);
       }).length;
-      return count;
     },
     redirectChangedLinks() {
-      return (this.linkVerificationResults || []).filter(r => this.isRedirectResultChanged(r)).map(r => ({
-        id: `redirect-changed-${r.href}`,
-        href: r.href,
-        linkText: r.linkText,
-        location: r.location,
-        oldFinalUrl: this.redirectChecks[r.href]?.finalUrl || '',
-        newFinalUrl: r.finalUrl,
-        type: 'broken-link',
-        owner: r.owner,
-        saveOwner: r.saveOwner,
-        propertyKey: r.propertyKey,
-        htmlTag: r.htmlTag,
-        htmlValue: r.htmlValue,
-        linkType: r.linkType
-      }));
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => !this.isManualTestResult(r) && this.isRedirectResultChanged(r)),
+        r => ({
+          id: `redirect-changed-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          oldFinalUrl: this.redirectChecks[r.href]?.finalUrl || '',
+          newFinalUrl: r.finalUrl,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
+    },
+    failedTestCount() {
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return r.checkerError;
+      }).length;
+    },
+    failedTests() {
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => r.checkerError),
+        r => ({
+          id: `failed-test-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          error: r.error,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
     },
     redirectsCorrect() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && r.finalOk && !this.isRedirectResultChanged(r)).map(r => ({
-        id: `redirect-correct-${r.href}`,
-        href: r.href,
-        linkText: r.linkText,
-        location: r.location,
-        status: r.status,
-        redirectUrl: r.redirectUrl,
-        finalUrl: r.finalUrl,
-        finalStatus: r.finalStatus,
-        finalOk: r.finalOk,
-        type: 'broken-link',
-        owner: r.owner,
-        saveOwner: r.saveOwner,
-        propertyKey: r.propertyKey,
-        htmlTag: r.htmlTag,
-        htmlValue: r.htmlValue,
-        linkType: r.linkType
-      }));
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => r.redirect && r.finalOk && !this.isRedirectResultChanged(r) && this.manualChecks[r.href] && this.manualChecks[r.href].approved),
+        r => ({
+          id: `redirect-correct-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          finalStatus: r.finalStatus,
+          finalOk: r.finalOk,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
+    },
+    redirectsUnreviewed() {
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => r.redirect && r.finalOk && !this.isRedirectResultChanged(r) && !this.manualChecks[r.href]),
+        r => ({
+          id: `redirect-unreviewed-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          finalStatus: r.finalStatus,
+          finalOk: r.finalOk,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
+    },
+    redirectsDisapproved() {
+      return this.dedupeResults(
+        (this.linkVerificationResults || []).filter(r => r.redirect && r.finalOk && !this.isRedirectResultChanged(r) && this.manualChecks[r.href] && !this.manualChecks[r.href].approved),
+        r => ({
+          id: `redirect-disapproved-${r.href}`,
+          href: r.href,
+          linkText: r.linkText,
+          location: r.location,
+          status: r.status,
+          redirectUrl: r.redirectUrl,
+          finalUrl: r.finalUrl,
+          finalStatus: r.finalStatus,
+          finalOk: r.finalOk,
+          type: 'broken-link',
+          owner: r.owner,
+          saveOwner: r.saveOwner,
+          propertyKey: r.propertyKey,
+          htmlTag: r.htmlTag,
+          htmlValue: r.htmlValue,
+          linkType: r.linkType
+        })
+      );
     }
   },
   async mounted() {
@@ -955,9 +1530,27 @@ export default {
     close() {
       this.$refs.materializemodal.close();
     },
+    async onModalReady() {
+      if (this.path) {
+        try {
+          const resp = await fetch('/admin/readNode.json' + this.path + '?_=' + Date.now());
+          const data = await resp.json();
+          if (data) {
+            this.refreshedNode = data;
+            this.runChecks();
+          }
+        } catch (e) {
+          // fallback to stale node data
+        }
+      }
+    },
+    isManualTestResult(r) {
+      return (r.redirect && r.loginRedirect) ||
+             r.status === 429 || r.finalStatus === 429;
+    },
     async loadManualChecks() {
       try {
-        const page = this.node || {};
+        const page = this.refreshedNode || this.node || {};
         const content = page['jcr:content'] || page;
         const manualStored = content.perManualLinkChecks;
         if (manualStored) {
@@ -1066,12 +1659,16 @@ export default {
       if (this.activeTab('valid-links') === 'redirect-changed' && this.redirectChangedCount === 0) {
         if (this.redirectIncorrectCount > 0) {
           this.setCheckTab('valid-links', 'redirects-incorrect');
-        } else if (this.loginRedirectCount > 0) {
+        } else if (this.manualTestCount > 0) {
           this.setCheckTab('valid-links', 'manual-test');
         } else if (this.manualDisapprovedCount > 0) {
           this.setCheckTab('valid-links', 'manual-disapproved');
         } else if (this.manualApprovedCount > 0) {
           this.setCheckTab('valid-links', 'manual-approved');
+        } else if (this.redirectDisapprovedCount > 0) {
+          this.setCheckTab('valid-links', 'redirects-disapproved');
+        } else if (this.redirectUnreviewedCount > 0) {
+          this.setCheckTab('valid-links', 'redirects-unreviewed');
         } else if (this.redirectCorrectCount > 0) {
           this.setCheckTab('valid-links', 'redirects-correct');
         } else {
@@ -1081,7 +1678,7 @@ export default {
     },
     autoSwitchManualTab(action) {
       const currentTab = this.activeTab('valid-links');
-      if (currentTab === 'manual-test' && this.loginRedirectCount === 0) {
+      if (currentTab === 'manual-test' && this.manualTestCount === 0) {
         this.setCheckTab('valid-links', action === 'approved' ? 'manual-approved' : 'manual-disapproved');
       } else if (currentTab === 'manual-disapproved' && this.manualDisapprovedCount === 0) {
         this.setCheckTab('valid-links', 'manual-approved');
@@ -1098,6 +1695,49 @@ export default {
       if (!r.redirect || !r.finalUrl) return false;
       const stored = this.redirectChecks[r.href];
       return stored && stored.finalUrl !== r.finalUrl;
+    },
+    componentLocation(location) {
+      if (!location) return location;
+      // Multiple records from the same component instance should count as a
+      // single occurrence. In Peregrine, a component instance is the node at
+      // the deepest array-indexed segment that is NOT a structural wrapper
+      // (children[N] or experiences[N]). Everything after that segment is
+      // either a property or a nested child of the same component.
+      let path = location.replace(/\/experiences(?:\/lang_[^\/]+|\[\d+\])/g, '');
+      const segments = path.match(/\/\w+\[\d+\]/g) || [];
+      let cutoff = -1;
+      for (let i = segments.length - 1; i >= 0; i--) {
+        const seg = segments[i];
+        if (!seg.startsWith('/children[')) {
+          cutoff = path.indexOf(seg) + seg.length;
+          break;
+        }
+      }
+      if (cutoff >= 0) {
+        return path.substring(0, cutoff);
+      }
+      if (segments.length > 0) {
+        const lastSeg = segments[segments.length - 1];
+        const idx = path.indexOf(lastSeg);
+        return path.substring(0, idx + lastSeg.length);
+      }
+      return path;
+    },
+    dedupeResults(results, mapFn) {
+      const seen = {};
+      return results.filter(r => {
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return true;
+      }).map(r => ({
+        ...mapFn(r),
+        _totalOccurrences: r._totalOccurrences || (() => {
+          const all = this.linkVerificationResults || [];
+          const matches = all.filter(x => x.href === r.href);
+          const baseLocs = new Set(matches.map(x => this.componentLocation(x.location)));
+          return baseLocs.size;
+        })()
+      }));
     },
     toggleCheck(checkId) {
       Vue.set(this.openCheckIds, checkId, !this.openCheckIds[checkId]);
@@ -1182,10 +1822,49 @@ export default {
       const content = page['jcr:content'] || page;
       this.isSavingPageProperty = true;
       const owner = issue.owner || content;
-      if (issue.htmlTag && issue.htmlValue) {
-        Vue.set(owner, issue.propertyKey, this.replaceHtmlTagText(issue.htmlValue, issue.htmlTag, this.editingPropertyValue));
-      } else {
-        Vue.set(owner, issue.propertyKey, this.editingPropertyValue);
+      const value = issue.htmlTag && issue.htmlValue
+        ? this.replaceHtmlTagText(issue.htmlValue, issue.htmlTag, this.editingPropertyValue)
+        : this.editingPropertyValue;
+      Vue.set(owner, issue.propertyKey, value);
+      // Page properties are often mirrored on the root node (e.g. root node has
+      // 'title' while jcr:content has 'jcr:title'). Update all locations so
+      // runChecks() sees the new value immediately.
+      if (issue.type === 'page-property') {
+        if (content !== owner) {
+          Vue.set(content, issue.propertyKey, value);
+        }
+        if (page !== content) {
+          // Update the same key on the root node if it exists there
+          if (page[issue.propertyKey] !== undefined) {
+            Vue.set(page, issue.propertyKey, value);
+          }
+          // Also update common root-node aliases (e.g. root 'title' for
+          // content 'jcr:title')
+          if (issue.propertyKey === 'jcr:title' && page['title'] !== undefined) {
+            Vue.set(page, 'title', value);
+          }
+          if (issue.propertyKey === 'description' && page['description'] !== undefined) {
+            Vue.set(page, 'description', value);
+          }
+        }
+        // Also update the admin node (what the page tree displays)
+        try {
+          const adminNode = $perAdminApp.findNodeFromPath(
+            $perAdminApp.getView().admin.nodes,
+            this.path
+          );
+          if (adminNode) {
+            if (adminNode[issue.propertyKey] !== undefined) {
+              Vue.set(adminNode, issue.propertyKey, value);
+            }
+            if (issue.propertyKey === 'jcr:title' && adminNode['title'] !== undefined) {
+              Vue.set(adminNode, 'title', value);
+            }
+            if (issue.propertyKey === 'description' && adminNode['description'] !== undefined) {
+              Vue.set(adminNode, 'description', value);
+            }
+          }
+        } catch (e) { /* ignore */ }
       }
       const view = $perAdminApp.getView();
       const pagePath = view && view.pageView ? view.pageView.path : this.path;
@@ -1194,14 +1873,19 @@ export default {
         .then(() => {
           $perAdminApp.toast(`${issue.propertyLabel} saved.`, 'success');
           this.cancelPageProperty();
-          this.runChecks();
-          if ($perAdminApp.getApi().populatePageView) {
-            $perAdminApp.getApi().populatePageView(pagePath);
-          }
+          this.refreshedNode = null;
         }).catch(() => {
           $perAdminApp.toast(`Unable to save ${issue.propertyLabel}.`, 'error');
         }).then(() => {
+          this.runChecks();
           this.isSavingPageProperty = false;
+          if ($perAdminApp.getApi().populatePageView) {
+            $perAdminApp.getApi().populatePageView(pagePath);
+          }
+          const parentPath = pagePath.substring(0, pagePath.lastIndexOf('/'));
+          if (parentPath) {
+            $perAdminApp.getApi().populateNodesForBrowser(parentPath);
+          }
         });
     },
     editImageAlt(issue) {
@@ -1245,13 +1929,61 @@ export default {
         });
     },
     editLink(issue) {
-      this.editingIssueId = issue.id;
-      this.editingLinkValue = issue.value || issue.href || '';
+      if (issue._totalOccurrences > 1) {
+        this.editingAllHref = '';
+        this.editingOccurrencesHref = issue.href;
+        this.editingLinkValue = issue.value || issue.href || '';
+      } else {
+        this.editingIssueId = issue.id;
+        this.editingLinkValue = issue.value || issue.href || '';
+      }
     },
     cancelLink() {
       this.editingIssueId = '';
       this.editingLinkValue = '';
+      this.editingAllHref = '';
+      this.editingOccurrencesHref = '';
       this.closeLinkBrowser();
+    },
+    isVariantIssue(item) {
+      const node = item && (item.saveOwner || item.owner);
+      return node && this.isExperienceVariantPath(node.path);
+    },
+    isTemplateIssue(item) {
+      const view = $perAdminApp.getView();
+      const pageRoot = view && view.pageView && view.pageView.page;
+      if (!pageRoot) return false;
+      const node = item && (item.saveOwner || item.owner);
+      if (!node || !node.path) return false;
+      // Extract relative path from full JCR path
+      let componentPath = node.path;
+      const jcrIdx = componentPath.indexOf('/jcr:content');
+      if (jcrIdx !== -1) {
+        componentPath = componentPath.substring(jcrIdx);
+      } else {
+        const currentPath = view.pageView.path || '';
+        if (componentPath.startsWith(currentPath)) {
+          componentPath = componentPath.substring(currentPath.length);
+        }
+      }
+      // Walk up to the nearest component ancestor
+      let targetPath = componentPath;
+      while (targetPath && targetPath !== '/jcr:content') {
+        const treeNode = $perAdminApp.findNodeFromPath(pageRoot, targetPath);
+        if (treeNode && treeNode.component) {
+          return !!treeNode.fromTemplate;
+        }
+        const lastSlash = targetPath.lastIndexOf('/');
+        if (lastSlash <= 0) break;
+        targetPath = targetPath.substring(0, lastSlash);
+      }
+      return false;
+    },
+    goToPageEditorFromIssue(issue) {
+      const node = issue && (issue.saveOwner || issue.owner);
+      if (node && node.path) {
+        this.goToPageEditor(node.path);
+      }
     },
     openLinkBrowser(issue) {
       this.linkBrowserHeader = 'Select Link';
@@ -1327,11 +2059,20 @@ export default {
         $perAdminApp.toast(`Please enter a valid URL.`, 'warn');
         return;
       }
+      if (this.editingAllHref) {
+        return this.saveAllLinks(issue);
+      }
       if (!issue.owner || !issue.propertyKey) {
         $perAdminApp.toast('Unable to save this link.', 'error');
         return;
       }
 
+      const nodeToSave = issue.saveOwner || issue.owner;
+      if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) {
+        this.isSavingLink = false;
+        this.goToPageEditor(nodeToSave.path);
+        return;
+      }
       this.isSavingLink = true;
       const isHtmlLink = issue.type === 'html-link' || issue.linkType === 'html-link';
       if (isHtmlLink) {
@@ -1342,34 +2083,188 @@ export default {
       }
       const view = $perAdminApp.getView();
       const pagePath = view && view.pageView ? view.pageView.path : this.path;
-      const nodeToSave = issue.saveOwner || issue.owner;
 
-      $perAdminApp.getApi().savePageEdit(pagePath, nodeToSave)
+      const propertyValue = isHtmlLink
+        ? this.updateHtmlLinkHref(issue.htmlValue, issue.htmlTag, this.editingLinkValue)
+        : this.editingLinkValue;
+      this.saveNodeProperty(pagePath, nodeToSave.path, issue.propertyKey, propertyValue)
         .then(() => {
           $perAdminApp.toast('Link saved.', 'success');
-          this.cancelLink();
-          if ($perAdminApp.getApi().populatePageView) {
-            $perAdminApp.getApi().populatePageView(pagePath);
+          // Update local issue so dialog reflects new value immediately
+          const newValue = this.editingLinkValue;
+          issue.value = newValue;
+          issue.href = newValue;
+          if (issue.htmlValue) {
+            issue.htmlValue = this.updateHtmlLinkHref(issue.htmlValue, issue.htmlTag, newValue);
           }
+          this.cancelLink();
+          // Refresh the page data and re-verify so the check reflects the saved link
           this.isReverifyingLinks = true;
           this.$emit('reverify-links');
-        }).catch(() => {
+        }).catch((err) => {
+          console.error('[saveLink] save failed:', err);
           $perAdminApp.toast('Unable to save this link.', 'error');
         }).then(() => {
           this.isSavingLink = false;
         });
     },
-    isEditableLink(item) {
-      if (!item || !item.owner || !item.propertyKey) {
-        return false;
-      }
-      if (item.type === 'link-field' || item.type === 'html-link') {
+    allOccurrencesAreVariants(href) {
+      const occurrences = this.occurrencesForHref(href);
+      if (occurrences.length === 0) return false;
+      return occurrences.every(occ => {
+        const node = occ.saveOwner || occ.owner;
+        return node && this.isExperienceVariantPath(node.path);
+      });
+    },
+    showEditAll(issue) {
+      if (issue._totalOccurrences <= 1) return false;
+      return !this.allOccurrencesAreVariants(issue.href);
+    },
+    editAllLinks(issue) {
+      this.editingLinkValue = issue.value || issue.href || '';
+      this.editingAllHref = issue.href;
+    },
+    occurrenceItems(href) {
+      const all = this.occurrencesForHref(href);
+      // HTML links in the same text field are distinct occurrences (each <a>
+      // tag can have different text and href). For structured link fields,
+      // deduplicate by component location since they belong to the same
+      // component instance.
+      const seenComp = new Set();
+      return all.filter(r => {
+        if (r.htmlTag) {
+          // Deduplicate by location + htmlTag so identical tags in the same
+          // field don't appear twice, but different tags do.
+          const key = r.location + '#' + r.htmlTag;
+          if (seenComp.has(key)) return false;
+          seenComp.add(key);
+          return true;
+        }
+        const comp = this.componentLocation(r.location);
+        if (seenComp.has(comp)) return false;
+        seenComp.add(comp);
         return true;
+      });
+    },
+    _fakeIssue(occ, idx) {
+      return {
+        id: `occurrence-${occ.href}-${idx}`,
+        owner: occ.owner,
+        saveOwner: occ.saveOwner,
+        propertyKey: occ.propertyKey,
+        href: occ.href,
+        value: occ.href,
+        linkType: occ.linkType,
+        htmlTag: occ.htmlTag,
+        htmlValue: occ.htmlValue,
+        type: occ.linkType === 'html-link' ? 'html-link' : 'link-field',
+        location: occ.location,
+        path: occ.path,
+        linkText: occ.linkText
+      };
+    },
+    _showOccurrencePicker(issue) {
+      return this.editingOccurrencesHref === issue.href && !this.editingAllHref;
+    },
+    editOccurrence(occ, idx) {
+      this.editingLinkValue = occ.href;
+      this.editingIssueId = `occurrence-${occ.href}-${idx}`;
+    },
+    cancelOccurrence() {
+      this.editingIssueId = '';
+    },
+    occurrencesForHref(href) {
+      return (this.linkVerificationResults || []).filter(r => r.href === href && r.owner && r.propertyKey);
+    },
+    async saveAllLinks(issue) {
+      if (this.isEmptyHref(this.editingLinkValue)) {
+        $perAdminApp.toast('Please enter a valid URL.', 'warn');
+        return;
       }
-      if (item.type === 'broken-link' || item.type === 'verified-link') {
-        return item.linkType === 'link-field' || item.linkType === 'html-link';
+      this.isSavingLink = true;
+      const href = issue.href;
+      const allIssues = this.occurrencesForHref(href);
+      // Deduplicate by component location so translation variants and
+      // structural children of the same component are treated as a
+      // single occurrence.
+      const seenComp = new Set();
+      const issues = allIssues.filter(r => {
+        const comp = this.componentLocation(r.location);
+        if (seenComp.has(comp)) return false;
+        seenComp.add(comp);
+        return true;
+      });
+      if (issues.length === 0) {
+        $perAdminApp.toast('Unable to find all occurrences.', 'error');
+        this.isSavingLink = false;
+        return;
       }
-      return false;
+      const newValue = this.editingLinkValue;
+      const savedNodes = [];
+      let variantCount = 0;
+      for (const occ of issues) {
+        const nodeToSave = occ.saveOwner || occ.owner;
+        if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) {
+          variantCount++;
+          continue;
+        }
+        const isHtmlLink = occ.linkType === 'html-link';
+        if (isHtmlLink) {
+          // When "Edit all" is clicked, replace every <a> tag with the old
+          // href in the same text field, not just the specific occurrence tag.
+          const nextHtml = this.replaceAllHtmlLinkHrefs(occ.htmlValue, href, newValue);
+          Vue.set(occ.owner, occ.propertyKey, nextHtml);
+        } else {
+          Vue.set(occ.owner, occ.propertyKey, newValue);
+        }
+        if (savedNodes.indexOf(nodeToSave) === -1) {
+          savedNodes.push(nodeToSave);
+        }
+      }
+      if (savedNodes.length === 0 && variantCount > 0) {
+        this.isSavingLink = false;
+        $perAdminApp.toast('All occurrences are page translations. Opening the page editor...', 'info');
+        const firstVariant = issues[0];
+        const variantPath = (firstVariant.saveOwner || firstVariant.owner || {}).path;
+        this.goToPageEditor(variantPath);
+        return;
+      }
+      const view = $perAdminApp.getView();
+      const pagePath = view && view.pageView ? view.pageView.path : this.path;
+      try {
+        // Save each non-variant occurrence individually with minimal payload
+        for (const occ of issues) {
+          const nodeToSave = occ.saveOwner || occ.owner;
+          if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) continue;
+          const isHtmlLink = occ.linkType === 'html-link';
+          const propertyValue = isHtmlLink
+            ? this.replaceAllHtmlLinkHrefs(occ.htmlValue, href, newValue)
+            : newValue;
+          await this.saveNodeProperty(pagePath, nodeToSave.path, occ.propertyKey, propertyValue);
+        }
+        // Update local occurrence values so dialog reflects new values immediately
+        for (const occ of allIssues) {
+          occ.value = newValue;
+          occ.href = newValue;
+          if (occ.htmlValue) {
+            occ.htmlValue = this.replaceAllHtmlLinkHrefs(occ.htmlValue, href, newValue);
+          }
+        }
+        const savedCount = issues.length - variantCount;
+        if (variantCount > 0) {
+          $perAdminApp.toast(`Updated ${savedCount} occurrence${savedCount === 1 ? '' : 's'}. ${variantCount} page translation occurrence${variantCount === 1 ? '' : 's'} will need to be edited in the page editor.`, 'success');
+        } else {
+          $perAdminApp.toast(`Updated ${savedCount} occurrence${savedCount === 1 ? '' : 's'}.`, 'success');
+        }
+        this.cancelLink();
+        this.editingAllHref = '';
+        // Refresh the page data and re-verify so the check reflects the saved links
+        this.isReverifyingLinks = true;
+        this.$emit('reverify-links');
+      } catch (e) {
+        $perAdminApp.toast('Unable to save all links.', 'error');
+      }
+      this.isSavingLink = false;
     },
     linkBrowserTypeForIssue() {
       return 'Page';
@@ -1447,10 +2342,26 @@ export default {
     },
     runChecks() {
       this.checks = this.emptyChecks();
-      const page = this.node || {};
+      const page = this.refreshedNode || this.node || {};
       const content = page['jcr:content'] || page;
-      const pageTitle = this.firstValue([page, content], ['jcr:title', 'title']);
-      const pageDescription = this.firstValue([page, content], ['description']);
+      // The admin node (from nodes.json) is what the page tree and
+      // Properties & Information display. Look it up and prefer it for
+      // title/description so the Page Check stays in sync with the rest of the UI.
+      let adminNode = null;
+      try {
+        adminNode = $perAdminApp.findNodeFromPath(
+          $perAdminApp.getView().admin.nodes,
+          this.path
+        );
+      } catch (e) { /* ignore */ }
+      const pageTitle = this.firstValue(
+        [adminNode, content, page],
+        ['jcr:title', 'title']
+      );
+      const pageDescription = this.firstValue(
+        [adminNode, content, page],
+        ['description']
+      );
 
       if (this.isBlank(pageTitle)) {
         this.addIssue(
@@ -1501,33 +2412,13 @@ export default {
         validLinksCheck.details = [];
       }
       const results = this.linkVerificationResults || [];
+      const seen = {};
       results.forEach(r => {
-        if (r.redirect) {
+        if (r.redirect || this.isManualTestResult(r)) {
           return;
         }
-        if (r.spaRedirect) {
-          this.addIssue(
-              'valid-links',
-              `SPA detail page redirects client-side to 404: ${r.href}`,
-              r.location,
-              'Page requires client-side routing to work',
-              {
-                type: 'broken-link',
-                href: r.href,
-                linkText: r.linkText,
-                status: r.status,
-                spaRedirect: true,
-                owner: r.owner,
-                saveOwner: r.saveOwner,
-                propertyKey: r.propertyKey,
-                htmlTag: r.htmlTag,
-                htmlValue: r.htmlValue,
-                linkType: r.linkType,
-                correct: false
-              }
-          );
-          return;
-        }
+        if (seen[r.href]) return;
+        seen[r.href] = true;
         if (!r.ok) {
           this.addIssue(
               'valid-links',
@@ -1550,6 +2441,7 @@ export default {
                 htmlTag: r.htmlTag,
                 htmlValue: r.htmlValue,
                 linkType: r.linkType,
+                _totalOccurrences: r._totalOccurrences,
                 correct: false
               }
           );
@@ -1570,7 +2462,8 @@ export default {
                 propertyKey: r.propertyKey,
                 htmlTag: r.htmlTag,
                 htmlValue: r.htmlValue,
-                linkType: r.linkType
+                linkType: r.linkType,
+                _totalOccurrences: r._totalOccurrences
               }
           );
         }
@@ -1635,12 +2528,17 @@ export default {
       if (hasNewRedirects) {
         await this.saveManualChecks();
       }
-      const totalRedirects = this.redirectIncorrectCount + this.redirectCorrectCount + this.loginRedirectCount;
+      const totalRedirects = this.redirectIncorrectCount + this.redirectCorrectCount + this.redirectUnreviewedCount + this.redirectDisapprovedCount + this.loginRedirectCount;
       const hints = [];
-      if (totalRedirects > 0) {
-        hints.push(`${totalRedirects} redirect${totalRedirects === 1 ? '' : 's'} found`);
-        if (this.loginRedirectCount > 0) {
-          hints.push(`${this.loginRedirectCount} require${this.loginRedirectCount === 1 ? 's' : '' } manual verification`);
+      if (totalRedirects > 0 || this.rateLimitedLinks.length > 0) {
+        if (totalRedirects > 0) {
+          hints.push(`${totalRedirects} redirect${totalRedirects === 1 ? '' : 's'} found`);
+        }
+        if (this.loginRedirectCount > 0 || this.rateLimitedLinks.length > 0) {
+          const manualParts = [];
+          if (this.loginRedirectCount > 0) manualParts.push(`${this.loginRedirectCount} require${this.loginRedirectCount === 1 ? 's' : ''} manual verification`);
+          if (this.rateLimitedLinks.length > 0) manualParts.push(`${this.rateLimitedLinks.length} rate-limited`);
+          hints.push(manualParts.join(', '));
         }
         hints.push('Redirects can change at any time and may break links.');
       }
@@ -1674,7 +2572,7 @@ export default {
       this.$emit('summary', {
         issueCount: this.issueCount,
         hasIssues: this.hasIssues,
-        warningCount: this.loginRedirectCount + this.redirectChangedCount
+        warningCount: this.loginRedirectCount + this.rateLimitedLinks.length + this.redirectChangedCount
       });
     },
     checkH1(records) {
@@ -1708,27 +2606,27 @@ export default {
         }
         if (record.key === 'htmlelement' && String(record.value).toLowerCase() === 'h1') {
           const node = record.owner || {};
-          if (!this.isBlank(this.firstValue([node], ['title', 'headline', 'text', 'jcr:title']))) {
+          if (!this.isBlank(this.firstValue([node], ['title', 'text', 'jcr:title']))) {
             addH1(record);
           }
         }
         if (record.key === 'element' && String(record.value).toLowerCase() === 'h1') {
           const node = record.owner || {};
-          if (!this.isBlank(this.firstValue([node], ['title', 'headline', 'text', 'jcr:title']))) {
+          if (!this.isBlank(this.firstValue([node], ['title', 'text', 'jcr:title']))) {
             addH1(record);
           }
         }
-        if (this.isThemeTeaserH1(record.owner)) {
-          addH1({
-            key: 'title',
-            value: record.owner.title,
-            owner: record.owner,
-            saveOwner: record.saveOwner,
-            path: record.path
-          });
-        }
-        if (this.isCarouselSlideH1(record)) {
-          addH1(record);
+        if (this.isShowTitleH1(record.owner)) {
+          const titleKey = this.firstExistingKey(record.owner, ['title', 'heading', 'headline', 'jcr:title']);
+          if (titleKey) {
+            addH1({
+              key: titleKey,
+              value: record.owner[titleKey],
+              owner: record.owner,
+              saveOwner: record.saveOwner,
+              path: record.path
+            });
+          }
         }
       });
 
@@ -1939,14 +2837,24 @@ export default {
     },
     firstValue(objects, keys) {
       for (let i = 0; i < objects.length; i++) {
-        const object = objects[i] || {};
+        const object = objects[i];
         for (let j = 0; j < keys.length; j++) {
-          if (object[keys[j]] !== undefined && object[keys[j]] !== null) {
+          if (object && object[keys[j]] !== undefined && object[keys[j]] !== null) {
             return object[keys[j]];
           }
         }
       }
-      return '';
+      return null;
+    },
+    firstTextValue(node) {
+      for (const key of Object.keys(node || {})) {
+        const lower = key.toLowerCase();
+        if ((lower.endsWith('label') || lower.endsWith('text') || lower === 'title')
+            && node[key] !== undefined && node[key] !== null) {
+          return String(node[key]).replace(/<[^>]*>/g, '').trim();
+        }
+      }
+      return null;
     },
     isBlank(value) {
       return value === undefined || value === null || String(value).replace(/<[^>]*>/g, '').trim() === '';
@@ -1961,11 +2869,11 @@ export default {
         propertyKey = record.key;
         editable = true;
       } else if (record.key === 'htmlelement' || record.key === 'element') {
-        propertyKey = this.firstExistingKey(owner, ['title', 'headline', 'text', 'jcr:title']);
+        propertyKey = this.firstExistingKey(owner, ['title', 'text', 'jcr:title']);
         value = propertyKey ? owner[propertyKey] : '';
-      } else if (this.isThemeTeaserH1(owner)) {
-        propertyKey = 'title';
-        value = owner.title;
+      } else if (this.isShowTitleH1(owner)) {
+        propertyKey = this.firstExistingKey(owner, ['title', 'heading', 'headline', 'jcr:title']);
+        value = propertyKey ? owner[propertyKey] : '';
       }
 
       return {
@@ -2038,54 +2946,42 @@ export default {
         return false;
       }
       const value = String(record.value);
-      const imageKeys = ['image', 'img', 'logo', 'icon', 'src', 'filereference', 'imagesrc', 'imagepath'];
-      const imageKey = imageKeys.indexOf(key) > -1;
+      const imageKey = key.endsWith('image') || key.endsWith('img') || key.endsWith('logo')
+          || key.endsWith('icon') || key.endsWith('src') || key === 'filereference';
       const imageValue = /\/content\/.*\/assets\//.test(value)
           || /^https?:\/\//i.test(value)
           || /\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(value);
       return imageKey && imageValue;
     },
-    isThemeTeaserH1(owner) {
+    isShowTitleH1(owner) {
       if (!owner) {
         return false;
       }
-      const component = this.getComponentName(owner);
-      const isTeaser = component.indexOf('teaserhorizontal') > -1 || component.indexOf('teaservertical') > -1;
-      return isTeaser && owner.showtitle === 'true' && !this.isBlank(owner.title);
-    },
-    isCarouselSlideH1(record) {
-      return record.key === 'title'
-          && record.path.indexOf('/slides[') > -1
-          && !this.isBlank(record.value);
-    },
-    getComponentName(owner) {
-      return String(
-          owner.component
-          || owner['sling:resourceType']
-          || owner.resourceType
-          || ''
-      ).toLowerCase();
+      const showTitle = owner.showtitle === 'true' || owner.showtitle === true
+          || owner.showheading === 'true' || owner.showheading === true;
+      if (!showTitle) {
+        return false;
+      }
+      const titleKey = this.firstExistingKey(owner, ['title', 'heading', 'headline', 'jcr:title']);
+      return titleKey && !this.isBlank(owner[titleKey]);
     },
     looksLikeRequiredLinkField(record) {
       const key = record.key.toLowerCase();
-      const linkKeys = ['href', 'url', 'link', 'buttonlink', 'logourl', 'slidelink'];
-      if (linkKeys.indexOf(key) === -1) {
-        return false;
-      }
-
-      const owner = record.owner || {};
-      const component = this.getComponentName(owner);
-      const anchorComponents = ['viewlink', 'listlinks', 'socialicons', 'header', 'footer'];
-      for (let i = 0; i < anchorComponents.length; i++) {
-        if (component.indexOf(anchorComponents[i]) > -1) {
-          return true;
-        }
-      }
-
-      return owner.htmlelement && String(owner.htmlelement).toLowerCase() === 'a';
+      const isLinkKey = (key.endsWith('link') || key.endsWith('url') || key === 'href') && key !== 'canonicalurl';
+      if (!isLinkKey) return false;
+      const value = record.value;
+      if (typeof value !== 'string') return false;
+      return value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://');
     },
     findLinkKey(owner) {
-      return this.firstExistingKey(owner, ['link', 'url', 'href', 'buttonlink', 'logourl', 'slidelink']) || 'link';
+      for (const key of Object.keys(owner || {})) {
+        const lower = key.toLowerCase();
+        if ((lower.endsWith('link') || lower.endsWith('url') || lower === 'href')
+            && typeof owner[key] === 'string') {
+          return key;
+        }
+      }
+      return 'link';
     },
     linkFieldMeta(record, propertyKey, value) {
       return {
@@ -2123,22 +3019,27 @@ export default {
     },
     linkTextFromStructuredLink(owner, propertyKey) {
       const node = owner || {};
-      const candidates = [
-        'buttonlabel',
-        'buttontext',
-        'linktext',
-        'label',
-        'title',
-        'text',
-        propertyKey
-      ];
-      const linkText = this.firstValue([node], candidates);
-      return String(linkText || '').replace(/<[^>]*>/g, '').trim();
+      const linkText = this.firstTextValue(node);
+      if (linkText) return String(linkText).replace(/<[^>]*>/g, '').trim();
+      const fallback = node[propertyKey];
+      return String(fallback || '').replace(/<[^>]*>/g, '').trim();
     },
     updateHtmlLinkHref(html, tag, href) {
       const source = String(html || '');
       const nextTag = this.replaceHtmlAttribute(tag, 'href', href);
       return source.replace(tag, nextTag);
+    },
+    replaceAllHtmlLinkHrefs(html, oldHref, newHref) {
+      let result = String(html || '');
+      const tags = this.findHtmlTags(result, 'a');
+      tags.forEach(tag => {
+        const tagHref = this.getHtmlAttribute(tag, 'href');
+        if (tagHref === oldHref) {
+          const nextTag = this.replaceHtmlAttribute(tag, 'href', newHref);
+          result = result.replace(tag, nextTag);
+        }
+      });
+      return result;
     },
     replaceHtmlAttribute(tag, attribute, value) {
       const escapedValue = String(value).replace(/"/g, '&quot;');
@@ -2164,18 +3065,8 @@ export default {
       };
     },
     altTextCandidates(key) {
-      const map = {
-        image: ['imagealttext', 'alt'],
-        logo: ['logoalttext', 'alt'],
-        icon: ['iconalttext', 'alt'],
-        imagesrc: ['mediatitle', 'alt'],
-        imagepath: ['alt']
-      };
       const lowerKey = String(key).toLowerCase();
-      if (map[lowerKey]) {
-        return map[lowerKey];
-      }
-      return ['alt', 'alttext', 'altText', `${key}alttext`, `${key}AltText`, `${key}Alt`, 'imagealttext', 'logoalttext', 'iconalttext', 'mediatitle'];
+      return ['alt', 'alttext', 'altText', `${lowerKey}alttext`, `${lowerKey}AltText`, `${lowerKey}Alt`];
     },
     isEmptyHref(href) {
       if (href === undefined || href === null) {
@@ -2183,6 +3074,170 @@ export default {
       }
       const value = String(href).trim();
       return value === '' || value === '#' || value.toLowerCase() === 'javascript:void(0)';
+    },
+    isExperienceVariantPath(path) {
+      return path && path.indexOf('/experiences/lang_') !== -1;
+    },
+    goToPageEditor(variantPath) {
+      const view = $perAdminApp.getView();
+      const pagePath = (view && view.pageView && view.pageView.path)
+        || (view && view.state && view.state.tools && view.state.tools.page)
+        || this.path;
+      if (!pagePath) {
+        return;
+      }
+
+      // Extract relative component path from full JCR path.
+      // editComponent expects a path relative to the page root starting with /jcr:content,
+      // e.g. /jcr:content/nc12b75b5-.../columns/n159...
+      let componentPath = variantPath || '';
+
+      // Strip /experiences/lang_* suffix if present (variant nodes are children of the component)
+      const experiencesPattern = /\/experiences\/lang_[^\/]+/;
+      componentPath = componentPath.replace(experiencesPattern, '');
+
+      const jcrIdx = componentPath.indexOf('/jcr:content');
+      if (jcrIdx !== -1) {
+        componentPath = componentPath.substring(jcrIdx);
+      } else {
+        // If no /jcr:content found, fall back to stripping the page path prefix
+        if (componentPath.startsWith(pagePath)) {
+          componentPath = componentPath.substring(pagePath.length);
+        }
+      }
+
+      // Helper: drain the wait state stack and force-hide the mask + any modal overlays
+      function forceCleanup() {
+        try {
+          if ($perAdminApp.clearWaitState) {
+            $perAdminApp.clearWaitState();
+          }
+        } catch (e) { /* noop */ }
+        const mask = document.getElementById('waitMask');
+        if (mask) mask.style.display = 'none';
+        // Materialize may leave modal overlays behind during rapid navigation
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      }
+
+      // Walk up to the nearest component ancestor that has a dialog.
+      // Structural children (e.g. columns/n159...) don't have their own
+      // sling:resourceType, so componentDefinition.json returns 500.
+      let targetPath = componentPath;
+      const pageRoot = view.pageView ? view.pageView.page : null;
+      while (targetPath && targetPath !== '/jcr:content' && pageRoot) {
+        const node = $perAdminApp.findNodeFromPath(pageRoot, targetPath);
+        if (node && node.component) {
+          break;
+        }
+        // Strip last segment
+        const lastSlash = targetPath.lastIndexOf('/');
+        if (lastSlash <= 0) break;
+        targetPath = targetPath.substring(0, lastSlash);
+      }
+
+      if (!targetPath || targetPath === '/jcr:content') {
+        this.close();
+        this.$emit('complete');
+        forceCleanup();
+        return;
+      }
+
+      const node = pageRoot ? $perAdminApp.findNodeFromPath(pageRoot, targetPath) : null;
+      const isTemplateComponent = node && node.fromTemplate;
+      const templatePath = isTemplateComponent ? (pageRoot && pageRoot.template) : null;
+
+      // If we are already viewing a template, check if the component lives in a
+      // different template (e.g. a parent template). If so, navigate there.
+      // If the component is directly in the current template, open its editor.
+      const isViewingTemplate = pagePath && pagePath.includes('/templates/');
+      if (isViewingTemplate) {
+        if (isTemplateComponent) {
+          // Component is inherited from a parent template — navigate there.
+          // Peregrine child templates inherit from their parent in the JCR
+          // path, so derive the parent template by stripping the last segment.
+          const parentTemplatePath = pagePath.substring(0, pagePath.lastIndexOf('/'));
+          if (parentTemplatePath && parentTemplatePath.includes('/templates/')) {
+            this.$emit('complete');
+            window.location.href = '/content/admin/pages/templates/edit.html/path:' + parentTemplatePath;
+            return;
+          }
+        } else {
+          this.close();
+          setTimeout(() => {
+            this.$emit('complete');
+            $perAdminApp.stateAction('editComponent', targetPath).catch(() => {
+              forceCleanup();
+            });
+          }, 300);
+          return;
+        }
+        this.$emit('complete');
+        forceCleanup();
+        return;
+      }
+
+      // Close the Materialize modal first so its overlay is removed before Vue tears down the component.
+      this.close();
+      this.$emit('complete');
+
+      // For template-inherited components on a page, navigate DIRECTLY to the
+      // parent template.  Inherited components usually live in the parent
+      // template (Peregrine child templates inherit from their parent), so
+      // strip the last segment from the page's template path to find it.
+      if (isTemplateComponent && templatePath) {
+        const parentTemplatePath = templatePath.substring(0, templatePath.lastIndexOf('/'));
+        const targetTemplatePath = (parentTemplatePath && parentTemplatePath.includes('/templates/')) ? parentTemplatePath : templatePath;
+        // Use a full page navigation to the template editor.
+        // loadContent uses pushState which doesn't reliably switch between
+        // page editor and template editor because they are different admin pages.
+        // Do NOT encodeURIComponent the path — Peregrine's suffix parameter
+        // parser expects raw colons and slashes in the URL.
+        window.location.href = '/content/admin/pages/templates/edit.html/path:' + targetTemplatePath;
+        return;
+      }
+
+      // Regular flow: navigate to page editor and select component
+      $perAdminApp.stateAction('editPage', pagePath).catch(() => {
+        forceCleanup();
+        window.location.href = '/content/admin/pages/pages/edit.html/path:' + encodeURIComponent(pagePath);
+      });
+
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const currentView = $perAdminApp.getView();
+        if (currentView.pageView && currentView.pageView.page && currentView.pageView.path === pagePath) {
+          clearInterval(interval);
+          $perAdminApp.stateAction('editComponent', targetPath).catch(() => {
+            forceCleanup();
+          });
+        } else if (attempts >= 100) {
+          clearInterval(interval);
+          forceCleanup();
+        }
+      }, 200);
+    },
+    async saveNodeProperty(pagePath, nodePath, propertyKey, propertyValue) {
+      const targetPath = (pagePath + nodePath).replace(/\/\//g, '/');
+      const payload = {};
+      payload[propertyKey] = propertyValue;
+      const formData = new FormData();
+      formData.append('content', JSON.stringify(payload));
+      const url = '/perapi/admin/updateResource.json' + targetPath;
+      const resp = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      });
+      const respText = await resp.text();
+      if (!resp.ok) {
+        throw new Error('Server returned ' + resp.status + ': ' + respText);
+      }
+      try {
+        return JSON.parse(respText);
+      } catch (e) {
+        return { text: respText };
+      }
     },
     emptyIncorrectMessage(check) {
       if (check.id === 'image-alt') return 'All images have alt text';
@@ -2321,11 +3376,13 @@ export default {
   font-size: 18px;
   color: #607d8b;
 }
-.page-check-redirect-warning {
+.page-check-redirect-warning,
+.page-check-checker-error-banner {
   background: rgba(255, 152, 0, 0.12);
   color: rgba(0, 0, 0, 0.78);
 }
-.page-check-redirect-warning .material-icons {
+.page-check-redirect-warning .material-icons,
+.page-check-checker-error-banner .material-icons {
   color: #f57c00;
 }
 .page-check-manual-test-banner {
@@ -2349,6 +3406,52 @@ export default {
 }
 .page-check-manual-test-hint span {
   vertical-align: middle;
+}
+.page-check-count-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  margin-left: 6px;
+  border-radius: 10px;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.page-check-occurrences {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+.page-check-occurrences-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.page-check-occurrence-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+.page-check-occurrence-item:last-child {
+  border-bottom: none;
+}
+.page-check-occurrence-location {
+  flex: 1;
+  font-size: 12px;
+  word-break: break-all;
+}
+.page-check-occurrence-variant {
+  font-size: 11px;
+  color: #757575;
+  font-style: italic;
+  white-space: nowrap;
+}
+.page-check-occurrence-editor {
+  padding: 4px 0;
 }
 .page-check-manual-actions {
   display: flex;

@@ -382,7 +382,7 @@ export default {
     },
 
     getFieldComponent($vfg, model) {
-      return $vfg.$children.find(($c) => $c.field.model === model)
+      return $vfg.$children.find(($c) => $c.field && $c.field.model === model)
     },
 
     focusFieldByModel(model) {
