@@ -36,10 +36,10 @@ export default function(me, { from, to }) {
     }
   }
 
-  return axios
-    .get(from, options)
-    .then(({ data: content }) => {
-      return axios.put(`${to}/${filename}`, content, options);
+  return fetch(from, options)
+    .then(res => res.json())
+    .then((content) => {
+      return fetch(`${to}/${filename}`, Object.assign({ method: 'PUT', body: content }, options) );
     })
     .then((response) => {
       set(view, '/state/tools/file', to);

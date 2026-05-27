@@ -159,10 +159,10 @@ export default {
     },
 
     loadFileContent() {
-      const options = Object.assign({ url: this.path }, axiosPlainTextOptions);
-
-      return axios(options)
-        .then(({ data }) => {
+   console.log('loadFileContent', ) 
+      return fetch(this.path, { headers: { 'Content-Type': 'text/plain' } })
+        .then(res => res.text())
+        .then(( data ) => {
           this.content.server = data;
           this.content.client = data;
         })
@@ -305,18 +305,6 @@ export default {
       }
     },
   },
-};
-
-const axiosPlainTextOptions = {
-  headers: {
-    'Content-Type': 'text/plain',
-  },
-  responseType: 'text',
-  transformResponse: [
-    (data) => {
-      return data;
-    },
-  ],
 };
 
 const CODEMIRROR_PATH = `/etc/felibs/admin/dependencies/codemirror`;

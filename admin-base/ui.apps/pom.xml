@@ -81,11 +81,6 @@
             </resource>
 
             <resource>
-                <directory>${basedir}/node_modules/axios/dist</directory>
-                <targetPath>etc/felibs/admin/dependencies/axios</targetPath>
-            </resource>
-
-            <resource>
                 <directory>${basedir}/node_modules/vue/dist</directory>
                 <targetPath>etc/felibs/admin/dependencies/vue</targetPath>
             </resource>

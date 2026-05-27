@@ -2,7 +2,6 @@
 	"globals": {
 		"Vue": true,
 		"$perAdminApp": true,
-		"axios": true,
         "$": true
 	},
 

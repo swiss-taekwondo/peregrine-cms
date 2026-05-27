@@ -294,12 +294,12 @@ function loadContentImpl(path, firstTime, fromPopState, onPage = false) {
     if(onPage) {
         processLoadedContent(JSON.parse(document.getElementById('perPage').innerHTML), path, firstTime, fromPopState)
     } else {
-        axios.get(dataUrl).then(function (response) {
+        fetch(dataUrl).then(res => res.json()).then(function (data) {
             log.fine('got data for', path)
-            if (response.hasOwnProperty('data') && response.data.serverSide === true) {
-                document.location = `${response.data.pagePath}.html`
+            if (data.serverSide === true) {
+                document.location = `${data.pagePath}.html`
             } else {
-                processLoadedContent(response.data, path, firstTime, fromPopState)
+                processLoadedContent(data, path, firstTime, fromPopState)
             }
 
         }).catch(function(error) {

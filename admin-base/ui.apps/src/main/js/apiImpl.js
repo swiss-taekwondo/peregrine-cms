@@ -22,7 +22,6 @@
  * under the License.
  * #L%
  */
-// var axios = require('axios')
 
 import {LoggerFactory} from './logger'
 import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
@@ -32,9 +31,6 @@ import Notifier from './utils/notifier'
 let logger = LoggerFactory.logger('apiImpl').setLevelDebug()
 
 const API_BASE = '/perapi'
-const postConfig = {
-  withCredentials: true
-}
 
 let callbacks
 let translationModel = null
@@ -150,15 +146,11 @@ function getTranslationModel() {
     return Promise.reject(new Error("Could not determine tenant name."))
   }
 
-  return axios.get('/content/' + tenantName + '.json')
-    .then(tenantRes => {
-      const tenantConfig = tenantRes.data
+  return customFetch('/content/' + tenantName + '.json')
+    .then(res => res.json())
+    .then(tenantConfig  => {
       const sourceSite = tenantConfig.sourceSite ? tenantConfig.sourceSite : tenantName
-      return axios.get('/apps/' + sourceSite + '/i18n/model.json')
-    })
-    .then(modelRes => {
-      translationModel = modelRes.data
-      return translationModel
+      return customFetch('/apps/' + sourceSite + '/i18n/model.json').then(res => res.json())
     })
 }
 
@@ -169,9 +161,12 @@ function listTranslations(path, model) {
   const formData = new FormData()
   formData.append('model', modelBlob)
 
-  return axios.post('/perapi/admin/listTranslations.json' + path, formData)
+  return customFetch('/perapi/admin/listTranslations.json' + path, {
+    method: 'POST',
+    body: formData,
+  })
     .then(response => {
-      return response.data
+      return response.json()
     })
 }
 
@@ -239,9 +234,10 @@ function autoTranslate(path, translations, changedProperties = null) {
   }
 
   // Fetch the configured languages dynamically
-  return axios.get('/perapi/admin/translateNode.json')
-    .then(response => {
-      const languageMap = (response.data && response.data.languageMap) ? response.data.languageMap : {};
+  return customFetch('/perapi/admin/translateNode.json')
+    .then(response => response.json())
+    .then(data => {
+      const languageMap = (data && data.languageMap) ? data.languageMap : {};
       const languages = Object.keys(languageMap);
 
       if (languages.length === 0) {
@@ -260,9 +256,12 @@ function autoTranslate(path, translations, changedProperties = null) {
           formData.append('properties[]', prop)
         })
 
-        const requestPromise = axios.post('/perapi/admin/translateNode.json' + targetNode.path, formData)
+        const requestPromise = customFetch('/perapi/admin/translateNode.json' + targetNode.path, {
+          method: 'POST',
+          body: formData,
+        })
           .then(response => {
-            return response.data
+            return response.json()
           })
           .catch(error => {
             // Catching individual translation errors so a single failed language doesn't kill the Promise.all
@@ -280,21 +279,22 @@ function autoTranslate(path, translations, changedProperties = null) {
       throw new Error("Could not load translation language map.");
     });
 }
-
-function fetch(path) {
+function customFetch(path) {
   logger.fine('Fetch ', path)
-  return axios.get(API_BASE + path).then((response) => {
-    return new Promise((resolve, reject) => {
+  return fetch(API_BASE + path)
+  .then((response) => {
+    return response.json().then((data) => {
+      return new Promise((resolve, reject) => {
 
-      // Fix for IE11
-      if ((typeof response.data === 'string' && response.data.startsWith(
-          '<!DOCTYPE')) || (response.request && response.request.responseURL
-          && response.request.responseURL.indexOf('/system/sling/form/login')
-          >= 0)) {
-        window.location = '/system/sling/form/login'
-        reject('need to authenticate')
-      }
-      resolve(response.data)
+        // Fix for IE11
+        if ((typeof data === 'string' && data.startsWith(
+            '<!DOCTYPE')) || (response.url.indexOf('/system/sling/form/login')
+            >= 0)) {
+          window.location = '/system/sling/form/login'
+          reject('need to authenticate')
+        }
+        resolve(data)
+      })
     })
   }).catch((error) => {
     logger.error('Fetch request to', path, 'failed')
@@ -308,10 +308,14 @@ function fetch(path) {
 
 function update(path) {
   logger.fine('Update, path: ', path)
-  return axios.post(API_BASE + path, null, postConfig)
-      .then((response) => {
-        logger.fine('Update, response data: ' + response.data)
-        return response.data
+  return customFetch(API_BASE + path, {
+    method: 'POST',
+    body: null,
+  })
+  .then(res => res.json())
+      .then((data) => {
+        logger.fine('Update, response data: ' + data)
+        return data
       })
       .catch((error) => {
         logger.error('Update request to', path, 'failed')
@@ -321,8 +325,11 @@ function update(path) {
 
 function updateWithForm(path, data) {
   logger.fine('Update with Form, path: ' + path + ', data: ' + data)
-  return axios.post(API_BASE + path, data, postConfig)
-      .then((response) => response.data)
+  return customFetch(API_BASE + path, {
+    body: data,
+    credentials: 'include',
+  })
+      .then((response) => response.json())
       .catch((error) => {
         logger.error('Update with Form request to', path, 'failed')
         throw error
@@ -341,7 +348,7 @@ function updateWithFormAndConfig(path, data, config) {
  *
  * @param {string} url
  * @param {FormData} data
- * @param {AxiosRequestOptions} config
+ * @param {fetchOptions} config
  * @returns
  */
 function postFormData(url, data, config = null) {
@@ -363,15 +370,22 @@ function postFormData(url, data, config = null) {
 
   logger.fine('postFormData: ', url, data, config);
 
-  return axios
-     .post(url, formData, config)
-     .then(({data}) => {
+  const fetchConfig = {
+    method: 'POST',
+    body: formData,
+  }
+  if (typeof config === 'object') {
+    Object.assign(fetchConfig, config);
+  }
+  return customFetch(url, fetchConfig)
+     .then(res => res.json())
+     .then((data) => {
       logger.fine('postFormData, response data: ' + data);
 
       return data;
     })
     .catch((error) => {
-      logger.error('postFormData ', error.response.request.path, 'failed');
+      logger.error('postFormData ', url, 'failed');
       throw error;
     });
 }
@@ -475,7 +489,7 @@ function translateFields(fields) {
 }
 
 function fetchRef(service, path, sameTenant = false) {
-  return fetch(`/admin/${service}.json${path}?${new URLSearchParams({ sameTenant })}`)
+  return customFetch(`/admin/${service}.json${path}?${new URLSearchParams({ sameTenant })}`)
 }
 
 class PerAdminImpl {
@@ -486,7 +500,7 @@ class PerAdminImpl {
   }
 
   populateTools() {
-    return fetch('/admin/list.json/tools')
+    return customFetch('/admin/list.json/tools')
         .then((data) => populateView('/admin', 'tools', data.children))
         .catch((error) => {
           logger.error('call populateTools() failed')
@@ -495,12 +509,12 @@ class PerAdminImpl {
   }
 
   populateToolsConfig() {
-    return fetch('/admin/list.json/tools/config')
+    return customFetch('/admin/list.json/tools/config')
         .then((data) => populateView('/admin', 'toolsConfig', data.children))
   }
 
   populateUser() {
-    return fetch('/admin/access.json?' + (new Date()).getTime())
+    return customFetch('/admin/access.json?' + (new Date()).getTime())
         .then((data) => {
           return populateView('/state', 'user', data.userID).then(() => {
             if (data.userID === 'anonymous') {
@@ -520,22 +534,22 @@ class PerAdminImpl {
   }
 
   populateContent(path) {
-    return fetch('/admin/content.json' + path)
+    return customFetch('/admin/content.json' + path)
         .then((data) => populateView('/', 'adminPageStaged', data))
   }
 
   populateComponents() {
-    return fetch('/admin/components.json')
+    return customFetch('/admin/components.json')
         .then((data) => populateView('/admin', 'components', data))
   }
 
   populateObjects() {
-    return fetch('/admin/objects.json')
+    return customFetch('/admin/objects.json')
         .then((data) => populateView('/admin', 'objects', data))
   }
 
   populateTemplates() {
-    return fetch('/admin/templates.json')
+    return customFetch('/admin/templates.json')
         .then((data) => populateView('/admin', 'templates', data))
   }
 
@@ -555,12 +569,12 @@ class PerAdminImpl {
   }
 
   populateNodesForBrowser(path, target = 'nodes', includeParents = false) {
-    return fetch('/admin/nodes.json' + path + '?includeParents=' + includeParents)
+    return customFetch('/admin/nodes.json' + path + '?includeParents=' + includeParents)
         .then((data) => populateView('/admin', target, data))
   }
 
   populateComponentDefinitionFor(component) {
-    return fetch('/admin/components/' + component)
+    return customFetch('/admin/components/' + component)
         .then((data) => populateView('/admin/componentDefinitions', component,
             data))
   }
@@ -568,7 +582,7 @@ class PerAdminImpl {
   populateComponentDefinitionFromNode(path) {
     return new Promise((resolve, reject) => {
       var name
-      fetch('/admin/componentDefinition.json' + path)
+      customFetch('/admin/componentDefinition.json' + path)
           .then((data) => {
             name = data.name
             let component = callbacks.getComponentByName(name)
@@ -584,15 +598,15 @@ class PerAdminImpl {
                 let from = field.valuesFrom
                 if (from) {
                   field.values = []
-                  let promise = axios.get(from).then((response) => {
-                    for (var key in response.data) {
-                      if (response.data[key]['jcr:title']) {
+                  let promise = customFetch(from).then(res => res.json()).then((data) => {
+                    for (var key in data) {
+                      if (data[key]['jcr:title']) {
                         const nodeName = key
                         const val = from.replace('.infinity.json',
                           '/' + nodeName)
-                        let name = response.data[key].name
+                        let name = data[key].name
                         if (!name) {
-                          name = response.data[key]['jcr:title']
+                          name = data[key]['jcr:title']
                         }
                         field.values.push(
                           {value: val, name: name})
@@ -667,7 +681,7 @@ class PerAdminImpl {
 
   populateTenants() {
     return new Promise((resolve, reject) => {
-      fetch('/admin/listTenants.json')
+      customFetch('/admin/listTenants.json')
           .then((data) => {
             // const state = callbacks.getView().state
             // if (!state.tenant && data.tenants.length > 0) {
@@ -690,22 +704,22 @@ class PerAdminImpl {
           {})
       tenantName = tenant ? tenant.name : ''
     }
-    fetch('/admin/backupTenant.json/content/' + tenantName)
+    customFetch('/admin/backupTenant.json/content/' + tenantName)
         .then((data) => populateView('/state/tools', 'backup', data))
   }
 
   populatePageView(path) {
-    return fetch('/admin/readNode.json' + path)
+    return customFetch('/admin/readNode.json' + path)
         .then((data) => populateView('/pageView', 'page', data))
   }
 
   populateObject(path, target, name, schema) {
     return this.populateComponentDefinitionFromNode(path)
       .then(() => {
-        return fetch('/admin/getObject.json' + path)
+        return customFetch('/admin/getObject.json' + path)
           .then(async (data) => {
             if (!schema) {
-              schema = await fetch('/admin/componentDefinition.json' + path).then((data) => data.model);
+              schema = await customFetch('/admin/componentDefinition.json' + path).then((data) => data.model);
             }
             if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
               if (data[field.model] && field.multifield && field.serialized) {
@@ -765,9 +779,10 @@ class PerAdminImpl {
 
   populateI18N(language) {
     return new Promise((resolve, reject) => {
-      axios.get('/i18n/admin/' + language + '.infinity.json')
-          .then((response) => {
-            populateView('/admin/i18n', language, response.data)
+      customFetch('/i18n/admin/' + language + '.infinity.json')
+          .then(res => res.json())
+          .then((data) => {
+            populateView('/admin/i18n', language, data)
                 .then(() => resolve())
           })
     })
@@ -782,7 +797,7 @@ class PerAdminImpl {
       page = 0
     }
     return new Promise((resolve, reject) => {
-      fetch(`/admin/listRecyclables.json/content/${tenant}?page=${page}`)
+      customFetch(`/admin/listRecyclables.json/content/${tenant}?page=${page}`)
           .then(function (result) {
             populateView('/admin', 'recyclebin', result)
                 .then(() => resolve())
@@ -797,7 +812,7 @@ class PerAdminImpl {
   populateVersions(page) {
     if (page) {
       return new Promise((resolve, reject) => {
-        fetch(`/admin/listVersions.json${page}`)
+        customFetch(`/admin/listVersions.json${page}`)
             .then(function (result) {
               populateView('/state', 'versions', result)
                   .then(() => resolve())
@@ -1282,10 +1297,11 @@ class PerAdminImpl {
   }
 
   fetchExternalImage(path, url, name, config) {
-    return axios.get(url, {responseType: 'blob'})
-        .then((response) => {
+    return customFetch(url)
+        .then(res => res.blob())
+        .then((blob) => {
           var data = new FormData()
-          data.append(name, response.data, name)
+          data.append(name, blob, name)
 
           return updateWithFormAndConfig('/admin/uploadFiles.json' + path, data,
               config)
@@ -1352,8 +1368,8 @@ class PerAdminImpl {
       // Sanitize the target path for backend calls
       const targetNodePath = (path + node.path).replace(/\/\//g, '/');
 
-      axios.get(pagePathToDataPath(path))
-        .then(res => res.data)
+     customFetch(pagePathToDataPath(path))
+        .then(res => res.json())
         .catch(e => {
           console.warn("Could not fetch current content for diffing", e);
           return {};
@@ -1517,7 +1533,7 @@ class PerAdminImpl {
       formData.append('content', json(nodeData))
 
       // Fetch the current object state for diffing before saving
-      fetch('/admin/getObject.json' + path)
+      customFetch('/admin/getObject.json' + path)
         .catch(e => {
           console.warn("Could not fetch current object content for diffing", e);
           return {};
@@ -1715,7 +1731,7 @@ class PerAdminImpl {
 
               // Use lastResource if any to check replication status
               const lastResource = resources[resources.length - 1];
-              return fetch(
+              return customFetch(
                   `/admin/listReplicationStatus.json${respData.sourcePath}${lastResource ? `?lastResource=${lastResource}` : ''}`)
                   .then(data => {
                     if (count++ >= 25) {
@@ -1752,7 +1768,7 @@ class PerAdminImpl {
   }
 
   getPalettes(templateName) {
-    return fetch(`/admin/nodes.json/content/${templateName}/pages/css/palettes`)
+    return customFetch(`/admin/nodes.json/content/${templateName}/pages/css/palettes`)
         .then((data) => {
           return $perAdminApp.findNodeFromPath(data,
               `/content/${templateName}/pages/css/palettes`)
@@ -1762,7 +1778,7 @@ class PerAdminImpl {
   }
 
   populateIcons(tenant) {
-    return fetch(`/admin/nodes.json/content/${tenant.name}/assets/icons`)
+    return customFetch(`/admin/nodes.json/content/${tenant.name}/assets/icons`)
         .then((data) => {
           const iconsNode = $perAdminApp.findNodeFromPath(data,
               `/content/${tenant.name}/assets/icons`)
@@ -1786,7 +1802,7 @@ class PerAdminImpl {
   }
 
   downloadBackupTenant(path) {
-    return fetch('/admin/downloadBackupTenant.zip' + path + '.zip')
+    return customFetch('/admin/downloadBackupTenant.zip' + path + '.zip')
   }
 
   uploadBackupTenant(path, files, cb) {
@@ -1830,11 +1846,11 @@ class PerAdminImpl {
   }
 
   checkTenantNameAvailability(name) {
-    return fetch('/admin/tenants/name/available.json?name=' + name)
+    return customFetch('/admin/tenants/name/available.json?name=' + name)
   }
 
   isReferencedInPublish(path) {
-    return fetch(`/admin/isReferencedInPublish.json${path}`)
+    return customFetch(`/admin/isReferencedInPublish.json${path}`)
   }
 
   _postFormDataImpl(url, data, config) {

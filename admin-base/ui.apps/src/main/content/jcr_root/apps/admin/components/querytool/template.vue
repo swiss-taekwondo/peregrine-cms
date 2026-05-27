@@ -86,10 +86,10 @@
             },
             query: function() {
                 var resObj = this.results
-                axios.get('/bin/search?q='+this.querystring+'&page='+this.page).then(function(result) {
-                    resObj.data = result.data.data
-                    resObj.pages = result.data.pages
-                    resObj.more = result.data.more
+                fetch('/bin/search?q='+this.querystring+'&page='+this.page).then(res => res.json()).then(function(result) {
+                    resObj.data = result.data
+                    resObj.pages = result.pages
+                    resObj.more = result.more
                 })
             },
             loadPage: function(increment) {

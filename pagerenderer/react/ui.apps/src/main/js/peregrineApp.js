@@ -259,16 +259,14 @@ function loadContentImpl(path, firstTime, fromPopState) {
     var dataUrl = pagePathToDataPath(path);
     log.fine(dataUrl)
     getPerView().status = undefined;
-    axios.get(dataUrl).then(function (response) {
+    fetch(dataUrl).then(res => res.json()).then(function (data) {
         log.fine('got data for', path)
 
-        // if(response.data.template) {
+        // if(data.template) {
         //
-        //     var pageData = response.data
+        //     var pageData = data
         //
-        //     axios.get(response.data.template+'.data.json').then(function(response) {
-        //
-        //         var templateData = response.data
+        //     fetch(data.template+'.data.json').then(res => res.json()).then(function(templateData) {
         //         var mergedData = merge(templateData, pageData)
         //         //merging nav, footer and content together with pageData
         //         processLoadedContent(mergedData, path, firstTime, fromPopState)
@@ -276,7 +274,7 @@ function loadContentImpl(path, firstTime, fromPopState) {
         //         log.error("error getting %s %j", dataUrl, error);
         //     })
         // } else {
-        processLoadedContent(response.data, path, firstTime, fromPopState)
+        processLoadedContent(data, path, firstTime, fromPopState)
         // }
 
     }).catch(function(error) {
