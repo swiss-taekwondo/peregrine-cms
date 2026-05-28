@@ -67,6 +67,10 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         @AttributeDefinition(name = "Cache TTL (seconds)",
                 description = "How long to cache link check results before re-checking (default: 3600 = 1 hour)")
         int cacheTtlSeconds() default 3600;
+
+        @AttributeDefinition(name = "Max Cache Entries",
+                description = "Maximum number of URLs to cache (default: 5000). When exceeded, new results are still returned but not cached.")
+        int maxCacheEntries() default 5000;
     }
 
     private static final Logger logger = LoggerFactory.getLogger(CheckLinkServlet.class);
@@ -80,6 +84,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
     private volatile String checkerUrl;
     private volatile String checkerToken;
     private volatile long cacheTtlMs = 3600_000L;
+    private volatile int maxCacheEntries = 5000;
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
     @Activate
@@ -100,6 +105,9 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         int ttl = configuration.cacheTtlSeconds();
         if (ttl < 0) ttl = 0;
         cacheTtlMs = ttl * 1000L;
+        int max = configuration.maxCacheEntries();
+        if (max < 1) max = 1;
+        maxCacheEntries = max;
     }
 
     private static final Pattern SCRIPT_TAG_PATTERN = Pattern.compile("<script\\b[^>]*>.*?</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -513,7 +521,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
 
     private Response cacheAndWrap(final String url, final JsonResponse response) throws IOException {
         final String json = response.getContent();
-        if (cacheTtlMs > 0) {
+        if (cacheTtlMs > 0 && cache.size() < maxCacheEntries) {
             cache.put(url, new CacheEntry(json, System.currentTimeMillis()));
         }
         return new PlainJsonResponse(json);
