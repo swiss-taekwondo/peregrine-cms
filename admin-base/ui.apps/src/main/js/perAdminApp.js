@@ -51,6 +51,9 @@ function initHotReload() {
   source.addEventListener('reload', () => {
     window.location.reload();
   });
+  source.addEventListener('error', () => {
+    source.close();
+  })
 }
 
 initHotReload();
