@@ -1,5 +1,4 @@
 
-if (!window.axiosUses) window.axiosUses = {}
 import { LoggerFactory } from '../logger';
 import { set, parentPath as getParentPath } from '../utils';
 import { SUFFIX_PARAM_SEPARATOR } from '../constants';
@@ -41,7 +40,6 @@ export default function(me, { from, to }) {
   return fetch(from, options)
     .then(res => res.json())
     .then((content) => {
-    window.axiosUses['copyFile'] = true
       return fetch(`${to}/${filename}`, Object.assign({ method: 'PUT', body: content }, options) );
     })
     .then((response) => {

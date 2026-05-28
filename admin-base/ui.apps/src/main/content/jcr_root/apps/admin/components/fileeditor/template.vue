@@ -162,7 +162,6 @@ export default {
       return fetch(this.path, { headers: { 'Content-Type': 'text/plain' } })
         .then(res => res.text())
         .then(( data ) => {
-        (window.axiosUses = window.axiosUses || {})['loadFileContent'] = true
           this.content.server = data;
           this.content.client = data;
         })

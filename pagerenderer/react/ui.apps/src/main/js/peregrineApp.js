@@ -260,7 +260,6 @@ function loadContentImpl(path, firstTime, fromPopState) {
     log.fine(dataUrl)
     getPerView().status = undefined;
     fetch(dataUrl).then(res => res.json()).then(function (data) {
-    (window.axiosUses ||= {})['peregrineappReact'] = true
         log.fine('got data for', path)
 
         // if(data.template) {
