@@ -337,10 +337,16 @@ function updateWithForm(path, data) {
     body: data,
     credentials: 'include',
   })
-      .then((response) => response.json())
+      .then((response) => {
+        return new Promise((resolve, reject) => {
+          response.json()
+            .then((data) => response.ok ? resolve(data) : reject(data))
+            .catch((error) => reject(error))
+        })
+      })
       .catch((error) => {
         logger.error('Update with Form request to', path, 'failed')
-        throw error
+        throw error.message || error
       })
 }
 
