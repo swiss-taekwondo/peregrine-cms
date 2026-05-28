@@ -32,6 +32,11 @@
         v-on:ready="onModalReady"
         v-bind:modalTitle="modalTitle">
 
+    <div v-if="verifying" class="page-check-loading">
+      <admin-components-materializespinner/>
+      <span>Page is being checked...</span>
+    </div>
+    <template v-else>
     <div class="page-check-summary" v-bind:class="{'page-check-summary-ok': !hasIssues}">
       <i class="material-icons">{{ hasIssues ? 'warning' : 'check_circle' }}</i>
       <span v-if="hasIssues">Fix {{ issueCount }} issue{{ issueCount === 1 ? '' : 's' }} before publishing.</span>
@@ -1106,8 +1111,13 @@
         </div>
       </li>
     </ul>
+    </template>
 
     <template slot="footer">
+      <button class="modal-action page-check-purge-btn waves-effect waves-green btn-flat" type="button" v-on:click="$emit('purge-and-reverify')">
+        <i class="material-icons">cached</i>
+        Purge Cache and Recheck
+      </button>
       <button class="modal-action modal-close waves-effect waves-green btn-flat" type="button" v-on:click="close">
         Close
       </button>
@@ -1163,7 +1173,8 @@ export default {
     'node',
     'modalTitle',
     'autoOpen',
-    'linkVerificationResults'
+    'linkVerificationResults',
+    'verifying'
   ],
   data() {
     return {
@@ -2557,6 +2568,9 @@ export default {
       this.autoSwitchToCorrectIfEmpty();
     },
     autoSwitchToCorrectIfEmpty() {
+      // Only auto-switch when link verification has actually run
+      const results = this.linkVerificationResults || [];
+      if (results.length === 0) return;
       this.checks.forEach(check => {
         if (this.hasTabs(check) && this.activeTab(check.id) === 'incorrect') {
           const incorrect = this.incorrectCount(check);
@@ -3261,6 +3275,15 @@ export default {
 .page-check-modal .modal {
   max-height: 80%;
 }
+.page-check-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 0;
+  color: rgba(0, 0, 0, 0.54);
+}
 .page-check-summary {
   display: flex;
   align-items: center;
@@ -3450,9 +3473,6 @@ export default {
   font-style: italic;
   white-space: nowrap;
 }
-.page-check-occurrence-editor {
-  padding: 4px 0;
-}
 .page-check-manual-actions {
   display: flex;
   gap: 8px;
@@ -3622,12 +3642,6 @@ export default {
   min-height: 90px;
   background-color: white;
 }
-.page-check-image-editor {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(0, 0, 0, 0.03);
-}
 .page-check-image-actions {
   display: flex;
   gap: 8px;
@@ -3635,21 +3649,20 @@ export default {
   align-items: center;
   flex-wrap: wrap;
 }
-.page-check-remove-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.page-check-remove-link .material-icons {
-  margin: 0;
-  line-height: 1;
-}
 .page-check-image-actions button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 .page-check-image-actions button .material-icons {
+  line-height: 1;
+}
+.page-check-purge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-check-purge-btn .material-icons {
   line-height: 1;
 }
 </style>

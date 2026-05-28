@@ -24,6 +24,7 @@ import java.net.http.HttpResponse;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
 import java.util.regex.Pattern;
@@ -62,6 +63,10 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         @AttributeDefinition(name = "Token",
                 description = "Bearer token for the external link validation service")
         String token() default "";
+
+        @AttributeDefinition(name = "Cache TTL (seconds)",
+                description = "How long to cache link check results before re-checking (default: 3600 = 1 hour)")
+        int cacheTtlSeconds() default 3600;
     }
 
     private static final Logger logger = LoggerFactory.getLogger(CheckLinkServlet.class);
@@ -74,6 +79,8 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private volatile String checkerUrl;
     private volatile String checkerToken;
+    private volatile long cacheTtlMs = 3600_000L;
+    private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
     @Activate
     @SuppressWarnings("unused")
@@ -90,6 +97,9 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
     private void setup(final Configuration configuration) {
         checkerUrl = configuration.url();
         checkerToken = configuration.token();
+        int ttl = configuration.cacheTtlSeconds();
+        if (ttl < 0) ttl = 0;
+        cacheTtlMs = ttl * 1000L;
     }
 
     private static final Pattern SCRIPT_TAG_PATTERN = Pattern.compile("<script\\b[^>]*>.*?</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -134,6 +144,27 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
             logger.warn("CheckLink: failed to resolve server addresses", e);
         }
         return addresses;
+    }
+
+    private static final class CacheEntry {
+        final String json;
+        final long timestamp;
+        CacheEntry(final String json, final long timestamp) {
+            this.json = json;
+            this.timestamp = timestamp;
+        }
+    }
+
+    private static final class PlainJsonResponse extends JsonResponse {
+        private final String json;
+        PlainJsonResponse(final String json) throws IOException {
+            super();
+            this.json = json;
+        }
+        @Override
+        public String getContent() throws IOException {
+            return json;
+        }
     }
 
     private static boolean isServerAddress(final String host, final Set<InetAddress> serverAddresses) {
@@ -235,6 +266,14 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
             return new ErrorResponse()
                 .setHttpErrorCode(SC_BAD_REQUEST)
                 .setErrorMessage("No URL provided");
+        }
+
+        final boolean purge = "true".equalsIgnoreCase(request.getParameter("purge"));
+        if (!purge && cacheTtlMs > 0) {
+            final CacheEntry entry = cache.get(urlParam);
+            if (entry != null && (System.currentTimeMillis() - entry.timestamp) < cacheTtlMs) {
+                return new PlainJsonResponse(entry.json);
+            }
         }
 
         final Set<InetAddress> serverAddresses = resolveServerAddresses(request.getRequest());
@@ -454,7 +493,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
                         jsonResponse.writeAttribute("errorPage", true);
                     }
 
-                    return jsonResponse;
+                    return cacheAndWrap(urlParam, jsonResponse);
                 } finally {
                     REQUEST_SEMAPHORE.release();
                 }
@@ -470,6 +509,14 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
                 .writeAttribute("status", 0)
                 .writeAttribute("error", e.getMessage());
         }
+    }
+
+    private Response cacheAndWrap(final String url, final JsonResponse response) throws IOException {
+        final String json = response.getContent();
+        if (cacheTtlMs > 0) {
+            cache.put(url, new CacheEntry(json, System.currentTimeMillis()));
+        }
+        return new PlainJsonResponse(json);
     }
 
     private static String stripScriptTags(final String html) {
@@ -520,7 +567,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
             }
 
             logger.debug("CheckLink: external url={}, checker valid={}, redirected={}, finalUrl={}", url, valid, redirected, finalUrl);
-            return jsonResponse;
+            return cacheAndWrap(url, jsonResponse);
         } catch (final Exception e) {
             logger.warn("CheckLink: checker request failed for url={}", url, e);
             return new JsonResponse()

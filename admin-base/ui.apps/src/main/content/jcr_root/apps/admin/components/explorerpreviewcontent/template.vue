@@ -211,11 +211,14 @@
             <span>Page Check</span>
             <admin-components-materializespinner v-if="isPageCheckSummaryLoading || isVerifyingLinks" class="page-check-spinner"/>
             <span v-else class="page-check-action-icons">
+              <template v-if="pageCheckHasRun">
               <i v-if="currentIssueCount === 0" class="material-icons page-check-action-ok">check_circle</i>
               <span v-else-if="currentIssueCount > 0" class="page-check-action-error">
                 <i class="material-icons">error_outline</i>
                 <span class="page-check-action-count">{{ currentIssueCount }}</span>
               </span>
+              </template>
+              <span v-else><i class="material-icons page-check-action-pending">pending</i></span>
             </span>
           </div>
           <div v-if="isCheckingPublishability" class="action publishability-loading" title="Checking if this page can be published">
@@ -265,22 +268,12 @@
           v-bind:path="currentObject"
           v-bind:node="pageCheckNode"
           v-bind:linkVerificationResults="linkVerificationResults"
+          v-bind:verifying="isVerifyingLinks"
           v-on:complete="closePageCheck"
           v-on:summary="onPageCheckSummary"
           v-on:edit-page-properties="editPagePropertiesFromCheck"
           v-on:reverify-links="verifyLinks"
-          modalTitle="Page Check">
-      </admin-components-pagecheckmodal>
-
-      <admin-components-pagecheckmodal
-          v-if="isPageCheckSummaryLoading && (nodeType === NodeType.PAGE || nodeType === NodeType.TEMPLATE) && pageCheckNode"
-          v-bind:isOpen="false"
-          v-bind:autoOpen="false"
-          v-bind:path="currentObject"
-          v-bind:node="pageCheckNode"
-          v-bind:linkVerificationResults="linkVerificationResults"
-          v-on:summary="onPageCheckSummary"
-          v-on:reverify-links="verifyLinks"
+          v-on:purge-and-reverify="purgeAndReverify"
           modalTitle="Page Check">
       </admin-components-pagecheckmodal>
 
@@ -434,10 +427,6 @@ export default {
     'admin-components-materializespinner': MaterializeSpinner
   },
   props: {
-    model: {
-      type: Object,
-      required: true
-    },
     nodeType: {
       type: String,
       required: true
@@ -481,7 +470,6 @@ export default {
       isPublishDialogOpen: false,
       isPageCheckDialogOpen: false,
       modalVisible: false,
-      selectedPath: null,
       options: {
         validateAfterLoad: true,
         validateAfterChanged: true,
@@ -515,6 +503,8 @@ export default {
       pageCheckSummary: null,
       isPageCheckSummaryLoading: false,
       linkVerificationResults: [],
+      pageCheckHasRun: false,
+      isPurgeRecheck: false,
       isVerifyingLinks: false,
     }
   },
@@ -707,7 +697,6 @@ export default {
       if (tab === 'publishing') {
         this.updateIsReferencedInPublish()
         this.updateIsPublishable()
-        this.startPageCheckSummaryLoad()
       }
     },
     currentObject : function(path) {
@@ -720,7 +709,6 @@ export default {
       if (this.activeTab === 'publishing') {
         this.updateIsReferencedInPublish()
         this.updateIsPublishable()
-        this.startPageCheckSummaryLoad()
       }
       if (this.stateToolsEdit) {
         this.onEdit()
@@ -734,39 +722,13 @@ export default {
     this.activeTab = this.tab
   },
   mounted() {
-    this.path.selected = this.selectedPath
     this.path.current = this.currentPath
     if (this.activeTab === Tab.PUBLISHING) {
       this.updateIsReferencedInPublish()
       this.updateIsPublishable()
-      this.startPageCheckSummaryLoad()
     }
   },
   methods: {
-    itemToTarget(path) {
-      const ret = { path, target: path }
-      const tenant = $perAdminApp.getNodeFromViewOrNull('/state/tenant')
-      if(path.startsWith(`/content/${tenant.name}/pages`)) {
-        ret.path = `/content/admin/pages/pages/edit.html/path:${path}`
-      } else if (path.startsWith(`/content/${tenant.name}/templates`)) {
-        ret.path = `/content/admin/pages/templates/edit.html/path:${path}`
-      } else {
-        const segments = path.split('/')
-        if(segments.length > 0) {
-          segments.pop()
-        }
-        path = segments.join('/')
-        ret.target = path
-        if (path.startsWith(`/content/${tenant.name}/assets`)) {
-          ret.load = ret.path = `/content/admin/pages/assets.html/path:${path}`
-          ret.type = 'ASSET'
-        } else if (path.startsWith(`/content/${tenant.name}/objects`)) {
-          ret.load = ret.path = `/content/admin/pages/objects.html/path:${path}`
-          ret.type = 'OBJECT'
-        }
-      }
-      return ret
-    },
     getSchema(schemaKey) {
       if (!this.node) {
         return null;
@@ -914,6 +876,11 @@ export default {
     },
     openPageCheckModal(){
       this.isPageCheckDialogOpen = true;
+      this.startPageCheckSummaryLoad();
+    },
+    purgeAndReverify() {
+      this.isPurgeRecheck = true;
+      this.startPageCheckSummaryLoad();
     },
     startPageCheckSummaryLoad() {
       if (this.nodeType !== NodeType.PAGE && this.nodeType !== NodeType.TEMPLATE) {
@@ -1017,7 +984,8 @@ export default {
     },
     async verifyLink(urlToCheck) {
       try {
-        const apiUrl = `/extension/check-link?url=${encodeURIComponent(urlToCheck)}`;
+        const purgeParam = this.isPurgeRecheck ? '&purge=true' : '';
+        const apiUrl = `/extension/check-link?url=${encodeURIComponent(urlToCheck)}${purgeParam}`;
         const response = await fetch(apiUrl, { method: 'GET', credentials: 'same-origin' });
         if (response.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
         const data = await response.json();
@@ -1032,16 +1000,32 @@ export default {
       }
     },
     async verifyInternalLink(path) {
-      try {
-        const apiUrl = `/extension/check-link?url=${encodeURIComponent(window.location.origin + path)}`;
-        const response = await fetch(apiUrl, { method: 'GET', credentials: 'same-origin' });
-        if (response.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
-        const data = await response.json();
+      const checkUrl = (p) => {
+        const purgeParam = this.isPurgeRecheck ? '&purge=true' : '';
+        const url = `/extension/check-link?url=${encodeURIComponent(window.location.origin + p)}${purgeParam}`;
+        return fetch(url, { method: 'GET', credentials: 'same-origin' });
+      };
+      const parseResponse = async (resp) => {
+        if (resp.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
+        const data = await resp.json();
         if (data.error) return { ok: false, status: data.status || 0, error: data.error };
         if (data.redirect) {
           return { ok: data.finalOk !== false, status: data.status, redirect: true, redirectUrl: data.redirectUrl, finalUrl: data.finalUrl, finalStatus: data.finalStatus, finalOk: data.finalOk, loginRedirect: data.loginRedirect || false };
         }
         return { ok: data.ok, status: data.status };
+      };
+      try {
+        const response = await checkUrl(path);
+        const result = await parseResponse(response);
+        // Sling serves pages with .html extension. If a bare path returns 403
+        // (login required), 404 (not found), or redirects to login, try
+        // appending .html — the page may still be accessible with the extension.
+        if (!result.ok && (result.status === 403 || result.status === 404 || result.loginRedirect) && !path.endsWith('.html')) {
+          const htmlResponse = await checkUrl(path + '.html');
+          const htmlResult = await parseResponse(htmlResponse);
+          if (htmlResult.ok) return htmlResult;
+        }
+        return result;
       } catch (e) {
         return { ok: false, status: 0, error: 'Failed to verify internal link' };
       }
@@ -1055,6 +1039,7 @@ export default {
     },
     async verifyLinks() {
       if (this.nodeType !== NodeType.PAGE && this.nodeType !== NodeType.TEMPLATE) {
+        this.isPurgeRecheck = false;
         this.isVerifyingLinks = false;
         this.linkVerificationResults = [];
         return;
@@ -1068,10 +1053,12 @@ export default {
         await $perAdminApp.getApi().populatePageView(this.currentObject);
         pageData = get($perAdminApp.getView(), '/pageView/page', null);
       } catch (e) {
+        this.isPurgeRecheck = false;
         this.isVerifyingLinks = false;
         return;
       }
       if (!pageData) {
+        this.isPurgeRecheck = false;
         this.isVerifyingLinks = false;
         return;
       }
@@ -1122,6 +1109,7 @@ export default {
         }
       });
       if (allLinks.length === 0) {
+        this.isPurgeRecheck = false;
         this.isVerifyingLinks = false;
         this.linkVerificationResults = [];
         return;
@@ -1210,6 +1198,8 @@ export default {
         });
       }
       this.linkVerificationResults = newResults;
+      this.pageCheckHasRun = true;
+      this.isPurgeRecheck = false;
       this.isVerifyingLinks = false;
       this.$nextTick(() => {
         this.isPageCheckSummaryLoading = false;
@@ -1233,7 +1223,6 @@ export default {
       }
     },
     closePublishing(){
-      console.log("Close Publishing Modal")
       this.isPublishDialogOpen = false;
     },
     closePageCheck(){
@@ -1349,9 +1338,6 @@ export default {
             noText: 'No',
             yes() {
               $perAdminApp.stateAction('restoreVersion', {path: self.currentObject, versionName: version.name});
-            },
-            no() {
-              console.log('no')
             }
           })
     },
@@ -1647,6 +1633,10 @@ export default {
 .page-check-action-ok {
   color: #2e7d32;
 }
+.page-check-action-pending {
+  font-size: 18px;
+  color: rgba(0, 0, 0, 0.38);
+}
 .page-check-action-error {
   display: inline-flex;
   align-items: center;
@@ -1695,60 +1685,5 @@ export default {
 .info-view-video {
     width: 100%;
     height: 100%;
-}
-
-.explorer-preview .explorer-preview-content.preview-asset .asset-info-view img {
-    max-height: 50vh;
-    height: 100%;
-    width: 100%;
-    object-fit: contain;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-
-    .modal-content {
-        img {
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            min-width: 50vw;
-            min-height: 50vh;
-            max-width: 90vw;
-            max-height: 90vh;
-            display: block;
-            margin: auto;
-        }
-
-        img {
-            pointer-events: none;
-        }
-
-        button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            background-color: white;
-            color: black;
-            border: 2px solid black;
-            border-radius: 100%;
-            aspect-ratio: 1 / 1;
-            align-items: center;
-
-            &:hover, &:focus, &:active {
-                background-color: black;
-                color: white;
-                border: 2px solid white;
-            }
-        }
-    }
 }
 </style>
