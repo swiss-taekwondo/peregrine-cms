@@ -87,7 +87,7 @@
             query: function() {
                 var resObj = this.results
                 fetch('/bin/search?q='+this.querystring+'&page='+this.page).then(res => res.json()).then(function(result) {
-                (window.axiosUses ||= {})['queryTool'] = true
+                    (window.axiosUses = window.axiosUses || {})['queryTool'] = true
                     resObj.data = result.data
                     resObj.pages = result.pages
                     resObj.more = result.more
