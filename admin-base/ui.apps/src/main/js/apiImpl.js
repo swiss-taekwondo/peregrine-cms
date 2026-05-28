@@ -1,3 +1,5 @@
+if (!window.axiosUses) window.axiosUses = {}
+
 /*-
  * #%L
  * admin base - UI Apps
@@ -146,11 +148,12 @@ function getTranslationModel() {
     return Promise.reject(new Error("Could not determine tenant name."))
   }
 
-  return customFetch('/content/' + tenantName + '.json')
+  return fetch('/content/' + tenantName + '.json')
     .then(res => res.json())
     .then(tenantConfig  => {
+    window.axiosUses['getTranslationModel'] = true
       const sourceSite = tenantConfig.sourceSite ? tenantConfig.sourceSite : tenantName
-      return customFetch('/apps/' + sourceSite + '/i18n/model.json').then(res => res.json())
+      return fetch('/apps/' + sourceSite + '/i18n/model.json').then(res => res.json())
     })
 }
 
@@ -161,11 +164,12 @@ function listTranslations(path, model) {
   const formData = new FormData()
   formData.append('model', modelBlob)
 
-  return customFetch('/perapi/admin/listTranslations.json' + path, {
+  return fetch('/perapi/admin/listTranslations.json' + path, {
     method: 'POST',
     body: formData,
   })
     .then(response => {
+    window.axiosUses['listTranslations'] = true
       return response.json()
     })
 }
@@ -234,9 +238,10 @@ function autoTranslate(path, translations, changedProperties = null) {
   }
 
   // Fetch the configured languages dynamically
-  return customFetch('/perapi/admin/translateNode.json')
+  return fetch('/perapi/admin/translateNode.json')
     .then(response => response.json())
     .then(data => {
+    window.axiosUses['autoTranslate'] = true
       const languageMap = (data && data.languageMap) ? data.languageMap : {};
       const languages = Object.keys(languageMap);
 
@@ -256,11 +261,12 @@ function autoTranslate(path, translations, changedProperties = null) {
           formData.append('properties[]', prop)
         })
 
-        const requestPromise = customFetch('/perapi/admin/translateNode.json' + targetNode.path, {
+        const requestPromise = fetch('/perapi/admin/translateNode.json' + targetNode.path, {
           method: 'POST',
           body: formData,
         })
           .then(response => {
+          window.axiosUses['autoTranslate2'] = true
             return response.json()
           })
           .catch(error => {
@@ -308,7 +314,7 @@ function customFetch(path) {
 
 function update(path) {
   logger.fine('Update, path: ', path)
-  return customFetch(API_BASE + path, {
+  return fetch(API_BASE + path, {
     method: 'POST',
     body: null,
   })
@@ -325,7 +331,9 @@ function update(path) {
 
 function updateWithForm(path, data) {
   logger.fine('Update with Form, path: ' + path + ', data: ' + data)
-  return customFetch(API_BASE + path, {
+  window.axiosUses['updateWithForm'] = true
+  return fetch(API_BASE + path, {
+    method: 'POST',
     body: data,
     credentials: 'include',
   })
@@ -377,9 +385,10 @@ function postFormData(url, data, config = null) {
   if (typeof config === 'object') {
     Object.assign(fetchConfig, config);
   }
-  return customFetch(url, fetchConfig)
+  return fetch(url, fetchConfig)
      .then(res => res.json())
      .then((data) => {
+     window.axiosUses['postFormData'] = true
       logger.fine('postFormData, response data: ' + data);
 
       return data;
@@ -489,6 +498,7 @@ function translateFields(fields) {
 }
 
 function fetchRef(service, path, sameTenant = false) {
+	window.axiosUses['fetchRef'] = true
   return customFetch(`/admin/${service}.json${path}?${new URLSearchParams({ sameTenant })}`)
 }
 
@@ -500,6 +510,7 @@ class PerAdminImpl {
   }
 
   populateTools() {
+  window.axiosUses['populateTools'] = true
     return customFetch('/admin/list.json/tools')
         .then((data) => populateView('/admin', 'tools', data.children))
         .catch((error) => {
@@ -509,11 +520,13 @@ class PerAdminImpl {
   }
 
   populateToolsConfig() {
+  window.axiosUses['populateToolsConfig'] = true
     return customFetch('/admin/list.json/tools/config')
         .then((data) => populateView('/admin', 'toolsConfig', data.children))
   }
 
   populateUser() {
+  window.axiosUses['populateUser'] = true
     return customFetch('/admin/access.json?' + (new Date()).getTime())
         .then((data) => {
           return populateView('/state', 'user', data.userID).then(() => {
@@ -534,21 +547,25 @@ class PerAdminImpl {
   }
 
   populateContent(path) {
+  window.axiosUses['populateContent'] = true
     return customFetch('/admin/content.json' + path)
         .then((data) => populateView('/', 'adminPageStaged', data))
   }
 
   populateComponents() {
+  window.axiosUses['populateComponents'] = true
     return customFetch('/admin/components.json')
         .then((data) => populateView('/admin', 'components', data))
   }
 
   populateObjects() {
+  window.axiosUses['populateObjects'] = true
     return customFetch('/admin/objects.json')
         .then((data) => populateView('/admin', 'objects', data))
   }
 
   populateTemplates() {
+  window.axiosUses['populateTemplates'] = true
     return customFetch('/admin/templates.json')
         .then((data) => populateView('/admin', 'templates', data))
   }
@@ -569,11 +586,13 @@ class PerAdminImpl {
   }
 
   populateNodesForBrowser(path, target = 'nodes', includeParents = false) {
+  window.axiosUses['populateNodesForBrowser'] = true
     return customFetch('/admin/nodes.json' + path + '?includeParents=' + includeParents)
         .then((data) => populateView('/admin', target, data))
   }
 
   populateComponentDefinitionFor(component) {
+  window.axiosUses['populateComponentDefinitionFor'] = true
     return customFetch('/admin/components/' + component)
         .then((data) => populateView('/admin/componentDefinitions', component,
             data))
@@ -582,6 +601,7 @@ class PerAdminImpl {
   populateComponentDefinitionFromNode(path) {
     return new Promise((resolve, reject) => {
       var name
+      window.axiosUses['populateComponentDefinitionFromNode'] = true
       customFetch('/admin/componentDefinition.json' + path)
           .then((data) => {
             name = data.name
@@ -598,7 +618,8 @@ class PerAdminImpl {
                 let from = field.valuesFrom
                 if (from) {
                   field.values = []
-                  let promise = customFetch(from).then(res => res.json()).then((data) => {
+                  let promise = fetch(from).then(res => res.json()).then((data) => {
+                  window.axiosUses['populateComponentDefinitionFromNode2'] = true
                     for (var key in data) {
                       if (data[key]['jcr:title']) {
                         const nodeName = key
@@ -683,6 +704,7 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       customFetch('/admin/listTenants.json')
           .then((data) => {
+          window.axiosUses['populateTenants'] = true
             // const state = callbacks.getView().state
             // if (!state.tenant && data.tenants.length > 0) {
             //   $perAdminApp.stateAction('setTenant',
@@ -704,11 +726,13 @@ class PerAdminImpl {
           {})
       tenantName = tenant ? tenant.name : ''
     }
+    window.axiosUses['populateBackupInfo'] = true
     customFetch('/admin/backupTenant.json/content/' + tenantName)
         .then((data) => populateView('/state/tools', 'backup', data))
   }
 
   populatePageView(path) {
+  window.axiosUses['populatePageView'] = true
     return customFetch('/admin/readNode.json' + path)
         .then((data) => populateView('/pageView', 'page', data))
   }
@@ -718,8 +742,10 @@ class PerAdminImpl {
       .then(() => {
         return customFetch('/admin/getObject.json' + path)
           .then(async (data) => {
+          window.axiosUses['populateObject'] = true
             if (!schema) {
               schema = await customFetch('/admin/componentDefinition.json' + path).then((data) => data.model);
+              window.axiosUses['populateObject2'] = true
             }
             if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
               if (data[field.model] && field.multifield && field.serialized) {
@@ -741,6 +767,7 @@ class PerAdminImpl {
   populateReferencedBy(path, sameTenant = false) {
     return fetchRef('refBy', path, sameTenant)
         .then((data) => {
+        window.axiosUses['populateReferencedBy'] = true
           if (sameTenant && data.referencedBy && Array.isArray(data.referencedBy)) {
             data.referencedBy = data.referencedBy.filter(reference => reference.path !== path && !reference.path.includes('/experiences/lang_') && !reference.activated || reference.activated && reference.is_stale)
           }
@@ -753,6 +780,7 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       fetchRef('ref', path, sameTenant)
           .then(function (data) {
+          window.axiosUses['populateReferences'] = true
             if (sameTenant && data.references && Array.isArray(data.references)) {
               data.references = data.references.filter(reference => reference.path !== path && !reference.path.includes('/experiences/lang_') && !reference.activated || reference.activated && reference.is_stale)
 
@@ -779,9 +807,10 @@ class PerAdminImpl {
 
   populateI18N(language) {
     return new Promise((resolve, reject) => {
-      customFetch('/i18n/admin/' + language + '.infinity.json')
+      fetch('/i18n/admin/' + language + '.infinity.json')
           .then(res => res.json())
           .then((data) => {
+          window.axiosUses['populateI18N'] = true
             populateView('/admin/i18n', language, data)
                 .then(() => resolve())
           })
@@ -799,6 +828,7 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       customFetch(`/admin/listRecyclables.json/content/${tenant}?page=${page}`)
           .then(function (result) {
+          window.axiosUses['populateRecyclebin'] = true
             populateView('/admin', 'recyclebin', result)
                 .then(() => resolve())
           })
@@ -814,6 +844,7 @@ class PerAdminImpl {
       return new Promise((resolve, reject) => {
         customFetch(`/admin/listVersions.json${page}`)
             .then(function (result) {
+            window.axiosUses['populateVersions'] = true
               populateView('/state', 'versions', result)
                   .then(() => resolve())
             })
@@ -1297,9 +1328,10 @@ class PerAdminImpl {
   }
 
   fetchExternalImage(path, url, name, config) {
-    return customFetch(url)
+    return fetch(url)
         .then(res => res.blob())
         .then((blob) => {
+        window.axiosUses['fetchExternalImage'] = true
           var data = new FormData()
           data.append(name, blob, name)
 
@@ -1368,13 +1400,14 @@ class PerAdminImpl {
       // Sanitize the target path for backend calls
       const targetNodePath = (path + node.path).replace(/\/\//g, '/');
 
-     customFetch(pagePathToDataPath(path))
+     fetch(pagePathToDataPath(path))
         .then(res => res.json())
         .catch(e => {
           console.warn("Could not fetch current content for diffing", e);
           return {};
         })
         .then((pageViewPage) => {
+        window.axiosUses['savePageEdit'] = true
           let currentData = {};
           try {
             currentData = $perAdminApp.findNodeFromPath(pageViewPage, node.path) || {};
@@ -1539,6 +1572,7 @@ class PerAdminImpl {
           return {};
         })
         .then(currentData => {
+        window.axiosUses['saveObjectEdit'] = true
           // Check if the object has a valid translation reference in the data
           const hasTranslateRef = currentData['per:TranslateRef']
             && currentData['per:TranslateRef'].trim() !== ''
@@ -1734,6 +1768,7 @@ class PerAdminImpl {
               return customFetch(
                   `/admin/listReplicationStatus.json${respData.sourcePath}${lastResource ? `?lastResource=${lastResource}` : ''}`)
                   .then(data => {
+                  window.axiosUses['replicate'] = true
                     if (count++ >= 25) {
                       clearInterval(noticeFunction)
                       $perAdminApp.notifyUser('Error',
@@ -1770,6 +1805,7 @@ class PerAdminImpl {
   getPalettes(templateName) {
     return customFetch(`/admin/nodes.json/content/${templateName}/pages/css/palettes`)
         .then((data) => {
+        window.axiosUses['getPalettes'] = true
           return $perAdminApp.findNodeFromPath(data,
               `/content/${templateName}/pages/css/palettes`)
         }).catch((err) => {
@@ -1780,6 +1816,7 @@ class PerAdminImpl {
   populateIcons(tenant) {
     return customFetch(`/admin/nodes.json/content/${tenant.name}/assets/icons`)
         .then((data) => {
+        window.axiosUses['populateIcons'] = true
           const iconsNode = $perAdminApp.findNodeFromPath(data,
               `/content/${tenant.name}/assets/icons`)
           const icons = iconsNode.children
@@ -1802,6 +1839,7 @@ class PerAdminImpl {
   }
 
   downloadBackupTenant(path) {
+  window.axiosUses['downloadBackupTenant'] = true
     return customFetch('/admin/downloadBackupTenant.zip' + path + '.zip')
   }
 
@@ -1846,10 +1884,12 @@ class PerAdminImpl {
   }
 
   checkTenantNameAvailability(name) {
+  window.axiosUses['checkTenantNameAvailability'] = true
     return customFetch('/admin/tenants/name/available.json?name=' + name)
   }
 
   isReferencedInPublish(path) {
+  window.axiosUses['isReferencedInPublish'] = true
     return customFetch(`/admin/isReferencedInPublish.json${path}`)
   }
 

@@ -295,6 +295,8 @@ function loadContentImpl(path, firstTime, fromPopState, onPage = false) {
         processLoadedContent(JSON.parse(document.getElementById('perPage').innerHTML), path, firstTime, fromPopState)
     } else {
         fetch(dataUrl).then(res => res.json()).then(function (data) {
+        // (window.axiosUses ||= {})['peregrineappVue'] = true
+        window.axiosUses ? window.axiosUses['peregrineappVue'] = true : window.axiosUses = { peregrineappVue: true }
             log.fine('got data for', path)
             if (data.serverSide === true) {
                 document.location = `${data.pagePath}.html`
