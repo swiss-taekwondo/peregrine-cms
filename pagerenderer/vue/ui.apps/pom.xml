@@ -84,6 +84,11 @@
             </resource>
 
             <resource>
+                <directory>${basedir}/src/main/js/axios</directory>
+                <targetPath>etc/felibs/pagerendervue/axios</targetPath>
+            </resource>
+
+            <resource>
                 <directory>${basedir}/node_modules/vue/dist</directory>
                 <targetPath>etc/felibs/pagerendervue/vue</targetPath>
             </resource>
