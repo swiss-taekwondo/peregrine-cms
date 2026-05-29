@@ -147,7 +147,7 @@
         </div>
         <div v-if="isCheckOpen(check.id) && check.id === 'valid-links' && (manualApprovedCount > 0 || manualDisapprovedCount > 0) && (activeTab(check.id) === 'manual-approved' || activeTab(check.id) === 'manual-disapproved')" class="page-check-hint-message page-check-manual-test-banner">
           <i class="material-icons">info_outline</i>
-          <span>{{ check.hint || 'Manually verified links may break at any time. Re-check periodically.' }}</span>
+          <span>Manually verified links may break at any time. Re-check periodically.</span>
         </div>
         <ul v-if="visibleIssues(check).length" class="page-check-issues">
           <li v-for="issue in visibleIssues(check)" v-bind:key="issue.id">
@@ -2536,6 +2536,8 @@ export default {
           if (this.rateLimitedLinks.length > 0) manualParts.push(`${this.rateLimitedLinks.length} rate-limited`);
           hints.push(manualParts.join(', '));
         }
+      }
+      if (totalRedirects > 0) {
         hints.push('Redirects can change at any time and may break links.');
       }
       if (this.redirectChangedCount > 0) {
