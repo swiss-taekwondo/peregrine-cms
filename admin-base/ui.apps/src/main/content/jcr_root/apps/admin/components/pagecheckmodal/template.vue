@@ -154,7 +154,6 @@
             <template v-if="issue.type === 'image-alt'">
               <img v-if="issue.imageValue" v-bind:src="imageSrc(issue.imageValue)" alt=""/>
               <div class="page-check-message">{{ issue.message }}</div>
-              <div class="page-check-location">{{ issue.location }}</div>
               <div class="page-check-guidance">Alt text: {{ issue.altText || 'Missing' }}</div>
               <image-alt-editor
                   :editing-id="editingIssueId"
@@ -170,7 +169,6 @@
             </template>
             <template v-else-if="issue.type === 'broken-link'">
               <div class="page-check-message">{{ issue.message }}</div>
-              <div class="page-check-location">{{ issue.location }}</div>
               <div v-if="issue.linkText" class="page-check-link-text">Link text: {{ issue.linkText }}</div>
               <div class="page-check-guidance">
                 URL: <a :href="issue.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ issue.href }}</a>
@@ -244,7 +242,6 @@
             </template>
             <template v-else>
             <div class="page-check-message">{{ issue.message }}</div>
-            <div class="page-check-location">{{ issue.location }}</div>
             <div v-if="issue.linkText" class="page-check-link-text">Link text: {{ issue.linkText }}</div>
             <div v-if="issue.type === 'html-link' || issue.type === 'link-field'" class="page-check-guidance">
               Link URL: <a :href="issue.guidance" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ issue.guidance }}</a>
@@ -296,7 +293,6 @@
         <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'redirects-incorrect' && redirectsIncorrect.length" class="page-check-issues">
           <li v-for="item in redirectsIncorrect" v-bind:key="item.id">
             <div class="page-check-message">Redirects to: {{ item.finalUrl || item.redirectUrl }}</div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -372,7 +368,6 @@
         <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'redirects-correct' && redirectsCorrect.length" class="page-check-issues">
           <li v-for="item in redirectsCorrect" v-bind:key="item.id">
             <div class="page-check-message">Redirects to: {{ item.finalUrl || item.redirectUrl }}</div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -448,7 +443,6 @@
         <ul v-if="isCheckOpen(check.id) && check.id === 'valid-links' && activeTab(check.id) === 'redirects-unreviewed' && redirectsUnreviewed.length" class="page-check-issues">
           <li v-for="item in redirectsUnreviewed" v-bind:key="item.id">
             <div class="page-check-message">Redirects to: {{ item.finalUrl || item.redirectUrl }}</div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -537,7 +531,6 @@
               <i class="material-icons page-check-disapproved-icon">cancel</i>
               Redirect disapproved
             </div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -623,7 +616,6 @@
           </div>
           <li v-for="item in failedTests" v-bind:key="item.id">
             <div class="page-check-message page-check-checker-error">External link checker is not available</div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -636,7 +628,6 @@
           <li v-for="item in manualTestItems" v-bind:key="item.id">
             <div class="page-check-message" v-if="item.isRateLimited">Rate limited (429)</div>
             <div class="page-check-message" v-else>Login required</div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -723,7 +714,6 @@
               <i class="material-icons page-check-approved-icon">check_circle</i>
               Manually approved
             </div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -804,7 +794,6 @@
               <i class="material-icons page-check-disapproved-icon">cancel</i>
               Manually disapproved
             </div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -885,7 +874,6 @@
               <i class="material-icons page-check-redirect-changed-icon">warning</i>
               Redirect destination changed
             </div>
-            <div class="page-check-location">{{ item.location }}</div>
             <div v-if="item.linkText" class="page-check-link-text">Link text: {{ item.linkText }}</div>
             <div class="page-check-guidance">
               Original URL: <a :href="item.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ item.href }}</a>
@@ -969,7 +957,6 @@
             <template v-if="detail.type === 'image-alt'">
               <img v-if="detail.imageValue" v-bind:src="imageSrc(detail.imageValue)" alt=""/>
               <div class="page-check-message">{{ detail.message }}</div>
-              <div class="page-check-location">{{ detail.location }}</div>
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div class="page-check-guidance">Alt text: {{ detail.altText || 'Missing' }}</div>
               <image-alt-editor
@@ -986,7 +973,6 @@
             </template>
             <template v-else-if="detail.type === 'verified-link'">
               <div class="page-check-message">{{ detail.message }}</div>
-              <div class="page-check-location">{{ detail.location }}</div>
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div class="page-check-guidance">
                 URL: <a :href="detail.href" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ detail.href }}</a>
@@ -1053,7 +1039,6 @@
             </template>
             <template v-else>
               <div class="page-check-message">{{ detail.message }}</div>
-              <div class="page-check-location">{{ detail.location }}</div>
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div v-if="detail.type === 'html-link' || detail.type === 'link-field'" class="page-check-guidance">
                 Link URL: <a :href="detail.guidance" target="_blank" rel="noopener noreferrer" class="page-check-link">{{ detail.guidance }}</a>
@@ -3163,14 +3148,14 @@ export default {
       // If we are already viewing a template, check if the component lives in a
       // different template (e.g. a parent template). If so, navigate there.
       // If the component is directly in the current template, open its editor.
-      const isViewingTemplate = pagePath && pagePath.includes('/templates/');
+      const isViewingTemplate = pagePath && pagePath.startsWith('/content/') && pagePath.includes('/templates/');
       if (isViewingTemplate) {
         if (isTemplateComponent) {
           // Component is inherited from a parent template — navigate there.
           // Peregrine child templates inherit from their parent in the JCR
           // path, so derive the parent template by stripping the last segment.
           const parentTemplatePath = pagePath.substring(0, pagePath.lastIndexOf('/'));
-          if (parentTemplatePath && parentTemplatePath.includes('/templates/')) {
+          if (parentTemplatePath && parentTemplatePath.startsWith('/content/') && parentTemplatePath.includes('/templates/')) {
             this.$emit('complete');
             window.location.href = '/content/admin/pages/templates/edit.html/path:' + parentTemplatePath;
             return;
