@@ -81,7 +81,7 @@
             </resource>
 
             <resource>
-                <directory>${basedir}/node_modules/axios/dist</directory>
+                <directory>${basedir}/src/main/js/axios</directory>
                 <targetPath>etc/felibs/admin/dependencies/axios</targetPath>
             </resource>
 
