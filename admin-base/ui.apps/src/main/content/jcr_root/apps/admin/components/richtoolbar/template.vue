@@ -216,6 +216,7 @@ export default {
 
   data() {
     return {
+      defaultFontSize: null,
       openGroups: {},
       selection: {
         restore: false,
@@ -366,6 +367,7 @@ export default {
   },
 
   mounted() {
+    document.addEventListener('selectionchange', this.setDefaultFontSize)
     this.$nextTick(() => {
       window.addEventListener('resize', this.scheduleDocElDimensionsUpdate)
       this.initResizeObserver()
@@ -485,6 +487,7 @@ export default {
 
   beforeDestroy() {
     window.removeEventListener('resize', this.scheduleDocElDimensionsUpdate)
+    document.removeEventListener('selectionchange', this.setDefaultFontSize)
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
       this._resizeObserver = null
@@ -582,6 +585,16 @@ export default {
   },
 
   methods: {
+    setDefaultFontSize() {
+      const inlineEditingComponent = document.querySelector('#editview')?.contentDocument?.querySelector('.inline-editing')
+      if (inlineEditingComponent) {
+        const fontSizeNr = parseInt(getComputedStyle(inlineEditingComponent).fontSize)
+        if (!isNaN(fontSizeNr)) {
+          this.defaultFontSize = fontSizeNr
+        }
+      }
+    },
+
     initResizeObserver() {
       if (typeof ResizeObserver === 'undefined' || !this.$el) return
 
@@ -887,6 +900,7 @@ export default {
       return h(RichtoolbarFontSize, {
         key,
         props: {
+          defaultFontSize: this.defaultFontSize,
           exec: this.exec,
           isRangeInEditor: this.isRangeInEditor,
           isNodeInEditor: this.isNodeInEditor,

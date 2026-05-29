@@ -227,9 +227,11 @@ export default {
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
       } else if (key === Key.Z && ctrlOrCmd) {
         event.preventDefault()
+        event.stopPropagation()
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
       } else if (key === Key.Y && ctrlOrCmd) {
         event.preventDefault()
+        event.stopPropagation()
         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
     }
     },
