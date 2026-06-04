@@ -218,7 +218,6 @@
                 <span class="page-check-action-count">{{ currentIssueCount }}</span>
               </span>
               </template>
-              <span v-else><i class="material-icons page-check-action-pending">pending</i></span>
             </span>
           </div>
           <div v-if="isCheckingPublishability" class="action publishability-loading" title="Checking if this page can be published">
@@ -267,6 +266,7 @@
           v-bind:isOpen="isPageCheckDialogOpen"
           v-bind:path="currentObject"
           v-bind:node="pageCheckNode"
+          v-bind:nodeType="nodeType"
           v-bind:linkVerificationResults="linkVerificationResults"
           v-bind:verifying="isVerifyingLinks"
           v-on:complete="closePageCheck"
@@ -274,7 +274,7 @@
           v-on:edit-page-properties="editPagePropertiesFromCheck"
           v-on:reverify-links="verifyLinks"
           v-on:purge-and-reverify="purgeAndReverify"
-          modalTitle="Page Check">
+          v-bind:modalTitle="`Page Check: ${nodeName}`">
       </admin-components-pagecheckmodal>
 
       <template v-else-if="isTab(Tab.ACTIONS)">
@@ -511,10 +511,23 @@ export default {
   mixins: [NodeNameValidation,ReferenceUtil],
   computed: {
     brokenLinkCount() {
-      return (this.linkVerificationResults || []).filter(r => !r.ok && !r.redirect).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (r.ok || r.redirect) return false;
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return true;
+      }).length;
     },
     redirectIncorrectCount() {
-      return (this.linkVerificationResults || []).filter(r => r.redirect && !r.finalOk && !r.loginRedirect).length;
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (!r.redirect || !r.finalOk || r.loginRedirect) return false;
+        if (r.finalUrl === r.href || r.finalUrl === r.href + '/') return false;
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return true;
+      }).length;
     },
     currentIssueCount() {
       if (this.pageCheckSummary) return this.pageCheckSummary.issueCount;
@@ -546,8 +559,10 @@ export default {
       return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, this.currentObject);
     },
     pageCheckNode() {
-      const page = get($perAdminApp.getView(), '/pageView/page', null);
-      if (page) {
+      const view = $perAdminApp.getView();
+      const page = get(view, '/pageView/page', null);
+      const pagePath = get(view, '/pageView/path', null);
+      if (page && pagePath === this.currentObject) {
         return page;
       }
       return this.nodeFromPath;
@@ -702,6 +717,7 @@ export default {
     currentObject : function(path) {
       this.pageCheckSummary = null;
       this.isPageCheckSummaryLoading = false;
+      this.pageCheckHasRun = false;
       this.linkVerificationResults = [];
       if (this.activeTab === 'versions') {
         this.showVersions()
@@ -726,6 +742,15 @@ export default {
     if (this.activeTab === Tab.PUBLISHING) {
       this.updateIsReferencedInPublish()
       this.updateIsPublishable()
+    }
+    if (this.isEdit) {
+      const pendingPath = sessionStorage.getItem('pendingComponentPath');
+      if (pendingPath) {
+        sessionStorage.removeItem('pendingComponentPath');
+        this.$nextTick(() => {
+          $perAdminApp.stateAction('editComponent', pendingPath).catch(() => {});
+        });
+      }
     }
   },
   methods: {
@@ -1192,6 +1217,7 @@ export default {
               htmlTag: link.htmlTag || null,
               htmlValue: link.htmlValue || null,
               linkType: link.type || null,
+              fromTemplate: !!(link.saveOwner && link.saveOwner.fromTemplate) || !!(link.owner && link.owner.fromTemplate),
               _totalOccurrences: totalCount
             });
           });
@@ -1513,17 +1539,33 @@ export default {
       this.isPublishabilityChecked = false;
       this.isPublishabilityLoading = true;
       this.publishabilityReason = '';
+      console.warn('[ExplorerPreview] checking publishability', {
+        path,
+        nodeType: this.nodeType
+      });
 
       $perAdminApp.getApi().isPublishable(path)
         .then(data => {
           this.isPublishable = data.result === true;
           this.publishabilityReason = data.reason || '';
+          console.warn('[ExplorerPreview] publishability result', {
+            path,
+            nodeType: this.nodeType,
+            result: this.isPublishable,
+            reason: this.publishabilityReason
+          });
         }).catch(error => {
           this.isPublishable = false;
           this.publishabilityReason = (error && error.response && error.response.data
               && (error.response.data.reason || error.response.data.message))
               || (error && error.message)
               || 'Publishing not possible as there are some errors';
+          console.warn('[ExplorerPreview] publishability failed', {
+            path,
+            nodeType: this.nodeType,
+            reason: this.publishabilityReason,
+            error
+          });
         }).then(() => {
           this.isPublishabilityLoading = false;
           this.isPublishabilityChecked = true;
@@ -1633,10 +1675,6 @@ export default {
 .page-check-action-ok {
   color: #2e7d32;
 }
-.page-check-action-pending {
-  font-size: 18px;
-  color: rgba(0, 0, 0, 0.38);
-}
 .page-check-action-error {
   display: inline-flex;
   align-items: center;
@@ -1675,9 +1713,6 @@ export default {
   display: flex;
   align-items: center;
 }
-</style>
-
-<style scoped>
 .info-view-image {
     cursor: pointer;
 }

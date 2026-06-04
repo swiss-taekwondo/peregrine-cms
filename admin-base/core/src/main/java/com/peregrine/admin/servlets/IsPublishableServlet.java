@@ -1,6 +1,8 @@
 package com.peregrine.admin.servlets;
 
 import com.peregrine.commons.servlets.AbstractBaseServlet;
+import com.peregrine.intra.IntraSlingCaller;
+import com.peregrine.render.RenderService;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.factory.ModelFactory;
 import org.osgi.service.component.annotations.Component;
@@ -37,6 +39,12 @@ public final class IsPublishableServlet extends AbstractBaseServlet {
     @Reference
     private ModelFactory modelFactory;
 
+    @Reference
+    private IntraSlingCaller intraSlingCaller;
+
+    @Reference
+    private RenderService renderService;
+
     @Override
     protected Response handleRequest(final Request request) throws IOException {
         final String path = request.getParameter(PATH);
@@ -63,6 +71,9 @@ public final class IsPublishableServlet extends AbstractBaseServlet {
 
         try {
             ReplicationValidationUtil.validateRenderableContent(renderable, modelFactory);
+            ReplicationValidationUtil.validateRenderableComponentSources(renderable);
+            ReplicationValidationUtil.validateRenderableContent(renderable, renderService);
+            ReplicationValidationUtil.validateRenderablePage(resource, intraSlingCaller);
             return new JsonResponse()
                 .writeAttribute("result", true)
                 .writeAttribute("reason", "");

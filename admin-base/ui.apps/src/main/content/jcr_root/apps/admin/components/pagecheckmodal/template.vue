@@ -29,7 +29,6 @@
         ref="materializemodal"
         class="page-check-modal"
         v-on:complete="$emit('complete',$event)"
-        v-on:ready="onModalReady"
         v-bind:modalTitle="modalTitle">
 
     <div v-if="verifying" class="page-check-loading">
@@ -37,14 +36,39 @@
       <span>Page is being checked...</span>
     </div>
     <template v-else>
-    <div class="page-check-summary" v-bind:class="{'page-check-summary-ok': !hasIssues}">
-      <i class="material-icons">{{ hasIssues ? 'warning' : 'check_circle' }}</i>
-      <span v-if="hasIssues">Fix {{ issueCount }} issue{{ issueCount === 1 ? '' : 's' }} before publishing.</span>
-      <span v-else>All page checks passed.</span>
+    <div class="page-check-summary" v-bind:class="{'page-check-summary-ok': activeIssuesCount === 0}">
+      <i class="material-icons">{{ activeIssuesCount > 0 ? 'warning' : 'check_circle' }}</i>
+      <span v-if="isTemplateCheckMode() && activeIssuesCount > 0">Fix {{ activeIssuesCount }} issue{{ activeIssuesCount === 1 ? '' : 's' }} before publishing.</span>
+      <span v-else-if="isTemplateCheckMode()">All checks passed.</span>
+      <span v-else-if="checkedTab === 'templates' && templateIssuesCount > 0">{{ templateIssuesCount }} template issue{{ templateIssuesCount === 1 ? '' : 's' }} found.</span>
+      <span v-else-if="checkedTab === 'templates'">No template issues found.</span>
+      <span v-else-if="pageIssuesCount > 0">Fix {{ pageIssuesCount }} issue{{ pageIssuesCount === 1 ? '' : 's' }} before publishing.</span>
+      <span v-else-if="checkedTab === 'page'">All page checks passed.</span>
+      <span v-else-if="templateIssuesCount > 0">{{ templateIssuesCount }} template issue{{ templateIssuesCount === 1 ? '' : 's' }} found.</span>
+      <span v-else>No template issues found.</span>
+    </div>
+
+    <div v-if="!isTemplateCheckMode()" class="page-check-top-tabs">
+      <button
+          v-bind:class="{'active': checkedTab === 'page'}"
+          type="button"
+          v-on:click="selectCheckedTab('page')">
+        <i class="material-icons">description</i>
+        Page
+        <span v-if="pageIssuesCount > 0" class="page-check-top-tab-count">{{ pageIssuesCount }}</span>
+      </button>
+      <button
+          v-bind:class="{'active': checkedTab === 'templates'}"
+          type="button"
+          v-on:click="selectCheckedTab('templates')">
+        <i class="material-icons">dashboard</i>
+        Templates
+        <span v-if="templateIssuesCount > 0" class="page-check-top-tab-count">{{ templateIssuesCount }}</span>
+      </button>
     </div>
 
     <ul class="page-check-list">
-      <li v-for="check in checks" v-bind:key="check.id" class="page-check-row">
+      <li v-for="check in activeChecks" v-bind:key="check.id" class="page-check-row">
         <div class="page-check-row-title" v-on:click="toggleCheck(check.id)">
             <span class="left">
                 <i class="material-icons" v-bind:class="{'page-check-icon-ok': checkHasIssues(check) === false}">
@@ -66,7 +90,7 @@
               v-bind:class="{'active': activeTab(check.id) === 'incorrect'}"
               type="button"
               v-on:click.stop="setCheckTab(check.id, 'incorrect')">
-            Incorrect ({{ incorrectCount(check) - redirectIncorrectCount }})
+            Incorrect ({{ incorrectTabCount(check) }})
           </button>
           <button
               v-if="check.id === 'valid-links' && redirectIncorrectCount > 0"
@@ -155,12 +179,21 @@
               <img v-if="issue.imageValue" v-bind:src="imageSrc(issue.imageValue)" alt=""/>
               <div class="page-check-message">{{ issue.message }}</div>
               <div class="page-check-guidance">Alt text: {{ issue.altText || 'Missing' }}</div>
+              <button
+                  v-if="(issue.owner || issue.saveOwner) && !isEditingAlt(issue.id)"
+                  class="waves-effect waves-green btn-flat page-check-edit"
+                  type="button"
+                  v-on:click.stop="goToPageEditorFromIssue(issue)">
+                <i class="material-icons">edit</i>
+                {{ isTemplateEditLocked(issue) ? 'Go to Template' : 'Go to component' }}
+              </button>
               <image-alt-editor
                   :editing-id="editingIssueId"
                   :item-id="issue.id"
                   :has-alt-key="!!issue.altKey"
                   :value="editingAltText"
                   :saving="isSavingAltText"
+                  :is-template="isTemplateEditLocked(issue)"
                   @update:value="editingAltText = $event"
                   @edit="editImageAlt(issue)"
                   @cancel="cancelImageAlt"
@@ -187,7 +220,7 @@
                   :value="editingLinkValue"
                   :saving="isSavingLink"
                   :is-variant="isVariantIssue(issue) || allOccurrencesAreVariants(issue.href)"
-                  :is-template="isTemplateIssue(issue)"
+                  :is-template="isTemplateEditLocked(issue)"
                   @update:value="editingLinkValue = $event"
                   @edit="editLink(issue)"
                   @go-to-component="goToPageEditorFromIssue(issue)"
@@ -208,7 +241,7 @@
                       :value="editingLinkValue"
                       :saving="isSavingLink"
                       :is-variant="isVariantIssue(occ)"
-                      :is-template="isTemplateIssue(occ)"
+                      :is-template="isTemplateEditLocked(occ)"
                       @update:value="editingLinkValue = $event"
                       @edit="editOccurrence(occ, idx)"
                       @go-to-component="goToPageEditorFromIssue(occ)"
@@ -312,7 +345,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -387,7 +420,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -472,7 +505,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -556,7 +589,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -655,7 +688,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -735,7 +768,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -815,7 +848,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -899,7 +932,7 @@
                 :value="editingLinkValue"
                 :saving="isSavingLink"
                 :is-variant="isVariantIssue(item) || allOccurrencesAreVariants(item.href)"
-                :is-template="isTemplateIssue(item)"
+                :is-template="isTemplateEditLocked(item)"
                 @update:value="editingLinkValue = $event"
                 @edit="editLink(item)"
                 @go-to-component="goToPageEditorFromIssue(item)"
@@ -959,12 +992,21 @@
               <div class="page-check-message">{{ detail.message }}</div>
               <div v-if="detail.linkText" class="page-check-link-text">Link text: {{ detail.linkText }}</div>
               <div class="page-check-guidance">Alt text: {{ detail.altText || 'Missing' }}</div>
+              <button
+                  v-if="(detail.owner || detail.saveOwner || detail.location) && !isEditingAlt(detail.id)"
+                  class="waves-effect waves-green btn-flat page-check-edit"
+                  type="button"
+                  v-on:click.stop="goToPageEditorFromIssue(detail)">
+                <i class="material-icons">edit</i>
+                {{ isTemplateEditLocked(detail) ? 'Go to Template' : 'Go to component' }}
+              </button>
               <image-alt-editor
                   :editing-id="editingIssueId"
                   :item-id="detail.id"
                   :has-alt-key="!!detail.altKey"
                   :value="editingAltText"
                   :saving="isSavingAltText"
+                  :is-template="isTemplateEditLocked(detail)"
                   @update:value="editingAltText = $event"
                   @edit="editImageAlt(detail)"
                   @cancel="cancelImageAlt"
@@ -985,7 +1027,7 @@
                   :value="editingLinkValue"
                   :saving="isSavingLink"
                   :is-variant="isVariantIssue(detail) || allOccurrencesAreVariants(detail.href)"
-                  :is-template="isTemplateIssue(detail)"
+                  :is-template="isTemplateEditLocked(detail)"
                 @update:value="editingLinkValue = $event"
                   @edit="editLink(detail)"
                   @go-to-component="goToPageEditorFromIssue(detail)"
@@ -1005,7 +1047,7 @@
                       :value="editingLinkValue"
                       :saving="isSavingLink"
                       :is-variant="isVariantIssue(occ)"
-                      :is-template="isTemplateIssue(occ)"
+                      :is-template="isTemplateEditLocked(occ)"
                 @update:value="editingLinkValue = $event"
                       @edit="editOccurrence(occ, idx)"
                       @go-to-component="goToPageEditorFromIssue(occ)"
@@ -1076,7 +1118,7 @@
                   :value="editingLinkValue"
                   :saving="isSavingLink"
                   :is-variant="isVariantIssue(detail) || allOccurrencesAreVariants(detail.href)"
-                  :is-template="isTemplateIssue(detail)"
+                  :is-template="isTemplateEditLocked(detail)"
                 @update:value="editingLinkValue = $event"
                   @edit="editLink(detail)"
                   @go-to-component="goToPageEditorFromIssue(detail)"
@@ -1088,7 +1130,7 @@
             </template>
           </li>
         </ul>
-        <div v-if="isCheckOpen(check.id) && (!hasTabs(check) || activeTab(check.id) === 'incorrect') && !visibleIssues(check).length" class="page-check-empty-message">
+        <div v-if="isCheckOpen(check.id) && (!hasTabs(check) || activeTab(check.id) === 'incorrect') && !visibleIssues(check).length && !visibleDetails(check).length" class="page-check-empty-message">
           {{ emptyIncorrectMessage(check) }}
         </div>
         <div v-if="isCheckOpen(check.id) && hasTabs(check) && activeTab(check.id) === 'correct' && !visibleDetails(check).length" class="page-check-empty-message">
@@ -1132,17 +1174,16 @@
 </template>
 
 <script>
+import ImageAltEditor from '../imagealteditor/template.vue'
+import LinkEditor from '../linkeditor/template.vue'
 import MaterializeModal from '../materializemodal/template.vue'
 import PathBrowser from '../pathbrowser/template.vue'
-import LinkEditor from '../linkeditor/template.vue'
-import ImageAltEditor from '../imagealteditor/template.vue'
 
 const CHECKS = [
   { id: 'page-title', label: 'Page title' },
   { id: 'page-description', label: 'Page description' },
   { id: 'h1-title', label: 'H1 title' },
   { id: 'image-alt', label: 'Image alt text' },
-  { id: 'empty-links', label: 'No empty links' },
   { id: 'valid-links', label: 'Valid links' }
 ];
 
@@ -1156,15 +1197,18 @@ export default {
   props: [
     'path',
     'node',
+    'nodeType',
     'modalTitle',
     'autoOpen',
     'linkVerificationResults',
     'verifying'
   ],
   data() {
-    return {
-      checks: this.emptyChecks(),
-      editingIssueId: '',
+      return {
+        checks: this.emptyChecks(),
+        checkedTab: 'page',
+        hasChosenTab: false,
+        editingIssueId: '',
       editingAllHref: '',
       editingOccurrencesHref: '',
       editingAltText: '',
@@ -1195,8 +1239,49 @@ export default {
     hasIssues() {
       return this.issueCount > 0;
     },
+    pageIssuesCount() {
+      return this.pageChecks.reduce((sum, c) => sum + c.issues.length, 0);
+    },
+    templateIssuesCount() {
+      return this.templateChecks.reduce((sum, c) => sum + c.issues.length, 0);
+    },
+    templateCheck() {
+      return this.checks.find(c => c.id === 'template-issues') || null;
+    },
+    pageChecks() {
+      return this.checks.filter(c => c.id !== 'template-issues').map(c => Object.assign({}, c, {
+        issues: this.isPageMetadataCheck(c) ? (c.issues || []) : (c.issues || []).filter(i => !this.isIssueFromTemplate(i)),
+        details: this.isPageMetadataCheck(c) ? (c.details || []) : (c.details || []).filter(d => !this.isIssueFromTemplate(d))
+      }));
+    },
+    templateChecks() {
+      const exclude = new Set(['page-title', 'page-description']);
+      const checksToConsider = this.checks.filter(c => c.id !== 'template-issues' && !exclude.has(c.id));
+      const tc = this.templateCheck;
+      return checksToConsider.map(check => {
+        const rechecked = (check.issues || []).filter(i => this.isIssueFromTemplate(i));
+        const recheckedIds = new Set(rechecked.map(i => i.id));
+        const fromTc = tc ? tc.issues.filter(i => i.sourceCheckId === check.id && !recheckedIds.has(i.id)) : [];
+        return Object.assign({}, check, {
+          issues: rechecked.concat(fromTc)
+        });
+      });
+    },
+    templateModeChecks() {
+      const allowed = new Set(['image-alt', 'valid-links']);
+      return this.checks.filter(c => allowed.has(c.id));
+    },
+    activeChecks() {
+      if (this.isTemplateCheckMode()) {
+        return this.templateModeChecks;
+      }
+      return this.checkedTab === 'templates' ? this.templateChecks : this.pageChecks;
+    },
+    activeIssuesCount() {
+      return this.activeChecks.reduce((sum, c) => sum + c.issues.length, 0);
+    },
     warningTotal() {
-      return this.loginRedirectCount + this.rateLimitedLinks.length + this.redirectChangedCount + this.failedTestCount;
+      return this.manualTestCount + this.redirectChangedCount + this.redirectUnreviewedCount;
     },
     redirectIncorrectCount() {
       const seen = {};
@@ -1264,7 +1349,7 @@ export default {
       return this.loginRedirectCount + this.rateLimitedLinks.length;
     },
     manualTestItems() {
-      return [...this.loginRedirects, ...this.rateLimitedLinks];
+      return this.loginRedirects.concat(this.rateLimitedLinks);
     },
     redirectsIncorrect() {
       return this.dedupeResults(
@@ -1388,7 +1473,7 @@ export default {
           href: r.href,
           linkText: r.linkText,
           location: r.location,
-          oldFinalUrl: this.redirectChecks[r.href]?.finalUrl || '',
+          oldFinalUrl: (this.redirectChecks[r.href] && this.redirectChecks[r.href].finalUrl) || '',
           newFinalUrl: r.finalUrl,
           type: 'broken-link',
           owner: r.owner,
@@ -1498,23 +1583,28 @@ export default {
       );
     }
   },
-  async mounted() {
-    await this.loadManualChecks();
-    this.runChecks();
-    await this.populateLinkVerificationResults();
-    if (this.autoOpen !== false) {
-      this.open();
-    }
+  mounted() {
+    this.loadManualChecks()
+      .then(() => this.refreshNodeForChecks())
+      .then(() => {
+        this.runChecks();
+        return this.populateLinkVerificationResults();
+      })
+      .then(() => {
+        if (this.autoOpen !== false) {
+          this.open();
+        }
+      });
   },
   watch: {
     linkVerificationResults: {
-      async handler() {
+      handler() {
         if (this.isReverifyingLinks) {
           this.isReverifyingLinks = false;
           this.runChecks();
         }
-        await this.loadManualChecks();
-        await this.populateLinkVerificationResults();
+        this.loadManualChecks()
+          .then(() => this.populateLinkVerificationResults());
       },
       deep: true
     }
@@ -1526,26 +1616,32 @@ export default {
     close() {
       this.$refs.materializemodal.close();
     },
-    async onModalReady() {
-      if (this.path) {
-        try {
-          const resp = await fetch('/admin/readNode.json' + this.path + '?_=' + Date.now());
-          const data = await resp.json();
-          if (data) {
-            this.refreshedNode = data;
-            this.runChecks();
-          }
-        } catch (e) {
-          // fallback to stale node data
-        }
+    refreshNodeForChecks() {
+      if (!this.path || !this.isPageOrTemplateCheck()) {
+        return Promise.resolve();
       }
+      return $perAdminApp.getApi().populatePageView(this.path)
+        .then(() => {
+          const view = $perAdminApp.getView();
+          const pageViewPage = view && view.pageView && view.pageView.page;
+          if (pageViewPage) {
+            this.refreshedNode = pageViewPage;
+          }
+        })
+        .catch(() => {
+        });
+    },
+    selectCheckedTab(tab) {
+      this.hasChosenTab = true;
+      this.checkedTab = tab;
     },
     isManualTestResult(r) {
       return (r.redirect && r.loginRedirect) ||
              r.status === 429 || r.finalStatus === 429;
     },
-    async loadManualChecks() {
-      try {
+    loadManualChecks() {
+      return new Promise(resolve => {
+        try {
         const page = this.refreshedNode || this.node || {};
         const content = page['jcr:content'] || page;
         const manualStored = content.perManualLinkChecks;
@@ -1568,11 +1664,12 @@ export default {
             Object.keys(parsed).forEach(k => Vue.set(this.redirectChecks, k, parsed[k]));
           }
         }
-        if (Object.keys(this.redirectChecks).length === 0 && view && view.pageView && view.pageView.path) {
-          const pagePath = view.pageView.path;
+        const currentPagePath = this.currentPagePath();
+        if (Object.keys(this.redirectChecks).length === 0 && currentPagePath) {
+          const pagePath = currentPagePath;
           const self = this;
-          try {
-            const resp = await axios.get(pagePath + '/jcr:content.json');
+          return axios.get(pagePath + '/jcr:content.json')
+            .then(resp => {
             if (resp.data && resp.data.perRedirectChecks) {
               const parsed = typeof resp.data.perRedirectChecks === 'string' ? JSON.parse(resp.data.perRedirectChecks) : resp.data.perRedirectChecks;
               Object.keys(parsed).forEach(function(k) { Vue.set(self.redirectChecks, k, parsed[k]); });
@@ -1581,18 +1678,21 @@ export default {
               const manualParsed = typeof resp.data.perManualLinkChecks === 'string' ? JSON.parse(resp.data.perManualLinkChecks) : resp.data.perManualLinkChecks;
               Object.keys(manualParsed).forEach(function(k) { Vue.set(self.manualChecks, k, manualParsed[k]); });
             }
-          } catch (e) {
+            })
+            .catch(() => {
             // fallback fetch failed, will proceed with empty checks
-          }
+            })
+            .then(resolve);
         }
       } catch (e) {
         // error loading checks
       }
+        resolve();
+      });
     },
-    async saveManualChecks() {
-      try {
+    saveManualChecks() {
         const view = $perAdminApp.getView();
-        const pagePath = view && view.pageView ? view.pageView.path : this.path;
+        const pagePath = this.currentPagePath();
         const targetPath = pagePath + '/jcr:content';
         const payload = {
           perManualLinkChecks: JSON.stringify(this.manualChecks),
@@ -1600,7 +1700,8 @@ export default {
         };
         const formData = new FormData();
         formData.append('content', JSON.stringify(payload));
-        const response = await axios.post('/perapi/admin/updateResource.json' + targetPath, formData, { withCredentials: true });
+        return axios.post('/perapi/admin/updateResource.json' + targetPath, formData, { withCredentials: true })
+          .then(response => {
         if (response.status === 200) {
           if (view && view.pageView && view.pageView.page) {
             const pvContent = view.pageView.page['jcr:content'] || view.pageView.page;
@@ -1613,9 +1714,10 @@ export default {
             Vue.set(nodeContent, 'perManualLinkChecks', JSON.stringify(this.manualChecks));
           }
         }
-      } catch (e) {
+          })
+          .catch(e => {
         console.error('[saveManualChecks] failed:', e);
-      }
+          });
     },
     approveManualLink(href) {
       this.isSavingManualCheck = true;
@@ -1641,7 +1743,10 @@ export default {
     },
     approveRedirectChange(href) {
       Vue.set(this.redirectChecks, href, {
-        finalUrl: this.linkVerificationResults.find(r => r.href === href)?.finalUrl || '',
+        finalUrl: (() => {
+          const result = this.linkVerificationResults.find(r => r.href === href);
+          return (result && result.finalUrl) || '';
+        })(),
         timestamp: Date.now()
       });
       this.saveManualChecks().then(() => {
@@ -1725,8 +1830,7 @@ export default {
         if (seen[r.href]) return false;
         seen[r.href] = true;
         return true;
-      }).map(r => ({
-        ...mapFn(r),
+      }).map(r => Object.assign({}, mapFn(r), {
         _totalOccurrences: r._totalOccurrences || (() => {
           const all = this.linkVerificationResults || [];
           const matches = all.filter(x => x.href === r.href);
@@ -1742,7 +1846,7 @@ export default {
       return this.openCheckIds[checkId] === true;
     },
     hasTabs(check) {
-      return check.id === 'image-alt' || check.id === 'empty-links' || check.id === 'valid-links';
+      return check.id === 'image-alt' || check.id === 'valid-links';
     },
     activeTab(checkId) {
       return this.checkTabs[checkId] || 'incorrect';
@@ -1762,8 +1866,17 @@ export default {
       }
       return check.issues.length;
     },
+    incorrectTabCount(check) {
+      if (check.id === 'valid-links') {
+        return this.incorrectCount(check) - this.redirectIncorrectCount;
+      }
+      return this.incorrectCount(check);
+    },
     isBinaryCheck(check) {
       return ['page-title', 'page-description', 'h1-title'].indexOf(check.id) > -1;
+    },
+    isPageMetadataCheck(check) {
+      return check && (check.id === 'page-title' || check.id === 'page-description');
     },
     checkHasIssues(check) {
       return check.issues.length > 0;
@@ -1792,6 +1905,9 @@ export default {
     visibleDetails(check) {
       if (!this.isCheckOpen(check.id)) {
         return [];
+      }
+      if (this.isBinaryCheck(check)) {
+        return check.issues.length ? [] : check.details.filter(detail => detail.correct !== false);
       }
       if (this.hasTabs(check)) {
         if (this.activeTab(check.id) !== 'correct') {
@@ -1862,31 +1978,37 @@ export default {
           }
         } catch (e) { /* ignore */ }
       }
-      const view = $perAdminApp.getView();
-      const pagePath = view && view.pageView ? view.pageView.path : this.path;
-      const nodeToSave = issue.saveOwner || owner;
-      $perAdminApp.getApi().savePageEdit(pagePath, nodeToSave)
+      const pagePath = this.currentPagePath();
+      const nodePath = this.nodePathForIssue(issue, issue.type === 'page-property' ? '/jcr:content' : '');
+      this.saveNodeProperty(pagePath, nodePath, issue.propertyKey, value)
         .then(() => {
           $perAdminApp.toast(`${issue.propertyLabel} saved.`, 'success');
           this.cancelPageProperty();
-          this.refreshedNode = null;
-        }).catch(() => {
-          $perAdminApp.toast(`Unable to save ${issue.propertyLabel}.`, 'error');
-        }).then(() => {
+          return this.refreshPageCheckData(pagePath);
+        })
+        .then(() => {
           this.runChecks();
-          this.isSavingPageProperty = false;
-          if ($perAdminApp.getApi().populatePageView) {
-            $perAdminApp.getApi().populatePageView(pagePath);
-          }
           const parentPath = pagePath.substring(0, pagePath.lastIndexOf('/'));
           if (parentPath) {
             $perAdminApp.getApi().populateNodesForBrowser(parentPath);
           }
+        }).catch((err) => {
+          console.error('[saveTextField] save failed:', err);
+          $perAdminApp.toast(`Unable to save ${issue.propertyLabel}.`, 'error');
+        }).then(() => {
+          this.isSavingPageProperty = false;
         });
     },
     editImageAlt(issue) {
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
       this.editingIssueId = issue.id;
       this.editingAltText = issue.altText || '';
+    },
+    isEditingAlt(issueId) {
+      return this.editingIssueId === issueId;
     },
     cancelImageAlt() {
       this.editingIssueId = '';
@@ -1901,23 +2023,31 @@ export default {
         $perAdminApp.toast('Unable to save alt text for this image.', 'error');
         return;
       }
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        $perAdminApp.toast('Template images must be edited from the template dialog.', 'warn');
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
 
       this.isSavingAltText = true;
       Vue.set(issue.owner, issue.altKey, this.editingAltText);
-      const view = $perAdminApp.getView();
-      const pagePath = view && view.pageView ? view.pageView.path : this.path;
-      const nodeToSave = issue.saveOwner || issue.owner;
+      const pagePath = this.currentPagePath();
+      const nodePath = this.nodePathForIssue(issue, '');
+      if (!nodePath) {
+        $perAdminApp.toast('Unable to save alt text for this image.', 'error');
+        this.isSavingAltText = false;
+        return;
+      }
 
-      $perAdminApp.getApi().savePageEdit(pagePath, nodeToSave)
+      this.saveNodeProperty(pagePath, nodePath, issue.altKey, this.editingAltText)
         .then(() => {
           $perAdminApp.toast('Alt text saved.', 'success');
           this.cancelImageAlt();
+          return this.refreshPageCheckData(pagePath);
+        })
+        .then(() => {
           this.runChecks();
-          this.populateLinkVerificationResults();
           this.emitSummary();
-          if ($perAdminApp.getApi().populatePageView) {
-            $perAdminApp.getApi().populatePageView(pagePath);
-          }
         }).catch(() => {
           $perAdminApp.toast('Unable to save alt text.', 'error');
         }).then(() => {
@@ -1925,7 +2055,12 @@ export default {
         });
     },
     editLink(issue) {
-      if (issue._totalOccurrences > 1) {
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
+      const editableOccurrences = this.occurrencesForHref(issue.href);
+      if (editableOccurrences.length > 1) {
         this.editingAllHref = '';
         this.editingOccurrencesHref = issue.href;
         this.editingLinkValue = issue.value || issue.href || '';
@@ -1945,19 +2080,159 @@ export default {
       const node = item && (item.saveOwner || item.owner);
       return node && this.isExperienceVariantPath(node.path);
     },
+    isIssueFromTemplate(item) {
+      if (!item) return false;
+      if (item.type === 'page-property') return false;
+      if (item.fromTemplate === true) return true;
+      return this.isTemplateIssue(item) || (this.isViewingTemplateDialog() && (item.owner || item.saveOwner));
+    },
     isTemplateIssue(item) {
+      const node = item && (item.saveOwner || item.owner);
+      if (!node) return false;
+      if (node.fromTemplate === true) return true;
+      if (node.fromTemplate === false) return false;
+      if (!node.path) return false;
+      return this.isTemplateComponentPath(node.path);
+    },
+    isViewingTemplateDialog() {
+      const pagePath = this.currentPagePath();
+      return pagePath.indexOf('/templates/') !== -1;
+    },
+    currentPagePath() {
+      const view = $perAdminApp.getView();
+      return this.path
+          || (view && view.pageView && view.pageView.path)
+          || '';
+    },
+    findPageNodeFromPath(pageRoot, path) {
+      if (!pageRoot || !path) {
+        return null;
+      }
+      const pagePath = this.currentPagePath();
+      const candidates = [];
+      function addCandidate(value) {
+        if (value && candidates.indexOf(value) === -1) {
+          candidates.push(value);
+        }
+      }
+      addCandidate(path);
+      if (pagePath && path.indexOf('/jcr:content') === 0) {
+        addCandidate((pagePath + path).replace(/\/\//g, '/'));
+      }
+      if (pagePath && path.indexOf(pagePath + '/jcr:content') === 0) {
+        addCandidate(path.substring(pagePath.length));
+      }
+      for (let i = 0; i < candidates.length; i++) {
+        const node = $perAdminApp.findNodeFromPath(pageRoot, candidates[i]);
+        if (node) {
+          return node;
+        }
+      }
+      function scan(node) {
+        if (!node || typeof node !== 'object') {
+          return null;
+        }
+        if (candidates.indexOf(node.path) !== -1) {
+          return node;
+        }
+        if (Array.isArray(node.children)) {
+          for (let i = 0; i < node.children.length; i++) {
+            const childResult = scan(node.children[i]);
+            if (childResult) {
+              return childResult;
+            }
+          }
+        }
+        return null;
+      }
+      return scan(pageRoot);
+    },
+    refreshPageCheckData(pagePath) {
+      if (!$perAdminApp.getApi().populatePageView || !pagePath) {
+        return Promise.resolve();
+      }
+      return $perAdminApp.getApi().populatePageView(pagePath)
+        .then(() => {
+          const view = $perAdminApp.getView();
+          const pageView = view && view.pageView;
+          if (pageView && pageView.path === pagePath && pageView.page) {
+            this.refreshedNode = pageView.page;
+          }
+        });
+    },
+    nodePathForSave(node, fallbackPath) {
+      if (node && node.path) {
+        return node.path;
+      }
+      return fallbackPath || '';
+    },
+    nodePathForIssue(issue, fallbackPath) {
+      const node = issue && (issue.saveOwner || issue.owner);
+      const nodePath = this.nodePathForSave(node, '');
+      if (nodePath) {
+        return nodePath;
+      }
+      const propertyKey = issue && (issue.propertyKey || issue.altKey || issue.imageKey);
+      const locationPath = this.nodePathFromIssueLocation(issue && issue.location, propertyKey);
+      if (locationPath) {
+        return locationPath;
+      }
+      return fallbackPath || '';
+    },
+    nodePathFromIssueLocation(location, propertyKey) {
+      if (!location) {
+        return '';
+      }
+      let path = String(location).replace(/\s+\([^)]*\)\s*$/, '');
+      if (path.indexOf('/content/') !== 0) {
+        return '';
+      }
+      const key = propertyKey ? String(propertyKey) : '';
+      if (key && path.endsWith('/' + key)) {
+        return path.substring(0, path.length - key.length - 1);
+      }
+      const lastSlash = path.lastIndexOf('/');
+      if (lastSlash > '/content'.length) {
+        return path.substring(0, lastSlash);
+      }
+      return path;
+    },
+    isTemplateCheckMode() {
+      const nodeType = String(this.nodeType || '').toLowerCase();
+      return nodeType === 'template';
+    },
+    isPageOrTemplateCheck() {
+      const nodeType = String(this.nodeType || '').toLowerCase();
+      return nodeType === 'page' || nodeType === 'template';
+    },
+    canEditIssueInCurrentDialog(item) {
+      if (this.isTemplateCheckMode()) return true;
+      if (item && item.fromTemplate === true) return false;
+      return !this.isTemplateIssue(item);
+    },
+    isTemplateEditLocked(item) {
+      if (item && item.type === 'page-property') {
+        return false;
+      }
+      if (this.isTemplateCheckMode()) {
+        return false;
+      }
+      if (!this.isViewingTemplateDialog() && this.checkedTab === 'templates') {
+        return true;
+      }
+      return !this.canEditIssueInCurrentDialog(item);
+    },
+    isTemplateComponentPath(path) {
       const view = $perAdminApp.getView();
       const pageRoot = view && view.pageView && view.pageView.page;
-      if (!pageRoot) return false;
-      const node = item && (item.saveOwner || item.owner);
-      if (!node || !node.path) return false;
+      if (!pageRoot || !path) return false;
       // Extract relative path from full JCR path
-      let componentPath = node.path;
+      let componentPath = path;
       const jcrIdx = componentPath.indexOf('/jcr:content');
       if (jcrIdx !== -1) {
         componentPath = componentPath.substring(jcrIdx);
       } else {
-        const currentPath = view.pageView.path || '';
+        const currentPath = this.currentPagePath();
         if (componentPath.startsWith(currentPath)) {
           componentPath = componentPath.substring(currentPath.length);
         }
@@ -1965,7 +2240,7 @@ export default {
       // Walk up to the nearest component ancestor
       let targetPath = componentPath;
       while (targetPath && targetPath !== '/jcr:content') {
-        const treeNode = $perAdminApp.findNodeFromPath(pageRoot, targetPath);
+        const treeNode = this.findPageNodeFromPath(pageRoot, targetPath);
         if (treeNode && treeNode.component) {
           return !!treeNode.fromTemplate;
         }
@@ -1977,11 +2252,18 @@ export default {
     },
     goToPageEditorFromIssue(issue) {
       const node = issue && (issue.saveOwner || issue.owner);
-      if (node && node.path) {
-        this.goToPageEditor(node.path);
+      const targetPath = (node && node.path) || this.nodePathForIssue(issue, '');
+      if (targetPath) {
+        this.goToPageEditor(targetPath);
+        return;
       }
+      $perAdminApp.toast('Unable to open this component.', 'error');
     },
     openLinkBrowser(issue) {
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
       this.linkBrowserHeader = 'Select Link';
       this.linkBrowserRoot = this.getPagesRoot();
       this.linkBrowserType = this.linkBrowserTypeForIssue(issue);
@@ -2020,6 +2302,11 @@ export default {
         $perAdminApp.toast('Unable to remove this link.', 'error');
         return;
       }
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        $perAdminApp.toast('Template links must be edited from the template dialog.', 'warn');
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
       this.editingIssueId = issue.id;
       this.isSavingLink = true;
 
@@ -2031,17 +2318,25 @@ export default {
         Vue.set(issue.owner, issue.propertyKey, '');
       }
 
-      const view = $perAdminApp.getView();
-      const pagePath = view && view.pageView ? view.pageView.path : this.path;
-      const nodeToSave = issue.saveOwner || issue.owner;
+      const pagePath = this.currentPagePath();
+      const nodePath = this.nodePathForIssue(issue, '');
+      if (!nodePath) {
+        $perAdminApp.toast('Unable to remove this link.', 'error');
+        this.isSavingLink = false;
+        return;
+      }
+      const propertyValue = isHtmlLink
+        ? this.removeHtmlLink(issue.htmlValue, issue.htmlTag)
+        : '';
 
-      $perAdminApp.getApi().savePageEdit(pagePath, nodeToSave)
+      this.saveNodeProperty(pagePath, nodePath, issue.propertyKey, propertyValue)
         .then(() => {
           $perAdminApp.toast('Link removed.', 'success');
           this.cancelLink();
-          if ($perAdminApp.getApi().populatePageView) {
-            $perAdminApp.getApi().populatePageView(pagePath);
-          }
+          return this.refreshPageCheckData(pagePath);
+        })
+        .then(() => {
+          this.runChecks();
           this.isReverifyingLinks = true;
           this.$emit('reverify-links');
         }).catch(() => {
@@ -2062,6 +2357,11 @@ export default {
         $perAdminApp.toast('Unable to save this link.', 'error');
         return;
       }
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        $perAdminApp.toast('Template links must be edited from the template dialog.', 'warn');
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
 
       const nodeToSave = issue.saveOwner || issue.owner;
       if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) {
@@ -2077,13 +2377,18 @@ export default {
       } else {
         Vue.set(issue.owner, issue.propertyKey, this.editingLinkValue);
       }
-      const view = $perAdminApp.getView();
-      const pagePath = view && view.pageView ? view.pageView.path : this.path;
+      const pagePath = this.currentPagePath();
 
       const propertyValue = isHtmlLink
         ? this.updateHtmlLinkHref(issue.htmlValue, issue.htmlTag, this.editingLinkValue)
         : this.editingLinkValue;
-      this.saveNodeProperty(pagePath, nodeToSave.path, issue.propertyKey, propertyValue)
+      const nodePath = this.nodePathForIssue(issue, '');
+      if (!nodePath) {
+        $perAdminApp.toast('Unable to save this link.', 'error');
+        this.isSavingLink = false;
+        return;
+      }
+      this.saveNodeProperty(pagePath, nodePath, issue.propertyKey, propertyValue)
         .then(() => {
           $perAdminApp.toast('Link saved.', 'success');
           // Update local issue so dialog reflects new value immediately
@@ -2094,6 +2399,10 @@ export default {
             issue.htmlValue = this.updateHtmlLinkHref(issue.htmlValue, issue.htmlTag, newValue);
           }
           this.cancelLink();
+          return this.refreshPageCheckData(pagePath);
+        })
+        .then(() => {
+          this.runChecks();
           // Refresh the page data and re-verify so the check reflects the saved link
           this.isReverifyingLinks = true;
           this.$emit('reverify-links');
@@ -2113,10 +2422,20 @@ export default {
       });
     },
     showEditAll(issue) {
-      if (issue._totalOccurrences <= 1) return false;
+      if (!this.isTemplateCheckMode() && this.checkedTab === 'templates') return false;
+      if (!this.canEditIssueInCurrentDialog(issue)) return false;
+      if (this.occurrencesForHref(issue.href).length <= 1) return false;
       return !this.allOccurrencesAreVariants(issue.href);
     },
     editAllLinks(issue) {
+      if (!this.isTemplateCheckMode() && this.checkedTab === 'templates') {
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
+      if (!this.canEditIssueInCurrentDialog(issue)) {
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
       this.editingLinkValue = issue.value || issue.href || '';
       this.editingAllHref = issue.href;
     },
@@ -2156,7 +2475,8 @@ export default {
         type: occ.linkType === 'html-link' ? 'html-link' : 'link-field',
         location: occ.location,
         path: occ.path,
-        linkText: occ.linkText
+        linkText: occ.linkText,
+        fromTemplate: occ.fromTemplate
       };
     },
     _showOccurrencePicker(issue) {
@@ -2170,9 +2490,16 @@ export default {
       this.editingIssueId = '';
     },
     occurrencesForHref(href) {
-      return (this.linkVerificationResults || []).filter(r => r.href === href && r.owner && r.propertyKey);
+      return (this.linkVerificationResults || []).filter(r => {
+        return r.href === href && r.owner && r.propertyKey && this.canEditIssueInCurrentDialog(r);
+      });
     },
-    async saveAllLinks(issue) {
+    saveAllLinks(issue) {
+      if (!this.isTemplateCheckMode() && this.checkedTab === 'templates') {
+        $perAdminApp.toast('Template links must be edited from the template dialog.', 'warn');
+        this.goToPageEditorFromIssue(issue);
+        return;
+      }
       if (this.isEmptyHref(this.editingLinkValue)) {
         $perAdminApp.toast('Please enter a valid URL.', 'warn');
         return;
@@ -2198,7 +2525,8 @@ export default {
       const newValue = this.editingLinkValue;
       const savedNodes = [];
       let variantCount = 0;
-      for (const occ of issues) {
+      for (let issueIndex = 0; issueIndex < issues.length; issueIndex++) {
+        const occ = issues[issueIndex];
         const nodeToSave = occ.saveOwner || occ.owner;
         if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) {
           variantCount++;
@@ -2225,21 +2553,28 @@ export default {
         this.goToPageEditor(variantPath);
         return;
       }
-      const view = $perAdminApp.getView();
-      const pagePath = view && view.pageView ? view.pageView.path : this.path;
-      try {
-        // Save each non-variant occurrence individually with minimal payload
-        for (const occ of issues) {
+      const pagePath = this.currentPagePath();
+      const saveTasks = issues.reduce((promise, occ) => {
+        return promise.then(() => {
           const nodeToSave = occ.saveOwner || occ.owner;
-          if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) continue;
+          if (nodeToSave && this.isExperienceVariantPath(nodeToSave.path)) {
+            return Promise.resolve();
+          }
           const isHtmlLink = occ.linkType === 'html-link';
           const propertyValue = isHtmlLink
             ? this.replaceAllHtmlLinkHrefs(occ.htmlValue, href, newValue)
-            : newValue;
-          await this.saveNodeProperty(pagePath, nodeToSave.path, occ.propertyKey, propertyValue);
-        }
+              : newValue;
+          const nodePath = this.nodePathForIssue(occ, '');
+          if (!nodePath) {
+            return Promise.reject(new Error('Unable to resolve link save target'));
+          }
+          return this.saveNodeProperty(pagePath, nodePath, occ.propertyKey, propertyValue);
+        });
+      }, Promise.resolve());
+      return saveTasks.then(() => {
         // Update local occurrence values so dialog reflects new values immediately
-        for (const occ of allIssues) {
+        for (let issueIndex = 0; issueIndex < allIssues.length; issueIndex++) {
+          const occ = allIssues[issueIndex];
           occ.value = newValue;
           occ.href = newValue;
           if (occ.htmlValue) {
@@ -2254,13 +2589,17 @@ export default {
         }
         this.cancelLink();
         this.editingAllHref = '';
+        return this.refreshPageCheckData(pagePath);
+      }).then(() => {
+        this.runChecks();
         // Refresh the page data and re-verify so the check reflects the saved links
         this.isReverifyingLinks = true;
         this.$emit('reverify-links');
-      } catch (e) {
+      }).catch(() => {
         $perAdminApp.toast('Unable to save all links.', 'error');
-      }
-      this.isSavingLink = false;
+      }).then(() => {
+        this.isSavingLink = false;
+      });
     },
     linkBrowserTypeForIssue() {
       return 'Page';
@@ -2350,13 +2689,13 @@ export default {
           this.path
         );
       } catch (e) { /* ignore */ }
-      const pageTitle = this.firstValue(
-        [adminNode, content, page],
+      const pageTitle = this.firstNonBlankValue(
+        [content, page, adminNode],
         ['jcr:title', 'title']
       );
-      const pageDescription = this.firstValue(
-        [adminNode, content, page],
-        ['description']
+      const pageDescription = this.firstNonBlankValue(
+        [content, page, adminNode],
+        ['description', 'jcr:description']
       );
 
       if (this.isBlank(pageTitle)) {
@@ -2400,8 +2739,9 @@ export default {
       this.checkH1(records);
       this.checkImages(records);
       this.checkLinks(records);
+      this.applyDefaultTabSelection();
     },
-    async populateLinkVerificationResults() {
+    populateLinkVerificationResults() {
       const validLinksCheck = this.checks.find(c => c.id === 'valid-links');
       if (validLinksCheck) {
         validLinksCheck.issues = [];
@@ -2413,8 +2753,9 @@ export default {
         if (r.redirect || this.isManualTestResult(r)) {
           return;
         }
-        if (seen[r.href]) return;
-        seen[r.href] = true;
+        const seenKey = `${r.href}|${this.isIssueFromTemplate(r) ? 'template' : 'page'}`;
+        if (seen[seenKey]) return;
+        seen[seenKey] = true;
         if (!r.ok) {
           this.addIssue(
               'valid-links',
@@ -2438,6 +2779,7 @@ export default {
                 htmlValue: r.htmlValue,
                 linkType: r.linkType,
                 _totalOccurrences: r._totalOccurrences,
+                fromTemplate: r.fromTemplate,
                 correct: false
               }
           );
@@ -2459,7 +2801,8 @@ export default {
                 htmlTag: r.htmlTag,
                 htmlValue: r.htmlValue,
                 linkType: r.linkType,
-                _totalOccurrences: r._totalOccurrences
+                _totalOccurrences: r._totalOccurrences,
+                fromTemplate: r.fromTemplate
               }
           );
         }
@@ -2485,6 +2828,7 @@ export default {
               htmlTag: r.htmlTag,
               htmlValue: r.htmlValue,
               linkType: r.linkType,
+              fromTemplate: r.fromTemplate,
               correct: false
             }
         );
@@ -2506,6 +2850,7 @@ export default {
               htmlTag: r.htmlTag,
               htmlValue: r.htmlValue,
               linkType: r.linkType,
+              fromTemplate: r.fromTemplate,
               correct: false
             }
         );
@@ -2522,8 +2867,11 @@ export default {
       });
       this.emitSummary();
       if (hasNewRedirects) {
-        await this.saveManualChecks();
+        return this.saveManualChecks().then(() => this.finishLinkVerificationUpdate(validLinksCheck, results));
       }
+      return this.finishLinkVerificationUpdate(validLinksCheck, results);
+    },
+    finishLinkVerificationUpdate(validLinksCheck, results) {
       const totalRedirects = this.redirectIncorrectCount + this.redirectCorrectCount + this.redirectUnreviewedCount + this.redirectDisapprovedCount + this.loginRedirectCount;
       const hints = [];
       if (totalRedirects > 0 || this.rateLimitedLinks.length > 0) {
@@ -2553,6 +2901,18 @@ export default {
         validLinksCheck.hint = hints.join(' ');
       }
       this.autoSwitchToCorrectIfEmpty();
+      this.applyDefaultTabSelection();
+      return Promise.resolve();
+    },
+    applyDefaultTabSelection() {
+      if (this.hasChosenTab) {
+        return;
+      }
+      if (this.pageIssuesCount === 0 && this.templateIssuesCount > 0) {
+        this.checkedTab = 'templates';
+      } else if (this.pageIssuesCount > 0) {
+        this.checkedTab = 'page';
+      }
     },
     autoSwitchToCorrectIfEmpty() {
       // Only auto-switch when link verification has actually run
@@ -2571,7 +2931,9 @@ export default {
     },
     emitSummary() {
       this.$emit('summary', {
-        issueCount: this.issueCount,
+        issueCount: this.isTemplateCheckMode() ? this.activeIssuesCount : this.pageIssuesCount,
+        templateIssueCount: this.templateIssuesCount,
+        totalIssueCount: this.issueCount,
         hasIssues: this.hasIssues,
         warningCount: this.loginRedirectCount + this.rateLimitedLinks.length + this.redirectChangedCount
       });
@@ -2601,7 +2963,8 @@ export default {
               path: record.path,
               htmlSource: true,
               htmlTag: tag,
-              htmlValue: record.value
+              htmlValue: record.value,
+              fromTemplate: record.fromTemplate
             });
           });
         }
@@ -2625,7 +2988,8 @@ export default {
               value: record.owner[titleKey],
               owner: record.owner,
               saveOwner: record.saveOwner,
-              path: record.path
+              path: record.path,
+              fromTemplate: record.fromTemplate
             });
           }
         }
@@ -2647,7 +3011,8 @@ export default {
               propertyLabel: 'H1 title',
               value: h1.value,
               htmlTag: h1.htmlTag,
-              htmlValue: h1.htmlValue
+              htmlValue: h1.htmlValue,
+              fromTemplate: h1.fromTemplate
             }
         );
       });
@@ -2667,17 +3032,41 @@ export default {
       }
     },
     checkImages(records) {
-      const seen = {};
+      const seenKeys = {};
+      const seenSrcs = {};
+      const reportImage = (src, location, message, guidance, meta) => {
+        const srcKey = `${src || ''}|${meta && meta.fromTemplate ? 'template' : 'page'}`;
+        if (src && seenSrcs[srcKey]) {
+          return false;
+        }
+        if (src) {
+          seenSrcs[srcKey] = true;
+        }
+        this.addIssue('image-alt', message, location, guidance, meta);
+        return true;
+      };
       records.forEach(record => {
         if (typeof record.value === 'string') {
           this.findHtmlTags(record.value, 'img').forEach(tag => {
             const alt = this.getHtmlAttribute(tag, 'alt');
-            if (this.isBlank(alt)) {
-              this.addIssue(
-                  'image-alt',
-                  'An image tag has no alt text.',
-                  `${record.path}/${record.key}`,
-                  'Edit the image or rich text content and provide meaningful alt text.'
+            const src = this.getHtmlAttribute(tag, 'src');
+            if (this.isBlank(alt) && this.looksLikeImageField({ key: 'src', value: src })) {
+              reportImage(
+                src,
+                src ? `${record.path}/${record.key} (${src})` : `${record.path}/${record.key}`,
+                'An image tag has no alt text.',
+                'Edit the image or rich text content and provide meaningful alt text.',
+                {
+                  type: 'image-alt',
+                  owner: record.owner,
+                  saveOwner: record.saveOwner,
+                  propertyKey: record.key,
+                  htmlTag: tag,
+                  htmlValue: record.value,
+                  imageValue: src,
+                  fromTemplate: record.fromTemplate,
+                  correct: false
+                }
               );
             }
           });
@@ -2688,10 +3077,16 @@ export default {
         }
 
         const imageKey = `${record.path}/${record.key}`;
-        if (seen[imageKey]) {
+        const src = String(record.value);
+        if (seenKeys[imageKey]) {
           return;
         }
-        seen[imageKey] = true;
+        const srcKey = `${src}|${record.fromTemplate ? 'template' : 'page'}`;
+        if (seenSrcs[srcKey]) {
+          return;
+        }
+        seenKeys[imageKey] = true;
+        seenSrcs[srcKey] = true;
 
         const alt = this.findAltTextInfo(record.owner, record.key);
         const imageMeta = {
@@ -2702,6 +3097,7 @@ export default {
           imageValue: record.value,
           altKey: alt.key,
           altText: alt.value,
+          fromTemplate: record.fromTemplate,
           correct: !this.isBlank(alt.value)
         };
         this.addDetail(
@@ -2730,21 +3126,28 @@ export default {
               const href = this.getHtmlAttribute(tag, 'href');
               const location = `${record.path}/${record.key}`;
               const linkText = this.linkTextFromHtml(tag);
+              const linkMeta = this.htmlLinkMeta(record, tag, href, linkText);
               if (this.isEmptyHref(href)) {
                 this.addIssue(
-                    'empty-links',
+                    'valid-links',
                     'A link has an empty href.',
                     location,
                     'Provide a valid destination, or remove the link.',
-                    this.htmlLinkMeta(record, tag, href, linkText)
+                    Object.assign({}, linkMeta, {
+                      type: 'broken-link',
+                      correct: false
+                    })
                 );
               } else {
                 this.addDetail(
-                    'empty-links',
+                    'valid-links',
                     'Link found',
                     location,
                     href,
-                    this.htmlLinkMeta(record, tag, href, linkText)
+                    Object.assign({}, linkMeta, {
+                      type: 'verified-link',
+                      correct: true
+                    })
                 );
               }
             });
@@ -2756,19 +3159,25 @@ export default {
           const linkMeta = this.linkFieldMeta(record, linkKey, href);
           if (this.isEmptyHref(href)) {
             this.addIssue(
-                'empty-links',
+                'valid-links',
                 'A component is configured as a link without a destination.',
                 record.path,
                 'Provide a valid destination, or change the HTML element.',
-                linkMeta
+                Object.assign({}, linkMeta, {
+                  type: 'broken-link',
+                  correct: false
+                })
             );
           } else {
             this.addDetail(
-                'empty-links',
+                'valid-links',
                 'Component link found',
                 record.path,
                 href,
-                linkMeta
+                Object.assign({}, linkMeta, {
+                  type: 'verified-link',
+                  correct: true
+                })
             );
           }
         }
@@ -2782,19 +3191,25 @@ export default {
           const linkMeta = this.linkFieldMeta(record, record.key, record.value);
           if (this.isEmptyHref(record.value)) {
             this.addIssue(
-                'empty-links',
+                'valid-links',
                 `Link field "${record.key}" is empty.`,
                 key,
                 'Provide a valid destination, or remove the linked item.',
-                linkMeta
+                Object.assign({}, linkMeta, {
+                  type: 'broken-link',
+                  correct: false
+                })
             );
           } else {
             this.addDetail(
-                'empty-links',
+                'valid-links',
                 `Link field "${record.key}"`,
                 key,
                 String(record.value),
-                linkMeta
+                Object.assign({}, linkMeta, {
+                  type: 'verified-link',
+                  correct: true
+                })
             );
           }
         }
@@ -2820,6 +3235,14 @@ export default {
       const nextAncestors = ancestors.slice();
       nextAncestors.push(value);
       const currentSaveOwner = value.path ? value : saveOwner;
+      let currentFromTemplate = null;
+      if (typeof value.fromTemplate === 'boolean') {
+        currentFromTemplate = value.fromTemplate;
+      } else if (currentSaveOwner && typeof currentSaveOwner.fromTemplate === 'boolean') {
+        currentFromTemplate = currentSaveOwner.fromTemplate;
+      } else {
+        currentFromTemplate = this.isTemplateComponentPath(path);
+      }
       Object.keys(value).forEach(key => {
         const item = value[key];
         if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
@@ -2828,7 +3251,8 @@ export default {
             value: item,
             owner: value,
             saveOwner: currentSaveOwner,
-            path
+            path,
+            fromTemplate: currentFromTemplate
           });
         } else {
           const childPath = item && item.path ? item.path : `${path}/${key}`;
@@ -2847,8 +3271,21 @@ export default {
       }
       return null;
     },
+    firstNonBlankValue(objects, keys) {
+      for (let i = 0; i < objects.length; i++) {
+        const object = objects[i];
+        for (let j = 0; j < keys.length; j++) {
+          if (object && object[keys[j]] !== undefined && object[keys[j]] !== null && !this.isBlank(object[keys[j]])) {
+            return object[keys[j]];
+          }
+        }
+      }
+      return null;
+    },
     firstTextValue(node) {
-      for (const key of Object.keys(node || {})) {
+      const keys = Object.keys(node || {});
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
         const lower = key.toLowerCase();
         if ((lower.endsWith('label') || lower.endsWith('text') || lower === 'title')
             && node[key] !== undefined && node[key] !== null) {
@@ -2885,7 +3322,8 @@ export default {
         editable: editable && !!propertyKey,
         location: record.path || this.path,
         htmlTag: record.htmlTag,
-        htmlValue: record.htmlValue
+        htmlValue: record.htmlValue,
+        fromTemplate: record.fromTemplate
       };
     },
     replaceHtmlTagText(html, tag, text) {
@@ -2946,6 +3384,9 @@ export default {
       if (key.indexOf('alt') > -1 || key.indexOf('title') > -1) {
         return false;
       }
+      if (this.isMetadataImageField(record)) {
+        return false;
+      }
       const value = String(record.value);
       const imageKey = key.endsWith('image') || key.endsWith('img') || key.endsWith('logo')
           || key.endsWith('icon') || key.endsWith('src') || key === 'filereference';
@@ -2953,6 +3394,32 @@ export default {
           || /^https?:\/\//i.test(value)
           || /\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(value);
       return imageKey && imageValue;
+    },
+    isMetadataImageField(record) {
+      const key = String(record.key || '').toLowerCase();
+      const normalizedKey = key.replace(/[^a-z0-9]/g, '');
+      const path = String(record.path || '').toLowerCase();
+      const normalizedPath = path.replace(/[^a-z0-9]/g, '');
+      const metadataImageKeys = [
+        'absogimage',
+        'ogimage',
+        'ogimagepath',
+        'twitterimage',
+        'twitterimagepath',
+        'facebookimage',
+        'socialimage',
+        'shareimage',
+        'favicon',
+        'appletouchicon'
+      ];
+      if (metadataImageKeys.indexOf(normalizedKey) > -1) {
+        return true;
+      }
+      return normalizedPath.indexOf('ogtags') > -1
+          || normalizedPath.indexOf('opengraph') > -1
+          || normalizedPath.indexOf('twittercard') > -1
+          || normalizedPath.indexOf('socialmeta') > -1
+          || normalizedPath.indexOf('metadata') > -1;
     },
     isShowTitleH1(owner) {
       if (!owner) {
@@ -2975,7 +3442,9 @@ export default {
       return value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://');
     },
     findLinkKey(owner) {
-      for (const key of Object.keys(owner || {})) {
+      const keys = Object.keys(owner || {});
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
         const lower = key.toLowerCase();
         if ((lower.endsWith('link') || lower.endsWith('url') || lower === 'href')
             && typeof owner[key] === 'string') {
@@ -2993,6 +3462,7 @@ export default {
         propertyLabel: 'Link',
         value,
         linkText: this.linkTextFromStructuredLink(record.owner, propertyKey),
+        fromTemplate: record.fromTemplate,
         correct: !this.isEmptyHref(value)
       };
     },
@@ -3007,6 +3477,7 @@ export default {
         linkText: linkText || this.linkTextFromHtml(tag),
         htmlTag: tag,
         htmlValue: record.value,
+        fromTemplate: record.fromTemplate,
         correct: !this.isEmptyHref(value)
       };
     },
@@ -3060,14 +3531,82 @@ export default {
           };
         }
       }
+      const preferredKey = this.preferredAltTextKey(key);
+      if (preferredKey) {
+        return {
+          key: preferredKey,
+          value: ''
+        };
+      }
       return {
         key: candidates[0],
         value: ''
       };
     },
+    preferredAltTextKey(key) {
+      const lowerKey = String(key || '').toLowerCase();
+      const baseKey = this.altTextBaseKey(lowerKey);
+      if (baseKey === 'image' || baseKey.endsWith('image')) return `${baseKey}alttext`;
+      if (baseKey === 'logo' || baseKey.endsWith('logo')) return `${baseKey}alttext`;
+      if (baseKey === 'icon' || baseKey.endsWith('icon')) return `${baseKey}alttext`;
+      return '';
+    },
+    altTextBaseKey(key) {
+      let baseKey = String(key || '').toLowerCase();
+      const suffixes = ['filereference', 'fileReference', 'src', 'path', 'url'];
+      for (let i = 0; i < suffixes.length; i++) {
+        const suffix = String(suffixes[i]).toLowerCase();
+        if (baseKey === suffix && (suffix === 'filereference' || suffix === 'src' || suffix === 'path' || suffix === 'url')) {
+          return 'image';
+        }
+        if (baseKey.endsWith(suffix) && baseKey.length > suffix.length) {
+          baseKey = baseKey.substring(0, baseKey.length - suffix.length);
+          break;
+        }
+      }
+      if (baseKey === 'img') return 'image';
+      return baseKey;
+    },
     altTextCandidates(key) {
-      const lowerKey = String(key).toLowerCase();
-      return ['alt', 'alttext', 'altText', `${lowerKey}alttext`, `${lowerKey}AltText`, `${lowerKey}Alt`];
+      const originalKey = String(key || '').toLowerCase();
+      const lowerKey = this.altTextBaseKey(originalKey);
+      if (originalKey.endsWith('src')) {
+        return [
+          'mediatitle',
+          'mediaTitle',
+          `${lowerKey}alttext`,
+          `${lowerKey}AltText`,
+          `${lowerKey}Alt`,
+          `${lowerKey}alt`,
+          'alttext',
+          'altText',
+          'alt'
+        ];
+      }
+      if (originalKey.endsWith('path')) {
+        return [
+          'alt',
+          `${lowerKey}alttext`,
+          `${lowerKey}AltText`,
+          `${lowerKey}Alt`,
+          `${lowerKey}alt`,
+          'mediatitle',
+          'mediaTitle',
+          'alttext',
+          'altText'
+        ];
+      }
+      return [
+        `${lowerKey}alttext`,
+        `${lowerKey}AltText`,
+        `${lowerKey}Alt`,
+        `${lowerKey}alt`,
+        'mediatitle',
+        'mediaTitle',
+        'alttext',
+        'altText',
+        'alt'
+      ];
     },
     isEmptyHref(href) {
       if (href === undefined || href === null) {
@@ -3081,10 +3620,10 @@ export default {
     },
     goToPageEditor(variantPath) {
       const view = $perAdminApp.getView();
-      const pagePath = (view && view.pageView && view.pageView.path)
-        || (view && view.state && view.state.tools && view.state.tools.page)
-        || this.path;
+      const pagePath = this.currentPagePath()
+        || (view && view.state && view.state.tools && view.state.tools.page);
       if (!pagePath) {
+        $perAdminApp.toast('Unable to open this component.', 'error');
         return;
       }
 
@@ -3119,6 +3658,15 @@ export default {
         // Materialize may leave modal overlays behind during rapid navigation
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       }
+      const closeModalAndThen = (next) => {
+        this.close();
+        setTimeout(() => {
+          forceCleanup();
+          if (next) {
+            next();
+          }
+        }, 350);
+      };
 
       // Walk up to the nearest component ancestor that has a dialog.
       // Structural children (e.g. columns/n159...) don't have their own
@@ -3126,7 +3674,7 @@ export default {
       let targetPath = componentPath;
       const pageRoot = view.pageView ? view.pageView.page : null;
       while (targetPath && targetPath !== '/jcr:content' && pageRoot) {
-        const node = $perAdminApp.findNodeFromPath(pageRoot, targetPath);
+        const node = this.findPageNodeFromPath(pageRoot, targetPath);
         if (node && node.component) {
           break;
         }
@@ -3137,15 +3685,15 @@ export default {
       }
 
       if (!targetPath || targetPath === '/jcr:content') {
-        this.close();
-        this.$emit('complete');
-        forceCleanup();
+        $perAdminApp.toast('Unable to open this component.', 'error');
+        closeModalAndThen();
         return;
       }
 
-      const node = pageRoot ? $perAdminApp.findNodeFromPath(pageRoot, targetPath) : null;
+      const node = pageRoot ? this.findPageNodeFromPath(pageRoot, targetPath) : null;
       const isTemplateComponent = node && node.fromTemplate;
       const templatePath = isTemplateComponent ? (pageRoot && pageRoot.template) : null;
+      const isOnEditRoute = window.location.pathname.indexOf('/edit.html') !== -1;
 
       // If we are already viewing a template, check if the component lives in a
       // different template (e.g. a parent template). If so, navigate there.
@@ -3158,28 +3706,22 @@ export default {
           // path, so derive the parent template by stripping the last segment.
           const parentTemplatePath = pagePath.substring(0, pagePath.lastIndexOf('/'));
           if (parentTemplatePath && parentTemplatePath.startsWith('/content/') && parentTemplatePath.includes('/templates/')) {
-            this.$emit('complete');
-            window.location.href = '/content/admin/pages/templates/edit.html/path:' + parentTemplatePath;
+            closeModalAndThen(() => {
+              window.location.href = '/content/admin/pages/templates/edit.html/path:' + parentTemplatePath;
+            });
             return;
           }
         } else {
-          this.close();
-          setTimeout(() => {
-            this.$emit('complete');
+          closeModalAndThen(() => {
             $perAdminApp.stateAction('editComponent', targetPath).catch(() => {
               forceCleanup();
             });
-          }, 300);
+          });
           return;
         }
-        this.$emit('complete');
-        forceCleanup();
+        closeModalAndThen();
         return;
       }
-
-      // Close the Materialize modal first so its overlay is removed before Vue tears down the component.
-      this.close();
-      this.$emit('complete');
 
       // For template-inherited components on a page, navigate DIRECTLY to the
       // parent template.  Inherited components usually live in the parent
@@ -3188,67 +3730,83 @@ export default {
       if (isTemplateComponent && templatePath) {
         const parentTemplatePath = templatePath.substring(0, templatePath.lastIndexOf('/'));
         const targetTemplatePath = (parentTemplatePath && parentTemplatePath.includes('/templates/')) ? parentTemplatePath : templatePath;
+        sessionStorage.setItem('pendingComponentPath', targetPath);
         // Use a full page navigation to the template editor.
         // loadContent uses pushState which doesn't reliably switch between
         // page editor and template editor because they are different admin pages.
         // Do NOT encodeURIComponent the path — Peregrine's suffix parameter
         // parser expects raw colons and slashes in the URL.
-        window.location.href = '/content/admin/pages/templates/edit.html/path:' + targetTemplatePath;
+        closeModalAndThen(() => {
+          window.location.href = '/content/admin/pages/templates/edit.html/path:' + targetTemplatePath;
+        });
+        return;
+      }
+
+      if (!isOnEditRoute) {
+        sessionStorage.setItem('pendingComponentPath', targetPath);
+        closeModalAndThen(() => {
+          window.location.href = '/content/admin/pages/pages/edit.html/path:' + pagePath;
+        });
         return;
       }
 
       // Regular flow: navigate to page editor and select component
-      $perAdminApp.stateAction('editPage', pagePath).catch(() => {
-        forceCleanup();
-        window.location.href = '/content/admin/pages/pages/edit.html/path:' + encodeURIComponent(pagePath);
-      });
-
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const currentView = $perAdminApp.getView();
-        if (currentView.pageView && currentView.pageView.page && currentView.pageView.path === pagePath) {
-          clearInterval(interval);
-          $perAdminApp.stateAction('editComponent', targetPath).catch(() => {
-            forceCleanup();
-          });
-        } else if (attempts >= 100) {
-          clearInterval(interval);
+      closeModalAndThen(() => {
+        $perAdminApp.stateAction('editPage', pagePath).catch(() => {
           forceCleanup();
-        }
-      }, 200);
+          sessionStorage.setItem('pendingComponentPath', targetPath);
+          window.location.href = '/content/admin/pages/pages/edit.html/path:' + pagePath;
+        });
+
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const currentView = $perAdminApp.getView();
+          if (currentView.pageView && currentView.pageView.page && currentView.pageView.path === pagePath) {
+            clearInterval(interval);
+            $perAdminApp.stateAction('editComponent', targetPath).catch(() => {
+              forceCleanup();
+            });
+          } else if (attempts >= 100) {
+            clearInterval(interval);
+            forceCleanup();
+          }
+        }, 200);
+      });
     },
-    async saveNodeProperty(pagePath, nodePath, propertyKey, propertyValue) {
-      const targetPath = (pagePath + nodePath).replace(/\/\//g, '/');
+    saveNodeProperty(pagePath, nodePath, propertyKey, propertyValue) {
+      const targetPath = String(nodePath || '').startsWith('/content/')
+          ? nodePath
+          : (pagePath + nodePath).replace(/\/\//g, '/');
       const payload = {};
       payload[propertyKey] = propertyValue;
       const formData = new FormData();
       formData.append('content', JSON.stringify(payload));
       const url = '/perapi/admin/updateResource.json' + targetPath;
-      const resp = await fetch(url, {
+      return fetch(url, {
         method: 'POST',
         body: formData,
         credentials: 'same-origin'
+      }).then(resp => {
+        return resp.text().then(respText => {
+          if (!resp.ok) {
+            throw new Error('Server returned ' + resp.status + ': ' + respText);
+          }
+          try {
+            return JSON.parse(respText);
+          } catch (e) {
+            return { text: respText };
+          }
+        });
       });
-      const respText = await resp.text();
-      if (!resp.ok) {
-        throw new Error('Server returned ' + resp.status + ': ' + respText);
-      }
-      try {
-        return JSON.parse(respText);
-      } catch (e) {
-        return { text: respText };
-      }
     },
     emptyIncorrectMessage(check) {
       if (check.id === 'image-alt') return 'All images have alt text';
-      if (check.id === 'empty-links') return 'No empty links found';
       if (check.id === 'valid-links') return 'No broken links found';
       return;
     },
     emptyCorrectMessage(check) {
       if (check.id === 'image-alt') return 'No images with alt text found';
-      if (check.id === 'empty-links') return 'No valid links found';
       if (check.id === 'valid-links') return 'No valid links found';
       return;
     },
@@ -3536,6 +4094,57 @@ export default {
 .page-check-status-error {
   color: #c62828;
   font-weight: 600;
+}
+.page-check-top-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.12);
+}
+.page-check-top-tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 12px 20px 10px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.58);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.page-check-top-tabs button.active {
+  color: #37474f;
+}
+.page-check-top-tabs button.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 3px;
+  background: #37474f;
+}
+.page-check-top-tabs button .material-icons {
+  font-size: 20px;
+}
+.page-check-top-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #c62828;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
 }
 .page-check-tabs {
   display: flex;

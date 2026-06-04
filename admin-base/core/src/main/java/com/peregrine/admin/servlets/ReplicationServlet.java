@@ -31,6 +31,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.peregrine.admin.resource.AdminResourceHandler;
 import com.peregrine.commons.util.PerConstants;
 import com.peregrine.commons.util.PerUtil;
+import com.peregrine.intra.IntraSlingCaller;
+import com.peregrine.render.RenderService;
 import com.peregrine.replication.PerReplicable;
 import com.peregrine.replication.Replication;
 import com.peregrine.replication.Replication.ReplicationException;
@@ -127,6 +129,12 @@ public final class ReplicationServlet extends ReplicationServletBase {
     @Reference
     private ModelFactory modelFactory;
 
+    @Reference
+    private IntraSlingCaller intraSlingCaller;
+
+    @Reference
+    private RenderService renderService;
+
     protected ReplicationsContainerWithDefault getReplications() {
         return replications;
     }
@@ -164,6 +172,9 @@ public final class ReplicationServlet extends ReplicationServletBase {
         }
 
         ReplicationValidationUtil.validateRenderableContent(toBeReplicated, modelFactory);
+        ReplicationValidationUtil.validateRenderableComponentSources(toBeReplicated);
+        ReplicationValidationUtil.validateRenderableContent(toBeReplicated, renderService);
+        ReplicationValidationUtil.validateRenderablePage(resource, intraSlingCaller);
 
         toBeReplicated = replication.prepare(toBeReplicated);
         List<String> toBeReplicatedPaths = new ArrayList<>();

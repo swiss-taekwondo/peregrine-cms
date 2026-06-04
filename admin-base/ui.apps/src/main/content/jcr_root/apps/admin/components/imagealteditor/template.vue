@@ -32,14 +32,15 @@ export default {
     itemId: String,
     hasAltKey: Boolean,
     value: String,
-    saving: Boolean
+    saving: Boolean,
+    isTemplate: Boolean
   },
   computed: {
     showEditButton() {
-      return this.editingId !== this.itemId && this.hasAltKey;
+      return !this.isTemplate && this.editingId !== this.itemId && this.hasAltKey;
     },
     showEditor() {
-      return this.editingId === this.itemId && this.hasAltKey;
+      return !this.isTemplate && this.editingId === this.itemId && this.hasAltKey;
     }
   }
 }

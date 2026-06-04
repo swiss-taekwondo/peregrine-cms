@@ -231,7 +231,8 @@ export default {
     },
     dropTarget() {
       if (!this.target) return
-      return !!$perAdminApp.findNodeFromPath(this.pageView.page, this.path).children
+      const node = this.findPageNodeFromPath(this.path)
+      return !!(node && node.children)
     },
     dropLocation() {
       if (this.isTemplateNode) {
@@ -253,7 +254,7 @@ export default {
     node() {
       const path = get(this.view, '/state/editor/path', null)
       if (path) {
-        return $perAdminApp.findNodeFromPath(this.view.pageView.page, path)
+        return this.findPageNodeFromPath(path)
       } else {
         return null
       }
@@ -285,14 +286,15 @@ export default {
     enableEditableFeatures() {
       if (this.path === undefined || this.path === null || this.dragging) return false
 
-      const node = $perAdminApp.findNodeFromPath(this.view.pageView.page, this.path)
+      const node = this.findPageNodeFromPath(this.path)
       if (!node) {
         return false
       }
       return !node.fromTemplate
     },
     isTemplateNode() {
-      return $perAdminApp.findNodeFromPath(this.pageView.page, this.path).fromTemplate === true
+      const node = this.findPageNodeFromPath(this.path)
+      return node && node.fromTemplate === true
     },
     isRich() {
       return get(this.view, '/state/inline/rich', false)
@@ -488,6 +490,41 @@ export default {
       vm.editable.class = null
       vm.autoSave = false
       set(vm.view, '/state/inline/rich', false)
+      set(vm.view, '/state/inline/model', null)
+    },
+    findPageNodeFromPath(path) {
+      const pageRoot = this.pageView && this.pageView.page
+      if (!pageRoot || !path) return null
+      const pagePath = this.pageView && this.pageView.path
+      const candidates = []
+      function addCandidate(value) {
+        if (value && candidates.indexOf(value) === -1) {
+          candidates.push(value)
+        }
+      }
+      addCandidate(path)
+      if (pagePath && path.indexOf('/jcr:content') === 0) {
+        addCandidate((pagePath + path).replace(/\/\//g, '/'))
+      }
+      if (pagePath && path.indexOf(pagePath + '/jcr:content') === 0) {
+        addCandidate(path.substring(pagePath.length))
+      }
+      for (let i = 0; i < candidates.length; i++) {
+        const node = $perAdminApp.findNodeFromPath(pageRoot, candidates[i])
+        if (node) return node
+      }
+      function scan(node) {
+        if (!node || typeof node !== 'object') return null
+        if (candidates.indexOf(node.path) !== -1) return node
+        if (Array.isArray(node.children)) {
+          for (let i = 0; i < node.children.length; i++) {
+            const childResult = scan(node.children[i])
+            if (childResult) return childResult
+          }
+        }
+        return null
+      }
+      return scan(pageRoot)
     },
 
     flushInlineState() {
@@ -599,7 +636,9 @@ export default {
       if (block.tagName === normalizedTagName) return true
 
       const replacement = this.iframe.doc.createElement(normalizedTagName)
-      for (const attr of Array.from(block.attributes)) {
+      const attributes = Array.from(block.attributes)
+      for (let i = 0; i < attributes.length; i++) {
+        const attr = attributes[i]
         replacement.setAttribute(attr.name, attr.value)
       }
       while (block.firstChild) {
@@ -611,7 +650,9 @@ export default {
       nextRange.selectNodeContents(replacement)
       selection.removeAllRanges()
       selection.addRange(nextRange)
-      const modelElement = editorElement?.closest?.('[data-per-inline]') || editorElement
+      const modelElement = editorElement && editorElement.closest
+        ? editorElement.closest('[data-per-inline]') || editorElement
+        : editorElement
       modelElement.dispatchEvent(new Event('input', { bubbles: true }))
       this.writeElementToModel(this, modelElement)
       this.pingToolbar()
@@ -651,7 +692,7 @@ export default {
               window.__labambaInlineRestoreOnce
               && window.__labambaInlineRestoreOnce.container === event.target
             ) ? window.__labambaInlineRestoreOnce : null
-            if (queuedInlineRestore?.rangeSelection) {
+            if (queuedInlineRestore && queuedInlineRestore.rangeSelection) {
               const restoredQueuedRange = restoreDomRangeSelection(event.target, queuedInlineRestore.rangeSelection, this.iframe.doc)
               if (!restoredQueuedRange && queuedInlineRestore.selection) {
                 restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
@@ -660,7 +701,7 @@ export default {
               this.inlineEdit.selection = null
               return
             }
-            if (queuedInlineRestore?.selection) {
+            if (queuedInlineRestore && queuedInlineRestore.selection) {
               restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
               window.__labambaInlineRestoreOnce = null
               this.inlineEdit.selection = null
@@ -682,12 +723,14 @@ export default {
 
     onInlineClick(event) {
       const target = event.target
-      const anchor = target?.closest ? target.closest('a') : null
+      const anchor = target && target.closest ? target.closest('a') : null
       const editor = event.currentTarget
       if (anchor && editor && editor.contains(anchor)) {
         this.target = editor
         const doc = this.iframe.doc
-        const selection = doc?.defaultView?.getSelection?.()
+        const selection = doc && doc.defaultView && doc.defaultView.getSelection
+          ? doc.defaultView.getSelection()
+          : null
         const selectionBuffer = selection ? saveSelection(editor, doc) : null
         const savedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
         const emitSelectionState = () => window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
@@ -789,7 +832,10 @@ export default {
         const editorElement = this.target || event.target
         if (!this.formatInlineBlock(editorElement, value)) {
           this.iframe.doc.execCommand('formatBlock', false, `<${value}>`)
-          this.writeElementToModel(this, editorElement?.closest?.('[data-per-inline]') || editorElement)
+          const modelElement = editorElement && editorElement.closest
+            ? editorElement.closest('[data-per-inline]') || editorElement
+            : editorElement
+          this.writeElementToModel(this, modelElement)
           this.pingToolbar()
         }
       } else if (key === Key.Z && ctrlOrCmd) {
@@ -1046,7 +1092,7 @@ export default {
         addOrMove = 'addComponentToPath'
       } else {
         addOrMove = 'moveComponentToPath'
-        const targetNode = $perAdminApp.findNodeFromPath(this.view.pageView.page, this.path)
+        const targetNode = this.findPageNodeFromPath(this.path)
         if (!targetNode || targetNode.fromTemplate) {
           $perAdminApp.notifyUser('template component',
               'You cannot drag a component into a template section')
@@ -1292,7 +1338,7 @@ export default {
     isFromTemplate(el) {
       if (!el) return false
 
-      const node = $perAdminApp.findNodeFromPath(this.pageView.page, this.getPath(el))
+      const node = this.findPageNodeFromPath(this.getPath(el))
       return node ? node.fromTemplate : false
     },
 
@@ -1323,7 +1369,7 @@ export default {
       this.editable.class = 'draggable'
     },
 
-    async onDelete(e) {
+    onDelete(e) {
       const view = this.view
       const payload = {
         pagePath: view.pageView.path,
@@ -1332,102 +1378,117 @@ export default {
       const vm = this
 
       let undoEntry = null
-      if (payload.path !== '/jcr:content') {
-        try {
-          const jcrPath = view.pageView.path + payload.path
-          const response = await fetch(jcrPath + '.infinity.json')
-          const jcrData = await response.json()
-          const nodeData = vm.jcrToInsertData(jcrData, payload.path)
-
-          let dropPath = null
-          let drop = 'into'
-          const el = vm.iframe.app.querySelector(`[${Attribute.PATH}="${payload.path}"]`)
-          if (el) {
-            let sibling = el.nextElementSibling
-            while (sibling) {
-              if (sibling.hasAttribute(Attribute.PATH) && !sibling.hasAttribute(Attribute.DROPTARGET)) {
-                dropPath = sibling.getAttribute(Attribute.PATH)
-                drop = 'before'
-                break
-              }
-              sibling = sibling.nextElementSibling
-            }
-            if (!dropPath) {
-              sibling = el.previousElementSibling
-              while (sibling) {
-                if (sibling.hasAttribute(Attribute.PATH) && !sibling.hasAttribute(Attribute.DROPTARGET)) {
-                  dropPath = sibling.getAttribute(Attribute.PATH)
-                  drop = 'after'
-                  break
-                }
-                sibling = sibling.previousElementSibling
-              }
-            }
-            if (!dropPath) {
-              const parentEl = el.parentElement ? el.parentElement.closest(`[${Attribute.DROPTARGET}]`) : null
-              if (parentEl) {
-                dropPath = parentEl.getAttribute(Attribute.PATH) || parentEl.getAttribute(Attribute.DROPTARGET)
-              }
-              if (!dropPath) {
-                dropPath = payload.path.substring(0, payload.path.lastIndexOf('/'))
-              }
-              drop = 'into'
-            }
-          } else {
-            dropPath = payload.path.substring(0, payload.path.lastIndexOf('/'))
-            drop = 'into'
-          }
-          undoEntry = { pagePath: payload.pagePath, dropPath, drop, data: nodeData }
-        } catch (err) {
-          console.warn('Failed to capture undo data for deletion', err)
-        }
-      }
-
       let blockDelete = false
       let deleteMessage = 'Are you sure you want to delete the component?'
       const isTemplateOrSkeleton = payload.pagePath.includes('/skeleton-pages/') || payload.pagePath.includes('/templates/')
-      if (isTemplateOrSkeleton && payload.path !== '/jcr:content') {
-        try {
-          const fullJcrPath = payload.pagePath + payload.path
-          const skeletonResponse = await fetch(
-            '/perapi/admin/isComponentUsedInSkeleton.json?path='
-            + encodeURIComponent(fullJcrPath)
-          )
-          const skeletonData = await skeletonResponse.json()
-          if (skeletonData && skeletonData.isTopLevelInSkeleton) {
-            blockDelete = true
-            const pageList = (skeletonData.skeletonPages || []).map(p => p.title || p.path).join(', ')
-            deleteMessage = 'This component cannot be deleted because it is used in a skeleton page'
-              + (pageList ? ': ' + pageList : '')
-              + '. Removing it could break every page created from that skeleton.'
-          }
-        } catch (err) {
-          console.warn('Failed to check skeleton usage', err)
+
+      function captureUndoData() {
+        if (payload.path === '/jcr:content') {
+          return Promise.resolve()
         }
+        const jcrPath = view.pageView.path + payload.path
+        return fetch(jcrPath + '.infinity.json')
+          .then(response => response.json())
+          .then(jcrData => {
+            const nodeData = vm.jcrToInsertData(jcrData, payload.path)
+
+            let dropPath = null
+            let drop = 'into'
+            const el = vm.iframe.app.querySelector(`[${Attribute.PATH}="${payload.path}"]`)
+            if (el) {
+              let sibling = el.nextElementSibling
+              while (sibling) {
+                if (sibling.hasAttribute(Attribute.PATH) && !sibling.hasAttribute(Attribute.DROPTARGET)) {
+                  dropPath = sibling.getAttribute(Attribute.PATH)
+                  drop = 'before'
+                  break
+                }
+                sibling = sibling.nextElementSibling
+              }
+              if (!dropPath) {
+                sibling = el.previousElementSibling
+                while (sibling) {
+                  if (sibling.hasAttribute(Attribute.PATH) && !sibling.hasAttribute(Attribute.DROPTARGET)) {
+                    dropPath = sibling.getAttribute(Attribute.PATH)
+                    drop = 'after'
+                    break
+                  }
+                  sibling = sibling.previousElementSibling
+                }
+              }
+              if (!dropPath) {
+                const parentEl = el.parentElement ? el.parentElement.closest(`[${Attribute.DROPTARGET}]`) : null
+                if (parentEl) {
+                  dropPath = parentEl.getAttribute(Attribute.PATH) || parentEl.getAttribute(Attribute.DROPTARGET)
+                }
+                if (!dropPath) {
+                  dropPath = payload.path.substring(0, payload.path.lastIndexOf('/'))
+                }
+                drop = 'into'
+              }
+            } else {
+              dropPath = payload.path.substring(0, payload.path.lastIndexOf('/'))
+              drop = 'into'
+            }
+            undoEntry = { pagePath: payload.pagePath, dropPath, drop, data: nodeData }
+          })
+          .catch(err => {
+            console.warn('Failed to capture undo data for deletion', err)
+          })
       }
 
-      $perAdminApp.askUser(
-        blockDelete ? 'Cannot Delete Component' : 'Delete Component?',
-        deleteMessage,
-        {
-        yesText: 'Yes',
-        noText: blockDelete ? 'Close' : 'No',
-        warning: blockDelete,
-        blockDelete,
-        yes() {
-          if (payload.path !== '/jcr:content') {
-            $perAdminApp.stateAction('deletePageNode', payload).then((data) => {
-              vm.cleanUpAfterDelete(payload.path)
-              vm.refreshIframeElements()
-              if (undoEntry) {
-                vm.showDeleteToast(undoEntry)
-              }
-            })
-          }
-          vm.unselect(vm)
-        },
-        no() {},
-      })
+      function checkSkeletonUsage() {
+        if (!isTemplateOrSkeleton || payload.path === '/jcr:content') {
+          return Promise.resolve()
+        }
+        const fullJcrPath = payload.pagePath + payload.path
+        return fetch(
+          '/perapi/admin/isComponentUsedInSkeleton.json?path='
+          + encodeURIComponent(fullJcrPath)
+        )
+          .then(response => response.json())
+          .then(skeletonData => {
+            if (skeletonData && skeletonData.isTopLevelInSkeleton) {
+              blockDelete = true
+              const pageList = (skeletonData.skeletonPages || []).map(p => p.title || p.path).join(', ')
+              deleteMessage = 'This component cannot be deleted because it is used in a skeleton page'
+                + (pageList ? ': ' + pageList : '')
+                + '. Removing it could break every page created from that skeleton.'
+            }
+          })
+          .catch(err => {
+            console.warn('Failed to check skeleton usage', err)
+          })
+      }
+
+      function showConfirm() {
+        $perAdminApp.askUser(
+          blockDelete ? 'Cannot Delete Component' : 'Delete Component?',
+          deleteMessage,
+          {
+          yesText: 'Yes',
+          noText: blockDelete ? 'Close' : 'No',
+          warning: blockDelete,
+          blockDelete,
+          yes() {
+            if (payload.path !== '/jcr:content') {
+              $perAdminApp.stateAction('deletePageNode', payload).then((data) => {
+                vm.cleanUpAfterDelete(payload.path)
+                vm.refreshIframeElements()
+                if (undoEntry) {
+                  vm.showDeleteToast(undoEntry)
+                }
+              })
+            }
+            vm.unselect(vm)
+          },
+          no() {},
+        })
+      }
+
+      return captureUndoData()
+        .then(checkSkeletonUsage)
+        .then(showConfirm)
     },
 
     showDeleteToast(undoEntry) {
@@ -1458,7 +1519,10 @@ export default {
       ])
       const result = { path }
       const children = []
-      for (const [key, value] of Object.entries(jcrNode)) {
+      const entries = Object.entries(jcrNode)
+      for (let i = 0; i < entries.length; i++) {
+        const key = entries[i][0]
+        const value = entries[i][1]
         if (IGNORED_KEYS.has(key)) continue
         if (key === 'sling:resourceType') {
           result.component = value

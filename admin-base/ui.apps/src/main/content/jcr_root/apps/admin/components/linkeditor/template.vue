@@ -54,13 +54,15 @@ export default {
   },
   computed: {
     showGoToComponentButton() {
-      return this.isVariant;
+      if (this.isVariant && !this.isTemplate) return false;
+      if (this.isTemplate) return true;
+      return !this.isVariant;
     },
     showEditButton() {
-      return !this.isVariant && this.isEditable() && this.editingId !== this.item.id;
+      return !this.isVariant && !this.isTemplate && this.isEditable() && this.editingId !== this.item.id;
     },
     showEditor() {
-      return !this.isVariant && this.editingId === this.item.id && this.isEditable();
+      return !this.isVariant && !this.isTemplate && this.editingId === this.item.id && this.isEditable();
     }
   },
   methods: {

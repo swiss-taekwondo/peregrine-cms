@@ -564,7 +564,7 @@ export default {
       return {}
     },
     list() {
-      if (this?.nodes?.children) {
+      if (this && this.nodes && this.nodes.children) {
         return this.nodes.children
       }
       return []
@@ -779,7 +779,7 @@ export default {
       this.setSelectedPath(ev.target.value)
     },
     isType(browserType) {
-      return this.browserType?.toLowerCase() === browserType?.toLowerCase()
+      return this.browserType && browserType && this.browserType.toLowerCase() === browserType.toLowerCase()
     },
     isSelectable(item) {
       if (!this.isBrowserTypeImage) {
