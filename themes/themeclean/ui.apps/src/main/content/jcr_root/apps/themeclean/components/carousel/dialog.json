@@ -101,7 +101,8 @@
           "browserRoot": "/content/themeclean/assets",
           "placeholder": "imagepath",
           "label": "Image Source",
-          "model": "imagepath"
+          "model": "imagepath",
+          "defaultAltFromAsset": true
         },
         {
           "type": "input",
@@ -122,7 +123,8 @@
           "inputType": "text",
           "placeholder": "alt",
           "label": "Image Alt Text",
-          "model": "alt"
+          "model": "alt",
+          "defaultFrom": "imagepath"
         }
       ],
       "placeholder": "slides",

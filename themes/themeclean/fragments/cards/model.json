@@ -69,13 +69,15 @@
               "x-source": "inject",
               "x-form-label": "Card Image",
               "x-form-type": "pathbrowser",
-              "x-form-browserRoot": "/content/themeclean/assets"
+              "x-form-browserRoot": "/content/themeclean/assets",
+              "x-form-alt-source": "asset"
             },
             "imagealttext": {
 	          "type": "string",
 	          "x-source": "inject",
 	          "x-form-label": "Image Alt Text",
-	          "x-form-type": "text"
+	          "x-form-type": "text",
+	          "x-form-default-from": "image"
 	        },
             "buttontext": {
               "type": "string",

@@ -57,6 +57,7 @@
       "placeholder": "imagesrc",
       "label": "Image Source",
       "model": "imagesrc",
+      "defaultAltFromAsset": true,
       "visible": "model.mediatype == 'image'"
     },
     {
@@ -65,6 +66,7 @@
       "placeholder": "mediaalttext",
       "label": "Media Alt Text",
       "model": "mediaalttext",
+      "defaultFrom": "imagesrc",
       "visible": "model.mediatype == 'image'"
     },
     {

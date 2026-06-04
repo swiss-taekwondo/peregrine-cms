@@ -16,6 +16,7 @@
       "placeholder": "logo",
       "label": "Logo",
       "model": "logo",
+      "defaultAltFromAsset": true,
       "visible": "model.showlogo == 'true'"
     },
     {
@@ -24,6 +25,7 @@
       "placeholder": "logoalttext",
       "label": "Logo Alt Text",
       "model": "logoalttext",
+      "defaultFrom": "logo",
       "visible": "model.showlogo == 'true'"
     },
     {

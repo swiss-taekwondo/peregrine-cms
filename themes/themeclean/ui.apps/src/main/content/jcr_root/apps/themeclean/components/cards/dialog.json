@@ -88,14 +88,16 @@
           "browserRoot": "/content/themeclean/assets",
           "placeholder": "image",
           "label": "Card Image",
-          "model": "image"
+          "model": "image",
+          "defaultAltFromAsset": true
         },
         {
           "type": "input",
           "inputType": "text",
           "placeholder": "imagealttext",
           "label": "Image Alt Text",
-          "model": "imagealttext"
+          "model": "imagealttext",
+          "defaultFrom": "image"
         },
         {
           "type": "input",

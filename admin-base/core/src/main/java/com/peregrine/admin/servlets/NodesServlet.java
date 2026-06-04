@@ -176,9 +176,11 @@ public class NodesServlet extends AbstractBaseServlet {
                         String mimeType = props.get(JCR_MIME_TYPE, String.class);
                         String title = props.get(TITLE, String.class);
                         String description = props.get("description", String.class);
+                        String alt = props.get("alt", String.class);
                         json.writeAttribute(MIME_TYPE, mimeType);
                         json.writeAttribute(TITLE, title);
                         json.writeAttribute("description", description);
+                        json.writeAttribute("alt", alt);
 
                         Resource tags = child.getChild("jcr:content/tags");
                         List<Tag> answer = new ArrayList<Tag>();

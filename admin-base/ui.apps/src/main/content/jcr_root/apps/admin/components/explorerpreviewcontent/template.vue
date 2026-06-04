@@ -615,6 +615,11 @@ export default {
       if (this.stateToolsEdit) {
         this.onEdit()
       }
+      this.$nextTick(() => {
+        if (this.node && this.isImage && !this.node.alt && this.node.title) {
+          this.node.alt = this.node.title
+        }
+      })
     },
     stateToolsEdit(edit) {
       this.edit = edit
@@ -737,6 +742,7 @@ export default {
           newVal: newVal
         })
       }
+      this.autoFillAltFromAsset(newVal, schemaKey)
     },
     onValidated(isValid, errors) {
       if (this.edit) {
@@ -744,6 +750,56 @@ export default {
       }
       this.valid.state = isValid;
       this.valid.errors = errors;
+    },
+
+    autoFillAltFromAsset(newVal, schemaKey) {
+      if (!newVal || typeof newVal !== 'string' || !newVal.startsWith('/content/')) return
+      const schema = this.getSchema(SchemaKey.MODEL)
+      if (!schema || !schema.fields) return
+      const findField = (fields) => {
+        if (!fields) return null
+        for (const f of fields) {
+          if (f.model === schemaKey) return f
+          if (f.fields) {
+            const found = findField(f.fields)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const field = findField(schema.fields)
+      if (!field) return
+      let altModelKey = null
+      if (field.defaultAltFromAsset === true) {
+        altModelKey = schemaKey + 'Alt'
+        if (field.model !== altModelKey) {
+          const byDefaultFrom = (fields) => {
+            for (const f of fields) {
+              if (f.defaultFrom === schemaKey) return f
+              if (f.fields) {
+                const found = byDefaultFrom(f.fields)
+                if (found) return found
+              }
+            }
+            return null
+          }
+          const targetField = byDefaultFrom(schema.fields)
+          if (targetField) {
+            altModelKey = targetField.model
+          }
+        }
+      }
+      if (!altModelKey) return
+      if (this.node[altModelKey]) return
+      const altPath = newVal + '/jcr:content/alt'
+      fetch('/admin/nodes.json' + altPath)
+        .then(resp => resp.json())
+        .then(data => {
+          if (data.alt && !this.node[altModelKey]) {
+            this.node[altModelKey] = data.alt
+          }
+        })
+        .catch(() => {})
     },
 
     onConfirmDialog (event) {

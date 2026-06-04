@@ -5,14 +5,16 @@
       "browserRoot": "/content/themeclean/assets",
       "placeholder": "logo",
       "label": "Logo",
-      "model": "logo"
+      "model": "logo",
+      "defaultAltFromAsset": true
     },
     {
       "type": "input",
       "inputType": "text",
       "placeholder": "logoalttext",
       "label": "Logo Alt Text",
-      "model": "logoalttext"
+      "model": "logoalttext",
+      "defaultFrom": "logo"
     },
     {
       "type": "pathbrowser",
