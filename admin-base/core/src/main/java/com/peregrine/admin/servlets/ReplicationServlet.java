@@ -185,9 +185,10 @@ public final class ReplicationServlet extends ReplicationServletBase {
                     }
                 });
 
-        // Trigger the Pre-publish Webhook before querying for drafts and checking out (Halts on failure)
+        // Trigger the pre-publish Webhook before querying for drafts and checking out for the first path (Halts on failure)
         String prePublishWebhook = prePublishWebhookMap.get(tenant);
-        callWebhook(prePublishWebhook, toBeReplicatedPaths.toArray(new String[0]), "pre-publish", true);
+        String[] prePublishPaths = toBeReplicatedPaths.isEmpty() ? new String[0] : new String[]{ toBeReplicatedPaths.get(0) };
+        callWebhook(prePublishWebhook, prePublishPaths, "pre-publish", true);
 
         // per:Page OR per:Object -> republish all pages (except published above) with label "Draft" or "Published"
         if (draft && (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE))) {
