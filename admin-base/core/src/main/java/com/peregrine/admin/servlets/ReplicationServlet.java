@@ -341,7 +341,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                         .build();
 
-                HttpClient httpClient = HttpClient.newHttpClient();
+                HttpClient httpClient = getHttpClient();
                 HttpResponse<String> httpResponse = httpClient.send(webhookRequest, HttpResponse.BodyHandlers.ofString());
 
                 // If the response is not HTTP 200 OK, throw an exception to be caught and logged below
@@ -396,5 +396,10 @@ public final class ReplicationServlet extends ReplicationServletBase {
                 postPublishWebhookMap.put(tokens[0], tokens[1]);
             }
         }
+    }
+
+    // For test mocking only
+    protected HttpClient getHttpClient() {
+        return HttpClient.newHttpClient();
     }
 }

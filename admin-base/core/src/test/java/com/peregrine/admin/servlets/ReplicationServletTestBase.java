@@ -14,6 +14,7 @@ import org.junit.Assert;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 
 import static com.peregrine.commons.util.PerConstants.PATH;
 import static org.mockito.Matchers.any;
@@ -23,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 public class ReplicationServletTestBase extends SlingServletTest {
 
-    private final ReplicationServletBase servlet;
+    protected final ReplicationServletBase servlet;
 
     private final AdminResourceHandler resourceManagement = mock(AdminResourceHandler.class);
     private final ReplicationsContainerWithDefault replications = mock(ReplicationsContainerWithDefault.class);
@@ -37,6 +38,14 @@ public class ReplicationServletTestBase extends SlingServletTest {
         this.servlet = servlet;
         setField("replications", replications);
         setField("resourceManagement", resourceManagement);
+
+        // Safeguard to prevent NPEs in tests that bypass the activate() lifecycle
+        try {
+            setField("prePublishWebhookMap", new HashMap<String, String>());
+            setField("postPublishWebhookMap", new HashMap<String, String>());
+        } catch (NoSuchFieldException e) {
+            // Ignore: Other servlets extending this base class won't have these fields
+        }
 
         when(replications.getOrDefault(anyString())).thenReturn(replication);
 
