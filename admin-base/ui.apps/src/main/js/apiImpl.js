@@ -1739,14 +1739,36 @@ class PerAdminImpl {
           .then(() => resolve())
           .catch(error => {
             clearInterval(noticeFunction)
-            $perAdminApp.notifyUser('Errors',
-                `were encountered when ${deactivate ? 'un'
-                    : ''}publishing ${path}. Please check with your admin.`)
-            if (error.response && error.response.data
-                && error.response.data.message) {
-              reject(error.response.data.message)
+
+            let errorMessage = `Errors were encountered when ${deactivate ? 'un' : ''}publishing ${path}. Please check with your admin.`;
+
+            if (error.response && error.response.data) {
+              const data = error.response.data;
+
+              // Try to extract the specific webhook error from the Java stack trace
+              if (data.exception && Array.isArray(data.exception) && data.exception.length > 0) {
+                const firstLine = data.exception[0];
+                // Match "HTTP <status> - <json payload>"
+                const match = firstLine.match(/HTTP \d+ - (.*)/);
+
+                if (match && match[1]) {
+                  try {
+                    const parsedDetail = JSON.parse(match[1]);
+                    // Use the specific 'error' or 'message' from the webhook response
+                    errorMessage = parsedDetail.error || parsedDetail.message || errorMessage;
+                  } catch (e) {
+                    // If it's not valid JSON, just show the raw string
+                    errorMessage = match[1];
+                  }
+                }
+              } else if (data.message && data.message !== "Replication Failed") {
+                // Fallback to the generic message if it's not the useless default one
+                errorMessage = data.message;
+              }
             }
-            reject(error)
+
+            $perAdminApp.notifyUser('Error', errorMessage);
+            reject(errorMessage);
           })
     })
   }
