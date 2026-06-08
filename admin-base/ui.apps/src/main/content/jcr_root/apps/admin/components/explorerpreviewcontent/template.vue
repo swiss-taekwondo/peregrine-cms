@@ -202,10 +202,6 @@
         <admin-components-publishinginfo v-bind:node="nodeFromPath" v-if="nodeFromPath"/>
 
         <div v-if="allowOperations && node" class="action-list">
-          <div v-if="!isCheckingPublishability && !canPublishToWeb && nodeType !== NodeType.FILE" class="publishability-note">
-            <i class="material-icons">warning</i>
-            <span>{{ publishabilityReason || 'Publishing not possible as there are some errors' }}</span>
-          </div>
           <div v-if="nodeType === NodeType.PAGE || nodeType === NodeType.TEMPLATE" class="action" v-bind:class="{'operationDisabledOnActivatedItem': isPageCheckSummaryLoading || isVerifyingLinks}" title="Check the page before publishing" @click="isPageCheckSummaryLoading || isVerifyingLinks ? null : openPageCheckModal()">
             <i class="material-icons">playlist_add_check</i>
             <span>Page Check</span>
@@ -220,19 +216,9 @@
               </template>
             </span>
           </div>
-          <div v-if="isCheckingPublishability" class="action publishability-loading" title="Checking if this page can be published">
-            <admin-components-materializespinner/>
-            Checking publish status
-          </div>
-          <div v-else-if="canPublishToWeb" class="action" :title="publishabilityTitle" @click="openPublishingModal()">
+          <div class="action" :title="publishabilityTitle" @click="openPublishingModal()">
             <i class="material-icons">publish</i>
             Publish to Web ({{nodeType}})
-          </div>
-          <div v-else class="action operationDisabledOnActivatedItem" :title="'Publishing not possible'">
-            <span>
-              <i class="material-icons">warning</i>
-              Publish to Web ({{nodeType}})
-            </span>
           </div>
           <div v-if="nodeFromPath && nodeFromPath.activated" class="action" :title="`Deactivate ${nodeType}`">
             <admin-components-action :model="{
@@ -496,10 +482,6 @@ export default {
       },
       loading: false,
       isReferencedInPublish: true,
-      isPublishable: false,
-      isPublishabilityChecked: false,
-      isPublishabilityLoading: false,
-      publishabilityReason: '',
       pageCheckSummary: null,
       isPageCheckSummaryLoading: false,
       linkVerificationResults: [],
@@ -602,27 +584,8 @@ export default {
     hasReferences() {
       return this.nodeTypeGroups.references.indexOf(this.nodeType) > -1;
     },
-    canPublishToWeb() {
-      if (this.nodeType === NodeType.FILE) {
-        return true;
-      }
-      return this.isPublishabilityChecked && this.isPublishable;
-    },
-    isCheckingPublishability() {
-      return this.nodeType !== NodeType.FILE
-          && (!this.isPublishabilityChecked || this.isPublishabilityLoading);
-    },
     publishabilityTitle() {
-      if (this.nodeType === NodeType.FILE) {
-        return `Open Web Publishing ${this.nodeType} Dialog`;
-      }
-      if (this.canPublishToWeb) {
-        return `Open Web Publishing ${this.nodeType} Dialog`;
-      }
-      if (this.isPublishabilityLoading) {
-        return 'Checking if this page can be published';
-      }
-      return this.publishabilityReason || 'Publishing not possible as there are some errors';
+      return `Open Web Publishing ${this.nodeType} Dialog`;
     },
     referencedBy() {
       if ($perAdminApp.getView().state.referencedBy) {
@@ -711,7 +674,6 @@ export default {
       }
       if (tab === 'publishing') {
         this.updateIsReferencedInPublish()
-        this.updateIsPublishable()
       }
     },
     currentObject : function(path) {
@@ -724,7 +686,6 @@ export default {
       }
       if (this.activeTab === 'publishing') {
         this.updateIsReferencedInPublish()
-        this.updateIsPublishable()
       }
       if (this.stateToolsEdit) {
         this.onEdit()
@@ -741,7 +702,6 @@ export default {
     this.path.current = this.currentPath
     if (this.activeTab === Tab.PUBLISHING) {
       this.updateIsReferencedInPublish()
-      this.updateIsPublishable()
     }
     if (this.isEdit) {
       const pendingPath = sessionStorage.getItem('pendingComponentPath');
@@ -894,9 +854,6 @@ export default {
     },
 
     openPublishingModal(){
-      if (!this.canPublishToWeb) {
-        return
-      }
       this.isPublishDialogOpen = true;
     },
     openPageCheckModal(){
@@ -1517,61 +1474,6 @@ export default {
           this.isReferencedInPublish = false;
         });
     },
-    updateIsPublishable() {
-      if (this.nodeType === NodeType.FILE) {
-        this.isPublishable = true;
-        this.isPublishabilityChecked = true;
-        this.isPublishabilityLoading = false;
-        this.publishabilityReason = '';
-        return;
-      }
-
-      const path = this.currentObject;
-      if (!path) {
-        this.isPublishable = false;
-        this.isPublishabilityChecked = false;
-        this.isPublishabilityLoading = false;
-        this.publishabilityReason = '';
-        return;
-      }
-
-      this.isPublishable = false;
-      this.isPublishabilityChecked = false;
-      this.isPublishabilityLoading = true;
-      this.publishabilityReason = '';
-      console.warn('[ExplorerPreview] checking publishability', {
-        path,
-        nodeType: this.nodeType
-      });
-
-      $perAdminApp.getApi().isPublishable(path)
-        .then(data => {
-          this.isPublishable = data.result === true;
-          this.publishabilityReason = data.reason || '';
-          console.warn('[ExplorerPreview] publishability result', {
-            path,
-            nodeType: this.nodeType,
-            result: this.isPublishable,
-            reason: this.publishabilityReason
-          });
-        }).catch(error => {
-          this.isPublishable = false;
-          this.publishabilityReason = (error && error.response && error.response.data
-              && (error.response.data.reason || error.response.data.message))
-              || (error && error.message)
-              || 'Publishing not possible as there are some errors';
-          console.warn('[ExplorerPreview] publishability failed', {
-            path,
-            nodeType: this.nodeType,
-            reason: this.publishabilityReason,
-            error
-          });
-        }).then(() => {
-          this.isPublishabilityLoading = false;
-          this.isPublishabilityChecked = true;
-        });
-    },
-
     getGeneratedFileSchema() {
       return {
         fields: [
@@ -1618,34 +1520,6 @@ export default {
 <style>
 .deleteVersionWrapper {
   margin-left: auto;
-}
-.publishability-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(0, 0, 0, 0.65);
-}
-.publishability-note .material-icons {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-  line-height: 18px;
-  color: rgba(0, 0, 0, 0.45);
-}
-.publishability-loading {
-  cursor: default;
-  color: rgba(0, 0, 0, 0.58);
-}
-.publishability-loading .preloader-wrapper {
-  width: 22px;
-  height: 22px;
-  margin-right: 10px;
-}
-.publishability-loading .spinner-layer {
-  border-color: rgba(69, 90, 100, 0.72);
 }
 .page-check-spinner {
   width: 16px !important;

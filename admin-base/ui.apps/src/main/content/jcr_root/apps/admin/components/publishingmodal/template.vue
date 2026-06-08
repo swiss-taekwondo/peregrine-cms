@@ -192,17 +192,9 @@ export default {
           target.callback = true;
         }
 
-        $perAdminApp.getApi().isPublishable(this.path)
-          .then((response) => {
-            if (!response || !response.result) {
-              $perAdminApp.toast(response && response.reason ? response.reason : "Publishing not possible", "error");
-              return;
-            }
-
-            $perAdminApp.stateAction("publish", target, true);
-            $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success");
-            this.close();
-          });
+        $perAdminApp.stateAction("publish", target, true);
+        $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success");
+        this.close();
         return;
       }
       this.close();

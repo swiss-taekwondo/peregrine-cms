@@ -1917,10 +1917,6 @@ class PerAdminImpl {
     return fetch(`/admin/isReferencedInPublish.json?path=${encodeURIComponent(path)}`)
   }
 
-  isPublishable(path) {
-    return fetch(`/admin/isPublishable.json?path=${encodeURIComponent(path)}`)
-  }
-
   _postFormDataImpl(url, data, config) {
     return postFormData(url, data, config);
   }

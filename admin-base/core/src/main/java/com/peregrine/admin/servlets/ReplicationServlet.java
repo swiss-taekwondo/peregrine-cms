@@ -31,8 +31,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.peregrine.admin.resource.AdminResourceHandler;
 import com.peregrine.commons.util.PerConstants;
 import com.peregrine.commons.util.PerUtil;
-import com.peregrine.intra.IntraSlingCaller;
-import com.peregrine.render.RenderService;
 import com.peregrine.replication.PerReplicable;
 import com.peregrine.replication.Replication;
 import com.peregrine.replication.Replication.ReplicationException;
@@ -40,7 +38,6 @@ import com.peregrine.replication.ReplicationUtil;
 import com.peregrine.replication.ReplicationsContainerWithDefault;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.models.factory.ModelFactory;
 import org.jetbrains.annotations.NotNull;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -126,15 +123,6 @@ public final class ReplicationServlet extends ReplicationServletBase {
     @Reference
     private AdminResourceHandler resourceManagement;
 
-    @Reference
-    private ModelFactory modelFactory;
-
-    @Reference
-    private IntraSlingCaller intraSlingCaller;
-
-    @Reference
-    private RenderService renderService;
-
     protected ReplicationsContainerWithDefault getReplications() {
         return replications;
     }
@@ -170,11 +158,6 @@ public final class ReplicationServlet extends ReplicationServletBase {
         if (resourceManagement.isAssetsFolder(resource)) {
             toBeReplicated.remove(resource);
         }
-
-        ReplicationValidationUtil.validateRenderableContent(toBeReplicated, modelFactory);
-        ReplicationValidationUtil.validateRenderableComponentSources(toBeReplicated);
-        ReplicationValidationUtil.validateRenderableContent(toBeReplicated, renderService);
-        ReplicationValidationUtil.validateRenderablePage(resource, intraSlingCaller);
 
         toBeReplicated = replication.prepare(toBeReplicated);
         List<String> toBeReplicatedPaths = new ArrayList<>();

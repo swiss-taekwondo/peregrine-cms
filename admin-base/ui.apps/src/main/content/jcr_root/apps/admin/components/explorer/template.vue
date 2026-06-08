@@ -488,19 +488,7 @@ export default {
                 if (!path) {
                     return;
                 }
-                $perAdminApp.getApi().isPublishable(path)
-                    .then(data => {
-                        if (data && data.result === true) {
-                            me.publishDialogPath = path;
-                            return;
-                        }
-                        $perAdminApp.toast((data && data.reason) || 'Publishing not possible as there are some errors', 'warn');
-                    })
-                    .catch(error => {
-                        const reason = error && error.response && error.response.data
-                            && (error.response.data.reason || error.response.data.message);
-                        $perAdminApp.toast(reason || 'Publishing not possible as there are some errors', 'warn');
-                    });
+                me.publishDialogPath = path;
             },
 
             closePublishing() {
