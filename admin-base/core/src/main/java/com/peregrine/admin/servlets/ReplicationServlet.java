@@ -186,10 +186,8 @@ public final class ReplicationServlet extends ReplicationServletBase {
                 });
 
         // Trigger the Pre-publish Webhook before querying for drafts and checking out (Halts on failure)
-        if (callback) {
-            String prePublishWebhook = prePublishWebhookMap.get(tenant);
-            callWebhook(prePublishWebhook, toBeReplicatedPaths.toArray(new String[0]), "pre-publish", true);
-        }
+        String prePublishWebhook = prePublishWebhookMap.get(tenant);
+        callWebhook(prePublishWebhook, toBeReplicatedPaths.toArray(new String[0]), "pre-publish", true);
 
         // per:Page OR per:Object -> republish all pages (except published above) with label "Draft" or "Published"
         if (draft && (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE))) {
@@ -345,24 +343,28 @@ public final class ReplicationServlet extends ReplicationServletBase {
                 HttpClient httpClient = HttpClient.newHttpClient();
                 HttpResponse<String> httpResponse = httpClient.send(webhookRequest, HttpResponse.BodyHandlers.ofString());
 
-                // Conditionally throw an exception if the response is not HTTP 200 OK
-                if (failOnError && httpResponse.statusCode() != 200) {
-                    throw new ReplicationException(httpResponse.body());
+                // If the response is not HTTP 200 OK, throw an exception to be caught and logged below
+                if (httpResponse.statusCode() != 200) {
+                    throw new ReplicationException("HTTP " + httpResponse.statusCode() + " - " + httpResponse.body());
                 }
 
                 logger.trace("FS Replication {} Webhook Response: {}", webhookType, httpResponse.statusCode());
             } catch (ReplicationException e) {
-                // Re-throw our explicit exception if we care about failures
+                // Always log the error
+                logger.error("FS Replication {} Webhook failed with: {}", webhookType, e.getMessage());
+
+                // Halt the process only if we care about failures
                 if (failOnError) {
                     throw e;
                 }
-                logger.error("FS Replication {} Webhook failed with: {}", webhookType, e.getMessage(), e);
             } catch (Exception e) {
-                // Wrap and throw general exceptions if we care, otherwise log and proceed
+                // Always log general exceptions
+                logger.error("FS Replication {} Webhook failed with: {}", webhookType, e.getMessage(), e);
+
+                // Wrap and throw general exceptions if we care about failures
                 if (failOnError) {
                     throw new ReplicationException("FS Replication " + webhookType + " Webhook failed: " + e.getMessage(), e);
                 }
-                logger.error("FS Replication {} Webhook failed with: {}", webhookType, e.getMessage(), e);
             }
         }
     }
@@ -379,7 +381,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         prePublishWebhookMap = new HashMap<>();
         String[] prePublishWebhooks = configuration.pre_publish_webhook_map();
         for (String webhook : prePublishWebhooks) {
-            String[] tokens = webhook.split("=");
+            String[] tokens = webhook.split("=", 2);
             if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
                 prePublishWebhookMap.put(tokens[0], tokens[1]);
             }
@@ -388,7 +390,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         postPublishWebhookMap = new HashMap<>();
         String[] postPublishWebhooks = configuration.post_publish_webhook_map();
         for (String webhook : postPublishWebhooks) {
-            String[] tokens = webhook.split("=");
+            String[] tokens = webhook.split("=", 2);
             if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
                 postPublishWebhookMap.put(tokens[0], tokens[1]);
             }
