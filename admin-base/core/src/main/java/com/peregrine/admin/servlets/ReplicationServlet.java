@@ -103,17 +103,25 @@ public final class ReplicationServlet extends ReplicationServletBase {
     )
     @interface Configuration {
         @AttributeDefinition(
-                name = "Webhook URL",
-                description = "Webhook URL to call after replication",
+                name = "Pre-publish Webhook Map",
+                description = "Pre-publish Webhook Configuration. Format: tenant = Webhook URL to call before replication",
                 required = false
         )
-        String webhook() default "";
+        String[] pre_publish_webhook_map();
+
+        @AttributeDefinition(
+                name = "Post-publish Webhook Map",
+                description = "Post-publish Webhook Configuration. Format: tenant = Webhook URL to call after replication",
+                required = false
+        )
+        String[] post_publish_webhook_map();
     }
 
     public static final String DEACTIVATE = "deactivate";
     public static final String RESOURCES = "resources";
 
-    private String webhook;
+    private Map<String, String> prePublishWebhookMap;
+    private Map<String, String> postPublishWebhookMap;
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -134,13 +142,16 @@ public final class ReplicationServlet extends ReplicationServletBase {
             final Resource resource,
             final ResourceResolver resourceResolver
     ) throws IOException, ReplicationException, RepositoryException {
-        if (parseBoolean(request.getParameter(DEACTIVATE))) {
-            return performDeactivation(replication, resource);
-        }
-
         final boolean deep = parseBoolean(request.getParameter("deep"));
         final boolean draft = parseBoolean(request.getParameter("draft"));
         final boolean callback = parseBoolean(request.getParameter("callback"));
+
+        final String tenant = getTenantNameFromResource(resource);
+        final String resourceType = resource.getResourceType();
+
+        if (parseBoolean(request.getParameter(DEACTIVATE))) {
+            return performDeactivation(replication, resource, callback, tenant);
+        }
 
         final PerUtil.ResourceChecker tenantChecker = new ReplicationUtil.TenantOwnedResourceChecker(resource);
         List<Resource> toBeReplicated = listMissingResources(resource, tenantChecker, deep, new LinkedList<>());
@@ -174,15 +185,16 @@ public final class ReplicationServlet extends ReplicationServletBase {
                     }
                 });
 
-        String resourceType = resource.getResourceType();
+        // Trigger the pre-publish Webhook before querying for drafts and checking out for the first path (Halts on failure)
+        String prePublishWebhook = prePublishWebhookMap.get(tenant);
+        String[] prePublishPaths = toBeReplicatedPaths.isEmpty() ? new String[0] : new String[]{ toBeReplicatedPaths.get(0) };
+        callWebhook(prePublishWebhook, prePublishPaths, "pre-publish", true);
 
         // per:Page OR per:Object -> republish all pages (except published above) with label "Draft" or "Published"
         if (draft && (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE))) {
             Workspace workspace = resourceResolver.adaptTo(Session.class).getWorkspace();
             QueryManager queryManager = workspace.getQueryManager();
             VersionManager versionManager = workspace.getVersionManager();
-
-            String tenant = getTenantNameFromResource(resource);
 
             // Find all pages
             String pages = "/"+ CONTENT +"/"+ tenant +"/" + PAGES;
@@ -270,8 +282,10 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
         List<Resource> replicateResponse = replication.replicate(toBeReplicated);
 
+        // Trigger the Post-publish Webhook
         if (callback) {
-            callWebhook(allReplicatedPaths.toArray(new String[0]));
+            String postPublishWebhook = postPublishWebhookMap.get(tenant);
+            callWebhook(postPublishWebhook, allReplicatedPaths.toArray(new String[0]), "post-publish", false);
         }
 
         return prepareResponse(resource, replicateResponse);
@@ -280,7 +294,9 @@ public final class ReplicationServlet extends ReplicationServletBase {
     @NotNull
     private Response performDeactivation(
             final Replication replication,
-            final Resource resource
+            final Resource resource,
+            final boolean callback,
+            final String tenant
     ) throws ReplicationException, IOException {
         final var replicatedStuff = replication.deactivate(resource);
         for (final Resource r : streamReplicableResources(replicatedStuff)
@@ -288,16 +304,26 @@ public final class ReplicationServlet extends ReplicationServletBase {
             resourceManagement.deleteVersionLabel(r, PerConstants.PUBLISHED_LABEL);
         }
 
-        callWebhook(new String[]{resource.getPath()});
+        if (callback) {
+            String postPublishWebhook = postPublishWebhookMap.get(tenant);
+            callWebhook(postPublishWebhook, new String[]{resource.getPath()}, "post-publish", false);
+        }
 
         return prepareResponse(resource, replicatedStuff);
     }
 
-    private void callWebhook(String[] paths) {
-        try {
-            if (!isEmpty(webhook) && paths.length > 0) {
-                logger.trace("Calling FS Replication Webhook: {}", webhook);
+    /**
+     * Unified method for dispatching webhooks, capable of handling varying severity of errors.
+     * @param webhook The target URL
+     * @param paths The list of paths to send in the payload
+     * @param webhookType String descriptor ("pre-publish" or "post-publish")
+     * @param failOnError If true, exceptions and non-200 responses will throw ReplicationExceptions and halt the process
+     */
+    private void callWebhook(String webhook, String[] paths, String webhookType, boolean failOnError) throws ReplicationException {
+        if (!isEmpty(webhook) && paths.length > 0) {
+            logger.trace("Calling FS Replication {} Webhook: {}", webhookType, webhook);
 
+            try {
                 ObjectMapper objectMapper = new ObjectMapper();
                 ObjectNode payload = objectMapper.createObjectNode();
 
@@ -315,14 +341,32 @@ public final class ReplicationServlet extends ReplicationServletBase {
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                         .build();
 
-                HttpClient httpClient = HttpClient.newHttpClient();
-                HttpResponse<String> httpResponse = httpClient.send(webhookRequest, HttpResponse.BodyHandlers.ofString());;
+                HttpClient httpClient = getHttpClient();
+                HttpResponse<String> httpResponse = httpClient.send(webhookRequest, HttpResponse.BodyHandlers.ofString());
 
-                logger.trace("FS Replication Webhook Response: " + httpResponse.statusCode());
+                // If the response is not HTTP 200 OK, throw an exception to be caught and logged below
+                if (httpResponse.statusCode() != 200) {
+                    throw new ReplicationException("HTTP " + httpResponse.statusCode() + " - " + httpResponse.body());
+                }
+
+                logger.trace("FS Replication {} Webhook Response: {}", webhookType, httpResponse.statusCode());
+            } catch (ReplicationException e) {
+                // Always log the error
+                logger.error("FS Replication {} Webhook failed with: {}", webhookType, e.getMessage());
+
+                // Halt the process only if we care about failures
+                if (failOnError) {
+                    throw e;
+                }
+            } catch (Exception e) {
+                // Always log general exceptions
+                logger.error("FS Replication {} Webhook failed with: {}", webhookType, e.getMessage(), e);
+
+                // Wrap and throw general exceptions if we care about failures
+                if (failOnError) {
+                    throw new ReplicationException("FS Replication " + webhookType + " Webhook failed: " + e.getMessage(), e);
+                }
             }
-        }
-        catch (Exception e) {
-            logger.error("FS Replication Webhook failed with: " + e.getMessage());
         }
     }
 
@@ -335,6 +379,27 @@ public final class ReplicationServlet extends ReplicationServletBase {
     void modified(ReplicationServlet.Configuration configuration) { setup(configuration); }
 
     private void setup(ReplicationServlet.Configuration configuration) {
-        webhook = configuration.webhook();
+        prePublishWebhookMap = new HashMap<>();
+        String[] prePublishWebhooks = configuration.pre_publish_webhook_map();
+        for (String webhook : prePublishWebhooks) {
+            String[] tokens = webhook.split("=", 2);
+            if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
+                prePublishWebhookMap.put(tokens[0], tokens[1]);
+            }
+        }
+
+        postPublishWebhookMap = new HashMap<>();
+        String[] postPublishWebhooks = configuration.post_publish_webhook_map();
+        for (String webhook : postPublishWebhooks) {
+            String[] tokens = webhook.split("=", 2);
+            if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
+                postPublishWebhookMap.put(tokens[0], tokens[1]);
+            }
+        }
+    }
+
+    // For test mocking only
+    protected HttpClient getHttpClient() {
+        return HttpClient.newHttpClient();
     }
 }
