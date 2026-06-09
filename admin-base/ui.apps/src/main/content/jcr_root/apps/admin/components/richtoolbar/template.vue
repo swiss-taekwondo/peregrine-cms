@@ -1883,6 +1883,7 @@ export default {
         $perAdminApp.action(this, 'writeInlineToModel')
       }
 
+      textEditor.focus()
       this.$nextTick(() => {
         this.$nextTick(() => {
           const selectionAfter = ownerDoc.getSelection()
