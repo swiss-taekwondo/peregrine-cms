@@ -216,6 +216,7 @@ export default {
 
   data() {
     return {
+      defaultFontSize: null,
       openGroups: {},
       selection: {
         restore: false,
@@ -366,6 +367,7 @@ export default {
   },
 
   mounted() {
+    document.addEventListener('selectionchange', this.setDefaultFontSize)
     this.$nextTick(() => {
       window.addEventListener('resize', this.scheduleDocElDimensionsUpdate)
       this.initResizeObserver()
@@ -485,6 +487,7 @@ export default {
 
   beforeDestroy() {
     window.removeEventListener('resize', this.scheduleDocElDimensionsUpdate)
+    document.removeEventListener('selectionchange', this.setDefaultFontSize)
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
       this._resizeObserver = null
@@ -582,6 +585,16 @@ export default {
   },
 
   methods: {
+    setDefaultFontSize() {
+      const inlineEditingComponent = document.querySelector('#editview')?.contentDocument?.querySelector('.inline-editing')
+      if (inlineEditingComponent) {
+        const fontSizeNr = parseInt(getComputedStyle(inlineEditingComponent).fontSize)
+        if (!isNaN(fontSizeNr)) {
+          this.defaultFontSize = fontSizeNr
+        }
+      }
+    },
+
     initResizeObserver() {
       if (typeof ResizeObserver === 'undefined' || !this.$el) return
 
@@ -887,6 +900,7 @@ export default {
       return h(RichtoolbarFontSize, {
         key,
         props: {
+          defaultFontSize: this.defaultFontSize,
           exec: this.exec,
           isRangeInEditor: this.isRangeInEditor,
           isNodeInEditor: this.isNodeInEditor,
@@ -1482,8 +1496,30 @@ export default {
       const savedSel = isEditor ? (bufferedSel || liveSel) : (liveSel || bufferedSel)
       const preSelection = doc.defaultView?.getSelection?.() || null
       const preRange = preSelection && preSelection.rangeCount > 0 ? preSelection.getRangeAt(0).cloneRange() : null
+
+      if (preSelection && preRange && !preRange.collapsed) {
+        const startNode = preRange.startContainer
+        if (startNode.nodeType === Node.TEXT_NODE && preRange.startOffset === startNode.textContent.length) {
+          const walker = doc.createTreeWalker(container, NodeFilter.SHOW_ALL)
+          walker.currentNode = startNode
+          let nextNode = walker.nextNode()
+
+          while (nextNode && nextNode.nodeName === 'BR') {
+            nextNode = walker.nextNode()
+          }
+
+          if (nextNode) {
+            const adjustedRange = preRange.cloneRange()
+            adjustedRange.setStart(nextNode, 0)
+            preSelection.removeAllRanges()
+            preSelection.addRange(adjustedRange)
+          }
+        }
+      }
+
       const collapsedSidebarRange = isEditor && preRange && preRange.collapsed ? preRange : null
       const collapsedInlineRange = !isEditor && preRange && preRange.collapsed ? preRange : null
+
       if (isEditor && this._savedRange && doc.defaultView) {
         const selection = doc.defaultView.getSelection()
         if (selection) {
@@ -1797,11 +1833,6 @@ export default {
         setFontSizeOfEl(fontSizeParent, fontSize)
         fontSizeParent.style.fontSize = fontSize
         textEditor.dispatchEvent(new Event('input'))
-        if (textEditor.ownerDocument.querySelector('iframe#editview')) {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        } else {
-          $perAdminApp.action(this, 'writeInlineToModel')
-        }
         return
       }
 
@@ -1821,11 +1852,7 @@ export default {
           span.style.fontSize = fontSize
           range.surroundContents(span)
           this.selectNodes([span])
-          if (textEditor.ownerDocument.querySelector('iframe#editview')) {
-            $perAdminApp.action(this, 'textEditorWriteToModel')
-          } else {
-            $perAdminApp.action(this, 'writeInlineToModel')
-          }
+          textEditor.dispatchEvent(new Event('input'))
         } else {
           setFontSizeOfEl(range.startContainer, fontSize)
         }
@@ -1856,6 +1883,7 @@ export default {
         $perAdminApp.action(this, 'writeInlineToModel')
       }
 
+      textEditor.focus()
       this.$nextTick(() => {
         this.$nextTick(() => {
           const selectionAfter = ownerDoc.getSelection()
@@ -2539,7 +2567,7 @@ export default {
         }
 
         link.appendChild(range.extractContents())
-        if (link.textContent.trim().length < 1) {
+        if (link.textContent.trim().length < 1 && link.children.length === 0) {
           link.textContent = href
         }
         range.insertNode(link)
