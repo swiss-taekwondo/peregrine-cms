@@ -84,7 +84,7 @@
             </resource>
 
             <resource>
-                <directory>${basedir}/src/main/js/axios</directory>
+                <directory>${basedir}/node_modules/@driftingsands/stkd-axios-override</directory>
                 <targetPath>etc/felibs/pagerendervue/axios</targetPath>
             </resource>
 

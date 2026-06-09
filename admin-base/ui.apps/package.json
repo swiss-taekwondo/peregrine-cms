@@ -28,7 +28,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "axios": "^0.18.0",
+    "@driftingsands/stkd-axios-override": "^1.0.1",
     "codemirror-formatting": "^1.0.0",
     "drag-drop-touch": "^1.3.0",
     "expr-eval": "^1.2.2",
