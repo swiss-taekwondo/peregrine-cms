@@ -338,18 +338,24 @@
 </template>
 
 <script>
-import {IconLib, MimeType, NodeType, SUFFIX_PARAM_SEPARATOR} from '../../../../../../js/constants'
-import {deepClone, get, set} from '../../../../../../js/utils'
-import NodeNameValidation from '../../../../../../js/mixins/NodeNameValidation'
-import ReferenceUtil from '../../../../../../js/mixins/ReferenceUtil'
-import Icon from '../icon/template.vue'
-import PathBrowser from '../pathbrowser/template.vue'
-import MaterializeModal from '../materializemodal/template.vue'
-import ConfirmDialog from '../confirmdialog/template.vue'
-import Action from '../action/template.vue'
-import ExplorerPreviewNavItem from '../explorerpreviewnavitem/template.vue'
-import IconEditPage from '../iconeditpage/template.vue'
-import LinearPreloader from '../linearpreloader/template.vue'
+import {
+	IconLib,
+	MimeType,
+	NodeType,
+	SUFFIX_PARAM_SEPARATOR,
+} from "../../../../../../js/constants";
+import NodeNameValidation from "../../../../../../js/mixins/NodeNameValidation";
+import ReferenceUtil from "../../../../../../js/mixins/ReferenceUtil";
+import { deepClone, get, set } from "../../../../../../js/utils";
+import { resolveMediaText } from "../../../js/mediaText";
+import Action from "../action/template.vue";
+import ConfirmDialog from "../confirmdialog/template.vue";
+import ExplorerPreviewNavItem from "../explorerpreviewnavitem/template.vue";
+import Icon from "../icon/template.vue";
+import IconEditPage from "../iconeditpage/template.vue";
+import LinearPreloader from "../linearpreloader/template.vue";
+import MaterializeModal from "../materializemodal/template.vue";
+import PathBrowser from "../pathbrowser/template.vue";
 
 const Tab = {
   INFO: 'info',
@@ -752,7 +758,7 @@ export default {
       this.valid.errors = errors;
     },
 
-    autoFillAltFromAsset(newVal, schemaKey) {
+    async autoFillAltFromAsset(newVal, schemaKey) {
       if (!newVal || typeof newVal !== 'string' || !newVal.startsWith('/content/')) return
       const schema = this.getSchema(SchemaKey.MODEL)
       if (!schema || !schema.fields) return
@@ -791,15 +797,12 @@ export default {
       }
       if (!altModelKey) return
       if (this.node[altModelKey]) return
-      const altPath = newVal + '/jcr:content/alt'
-      fetch('/admin/nodes.json' + altPath)
-        .then(resp => resp.json())
-        .then(data => {
-          if (data.alt && !this.node[altModelKey]) {
-            this.node[altModelKey] = data.alt
-          }
-        })
-        .catch(() => {})
+      const rootData = this.$root && this.$root.$data
+      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
+      const text = await resolveMediaText(newVal, adminNodes)
+      if (text && !this.node[altModelKey]) {
+        this.node[altModelKey] = text
+      }
     },
 
     onConfirmDialog (event) {

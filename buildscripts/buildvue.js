@@ -4,9 +4,10 @@ const fs        = require('fs-extra')
 const rollup    = require( 'rollup' )
 const path      = require('path')
 const vue       = require('rollup-plugin-vue')
-const buble     = require('rollup-plugin-buble')
+const babel     = require('@rollup/plugin-babel').babel
 const commonjs  = require('rollup-plugin-commonjs')
 const camelcase = require('camelcase')
+const presetEnv = require('@babel/preset-env')
 
 console.log('========== building vue files ==========')
 
@@ -67,7 +68,13 @@ function compileComponent(file){
         compileTemplate: true,
         css: `${distBasePath}/css/${nameCamelCase}.css`
       }),
-      buble(),
+      babel({
+        babelHelpers: 'bundled',
+        babelrc: false,
+        configFile: false,
+        presets: [[presetEnv, {modules: false, targets: {ie: '11'}}]],
+        exclude: 'node_modules/**'
+      }),
       commonjs()
     ]
   }).then( function(bundle) {
@@ -199,5 +206,3 @@ for(let i = 0; i < vueFiles.length; i++) {
 }
 
 fs.writeFileSync(timestampTokenFile, `${Date.now()}`, 'utf-8');
-
-

@@ -29,4 +29,5 @@
           sling:resourceSuperType="pagerendervue/components/base"
           jcr:title="Image"
           group="Content"
+          alt=""
           />
