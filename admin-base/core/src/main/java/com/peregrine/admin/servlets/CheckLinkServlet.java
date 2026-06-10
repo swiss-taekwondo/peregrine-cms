@@ -30,8 +30,12 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
@@ -667,6 +671,185 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
             persistPageReference(resourceResolver, location, entry.timestamp);
         } catch (final PersistenceException e) {
             logger.warn("CheckLink: failed to persist cache entry for path={}", location.path, e);
+        }
+    }
+
+    static void cleanupPageCache(final ResourceResolver resourceResolver, final String pagePath) {
+        final String normalizedPagePath = normalizePagePath(pagePath);
+        if (resourceResolver == null || StringUtils.isBlank(normalizedPagePath)) {
+            return;
+        }
+
+        final Map<String, Integer> referenceCounts = countCacheReferences(resourceResolver);
+        final Set<String> canonicalPathsToDelete = new LinkedHashSet<>();
+
+        cleanupPageCacheBranch(
+            resourceResolver,
+            resourceResolver.getResource(CACHE_ROOT + "/" + CACHE_PAGES + normalizedPagePath),
+            CACHE_ROOT + "/" + CACHE_PAGES,
+            referenceCounts,
+            canonicalPathsToDelete
+        );
+        cleanupPageCacheBranch(
+            resourceResolver,
+            resourceResolver.getResource(CACHE_ROOT + normalizedPagePath + "/links"),
+            CACHE_ROOT,
+            referenceCounts,
+            canonicalPathsToDelete
+        );
+
+        for (final String canonicalPath : canonicalPathsToDelete) {
+            deleteResourceAndEmptyAncestors(resourceResolver, canonicalPath, CACHE_ROOT + "/" + CACHE_URLS);
+        }
+    }
+
+    static void movePageCache(final ResourceResolver resourceResolver, final String fromPagePath, final String toPagePath) {
+        final String normalizedFromPagePath = normalizePagePath(fromPagePath);
+        final String normalizedToPagePath = normalizePagePath(toPagePath);
+        if (resourceResolver == null || StringUtils.isBlank(normalizedFromPagePath) || StringUtils.isBlank(normalizedToPagePath) || StringUtils.equals(normalizedFromPagePath, normalizedToPagePath)) {
+            return;
+        }
+
+        movePageCacheBranch(resourceResolver, CACHE_ROOT + "/" + CACHE_PAGES + normalizedFromPagePath, CACHE_ROOT + "/" + CACHE_PAGES + normalizedToPagePath, normalizedToPagePath);
+        movePageCacheBranch(resourceResolver, CACHE_ROOT + normalizedFromPagePath + "/links", CACHE_ROOT + normalizedToPagePath + "/links", normalizedToPagePath);
+    }
+
+    private static void cleanupPageCacheBranch(
+        final ResourceResolver resourceResolver,
+        final Resource branchRoot,
+        final String stopPath,
+        final Map<String, Integer> referenceCounts,
+        final Set<String> canonicalPathsToDelete
+    ) {
+        if (resourceResolver == null || branchRoot == null) {
+            return;
+        }
+
+        final List<Resource> children = new ArrayList<>();
+        for (final Resource child : branchRoot.getChildren()) {
+            children.add(child);
+        }
+
+        for (final Resource child : children) {
+            final String cachePath = child.getValueMap().get(CACHE_CACHE_PATH, String.class);
+            if (StringUtils.isNotBlank(cachePath) && referenceCounts.getOrDefault(cachePath, 0) <= 1) {
+                canonicalPathsToDelete.add(cachePath);
+            }
+            try {
+                resourceResolver.delete(child);
+            } catch (final PersistenceException e) {
+                logger.warn("CheckLink: failed to delete page cache child for path={}", child.getPath(), e);
+                return;
+            }
+        }
+
+        deleteResourceAndEmptyAncestors(resourceResolver, branchRoot.getPath(), stopPath);
+    }
+
+    private static Map<String, Integer> countCacheReferences(final ResourceResolver resourceResolver) {
+        final Map<String, Integer> counts = new HashMap<>();
+        final Resource root = resourceResolver == null ? null : resourceResolver.getResource(CACHE_ROOT);
+        if (root != null) {
+            collectCacheReferences(root, counts);
+        }
+        return counts;
+    }
+
+    private static void collectCacheReferences(final Resource resource, final Map<String, Integer> counts) {
+        final String cachePath = resource.getValueMap().get(CACHE_CACHE_PATH, String.class);
+        if (StringUtils.isNotBlank(cachePath)) {
+            counts.merge(cachePath, 1, Integer::sum);
+        }
+        for (final Resource child : resource.getChildren()) {
+            collectCacheReferences(child, counts);
+        }
+    }
+
+    private static void movePageCacheBranch(
+        final ResourceResolver resourceResolver,
+        final String fromPath,
+        final String toPath,
+        final String normalizedToPagePath
+    ) {
+        if (resourceResolver == null || StringUtils.isBlank(fromPath) || StringUtils.isBlank(toPath) || StringUtils.equals(fromPath, toPath)) {
+            return;
+        }
+        final Resource source = resourceResolver.getResource(fromPath);
+        if (source == null) {
+            return;
+        }
+        final Resource destination = resourceResolver.getResource(toPath);
+        if (destination != null) {
+            try {
+                resourceResolver.delete(destination);
+            } catch (final PersistenceException e) {
+                logger.warn("CheckLink: failed to clear destination cache branch for path={}", toPath, e);
+                return;
+            }
+        }
+        try {
+            copyPageCacheBranch(resourceResolver, source, toPath, normalizedToPagePath);
+            resourceResolver.delete(source);
+        } catch (final PersistenceException e) {
+            logger.warn("CheckLink: failed to move page cache branch from {} to {}", fromPath, toPath, e);
+            return;
+        }
+    }
+
+    private static void copyPageCacheBranch(final ResourceResolver resourceResolver, final Resource source, final String toPath, final String pagePath) throws PersistenceException {
+        if (resourceResolver == null || source == null || StringUtils.isBlank(toPath)) {
+            return;
+        }
+        final Resource target = ResourceUtils.getOrCreateResource(resourceResolver, toPath, SLING_ORDERED_FOLDER);
+        final ModifiableValueMap values = target.adaptTo(ModifiableValueMap.class);
+        if (values != null) {
+            copyResourceValues(source, values, pagePath);
+        }
+        for (final Resource child : source.getChildren()) {
+            copyPageCacheBranch(resourceResolver, child, toPath + "/" + child.getName(), pagePath);
+        }
+    }
+
+    private static void copyResourceValues(final Resource source, final ModifiableValueMap target, final String pagePath) {
+        for (final Map.Entry<String, Object> entry : source.getValueMap().entrySet()) {
+            final String key = entry.getKey();
+            if (!key.startsWith("jcr:")) {
+                if (StringUtils.equals(key, CACHE_PAGE_PATH)) {
+                    target.put(key, pagePath);
+                } else {
+                    target.put(key, entry.getValue());
+                }
+            }
+        }
+        target.put(CACHE_PAGE_PATH, pagePath);
+    }
+
+    private static void deleteResourceAndEmptyAncestors(final ResourceResolver resourceResolver, final String path, final String stopPath) {
+        if (resourceResolver == null || StringUtils.isBlank(path) || StringUtils.isBlank(stopPath)) {
+            return;
+        }
+
+        String currentPath = path;
+        while (StringUtils.isNotBlank(currentPath) && StringUtils.startsWith(currentPath, stopPath) && !StringUtils.equals(currentPath, stopPath)) {
+            final Resource current = resourceResolver.getResource(currentPath);
+            if (current == null) {
+                return;
+            }
+            final Resource parent = current.getParent();
+            try {
+                resourceResolver.delete(current);
+            } catch (final PersistenceException e) {
+                logger.warn("CheckLink: failed to delete empty link cache node for path={}", current.getPath(), e);
+                return;
+            }
+            if (parent == null) {
+                return;
+            }
+            final Resource refreshedParent = resourceResolver.getResource(parent.getPath());
+            if (refreshedParent == null || refreshedParent.hasChildren()) {
+                return;
+            }
+            currentPath = refreshedParent.getPath();
         }
     }
 
