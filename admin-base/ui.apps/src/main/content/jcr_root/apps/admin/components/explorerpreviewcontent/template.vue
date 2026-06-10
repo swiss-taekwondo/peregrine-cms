@@ -967,7 +967,8 @@ export default {
     async verifyLink(urlToCheck) {
       try {
         const purgeParam = this.isPurgeRecheck ? '&purge=true' : '';
-        const apiUrl = `/extension/check-link?url=${encodeURIComponent(urlToCheck)}${purgeParam}`;
+        const pagePathParam = this.currentObject ? `&pagePath=${encodeURIComponent(this.currentObject)}` : '';
+        const apiUrl = `/extension/check-link?url=${encodeURIComponent(urlToCheck)}${pagePathParam}${purgeParam}`;
         const response = await fetch(apiUrl, { method: 'GET', credentials: 'same-origin' });
         if (response.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
         const data = await response.json();
@@ -984,7 +985,8 @@ export default {
     async verifyInternalLink(path) {
       const checkUrl = (p) => {
         const purgeParam = this.isPurgeRecheck ? '&purge=true' : '';
-        const url = `/extension/check-link?url=${encodeURIComponent(window.location.origin + p)}${purgeParam}`;
+        const pagePathParam = this.currentObject ? `&pagePath=${encodeURIComponent(this.currentObject)}` : '';
+        const url = `/extension/check-link?url=${encodeURIComponent(window.location.origin + p)}${pagePathParam}${purgeParam}`;
         return fetch(url, { method: 'GET', credentials: 'same-origin' });
       };
       const parseResponse = async (resp) => {

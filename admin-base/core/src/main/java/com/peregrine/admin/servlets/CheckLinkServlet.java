@@ -2,8 +2,14 @@ package com.peregrine.admin.servlets;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.peregrine.commons.ResourceUtils;
 import com.peregrine.commons.servlets.AbstractBaseServlet;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Modified;
@@ -21,6 +27,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +42,7 @@ import static com.peregrine.commons.util.PerUtil.EQUALS;
 import static com.peregrine.commons.util.PerUtil.GET;
 import static com.peregrine.commons.util.PerUtil.PER_PREFIX;
 import static com.peregrine.commons.util.PerUtil.PER_VENDOR;
+import static com.peregrine.commons.util.PerConstants.SLING_ORDERED_FOLDER;
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_METHODS;
@@ -78,6 +88,14 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
     private static final int MAX_REDIRECTS = 5;
     private static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
     private static final int MAX_CONCURRENT_REQUESTS = 10;
+    private static final String CACHE_ROOT = "/var/linkchecker";
+    private static final String CACHE_URLS = "urls";
+    private static final String CACHE_PAGES = "pages";
+    private static final String CACHE_JSON = "json";
+    private static final String CACHE_URL = "url";
+    private static final String CACHE_PAGE_PATH = "pagePath";
+    private static final String CACHE_CACHE_PATH = "cachePath";
+    private static final String CACHE_CHECKED_AT = "checkedAt";
     private static final Semaphore REQUEST_SEMAPHORE = new Semaphore(MAX_CONCURRENT_REQUESTS);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -160,6 +178,21 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         CacheEntry(final String json, final long timestamp) {
             this.json = json;
             this.timestamp = timestamp;
+        }
+    }
+
+    private static final class CacheLocation {
+        final String key;
+        final String pagePath;
+        final String path;
+        final String legacyPath;
+        final String pageIndexPath;
+        CacheLocation(final String key, final String pagePath, final String path, final String legacyPath, final String pageIndexPath) {
+            this.key = key;
+            this.pagePath = pagePath;
+            this.path = path;
+            this.legacyPath = legacyPath;
+            this.pageIndexPath = pageIndexPath;
         }
     }
 
@@ -276,12 +309,27 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
                 .setErrorMessage("No URL provided");
         }
 
+        final String pagePath = normalizePagePath(request.getParameter("pagePath"));
+        final CacheLocation cacheLocation = getCacheLocation(pagePath, urlParam);
+
         final boolean purge = "true".equalsIgnoreCase(request.getParameter("purge"));
         if (!purge && cacheTtlMs > 0) {
-            final CacheEntry entry = cache.get(urlParam);
+            final CacheEntry entry = cache.get(cacheLocation.key);
             if (entry != null && (System.currentTimeMillis() - entry.timestamp) < cacheTtlMs) {
+                persistPageReference(request.getRequest().getResourceResolver(), cacheLocation, entry.timestamp);
                 return new PlainJsonResponse(entry.json);
             }
+            final CacheEntry persisted = readCacheEntry(request.getRequest().getResourceResolver(), cacheLocation);
+            if (persisted != null) {
+                cache.put(cacheLocation.key, persisted);
+                persistPageReference(request.getRequest().getResourceResolver(), cacheLocation, persisted.timestamp);
+                return new PlainJsonResponse(persisted.json);
+            }
+        }
+
+        if (purge) {
+            cache.remove(cacheLocation.key);
+            deleteCacheEntry(request.getRequest().getResourceResolver(), cacheLocation);
         }
 
         final Set<InetAddress> serverAddresses = resolveServerAddresses(request.getRequest());
@@ -306,7 +354,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         final URI uri = URI.create(urlParam);
         final String host = uri.getHost();
         if (host != null && !isServerAddress(host, serverAddresses)) {
-            return proxyExternalToWorker(urlParam);
+            return proxyExternalToWorker(request.getRequest().getResourceResolver(), cacheLocation, urlParam);
         }
 
         try {
@@ -501,7 +549,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
                         jsonResponse.writeAttribute("errorPage", true);
                     }
 
-                    return cacheAndWrap(urlParam, jsonResponse);
+                    return cacheAndWrap(request.getRequest().getResourceResolver(), cacheLocation, jsonResponse);
                 } finally {
                     REQUEST_SEMAPHORE.release();
                 }
@@ -519,12 +567,158 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         }
     }
 
-    private Response cacheAndWrap(final String url, final JsonResponse response) throws IOException {
+    private Response cacheAndWrap(final ResourceResolver resourceResolver, final CacheLocation cacheLocation, final JsonResponse response) throws IOException {
         final String json = response.getContent();
         if (cacheTtlMs > 0 && cache.size() < maxCacheEntries) {
-            cache.put(url, new CacheEntry(json, System.currentTimeMillis()));
+            final CacheEntry entry = new CacheEntry(json, System.currentTimeMillis());
+            cache.put(cacheLocation.key, entry);
+            persistCacheEntry(resourceResolver, cacheLocation, entry);
         }
         return new PlainJsonResponse(json);
+    }
+
+    private static String normalizePagePath(final String path) {
+        if (isBlank(path)) {
+            return "";
+        }
+        return StringUtils.substringBefore(StringUtils.substringBefore(StringUtils.trim(path), "?"), "#");
+    }
+
+    private static String hash(final String value) {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            final byte[] hashed = digest.digest(String.valueOf(value).getBytes(StandardCharsets.UTF_8));
+            final StringBuilder result = new StringBuilder(hashed.length * 2);
+            for (final byte b : hashed) {
+                result.append(String.format("%02x", b));
+            }
+            return result.toString();
+        } catch (final NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
+    }
+
+    private static CacheLocation getCacheLocation(final String pagePath, final String url) {
+        final String normalizedUrl = StringUtils.trim(url);
+        final String key = normalizedUrl;
+        final String cachePath = CACHE_ROOT + "/" + CACHE_URLS + "/u-" + hash(normalizedUrl);
+        final String pageIndexPath = StringUtils.isBlank(pagePath)
+            ? null
+            : CACHE_ROOT + "/" + CACHE_PAGES + pagePath + "/u-" + hash(normalizedUrl);
+        final String legacyPath = StringUtils.isBlank(pagePath)
+            ? null
+            : CACHE_ROOT + pagePath + "/links/u-" + hash(normalizedUrl);
+        return new CacheLocation(key, pagePath, cachePath, legacyPath, pageIndexPath);
+    }
+
+    private CacheEntry readCacheEntry(final ResourceResolver resourceResolver, final CacheLocation location) {
+        if (resourceResolver == null) {
+            return null;
+        }
+        final CacheEntry direct = readCacheEntry(resourceResolver, location.path);
+        if (direct != null) {
+            return direct;
+        }
+        final CacheEntry legacy = readCacheEntry(resourceResolver, location.legacyPath);
+        if (legacy != null) {
+            persistCacheEntry(resourceResolver, location, legacy);
+        }
+        return legacy;
+    }
+
+    private CacheEntry readCacheEntry(final ResourceResolver resourceResolver, final String path) {
+        if (resourceResolver == null || StringUtils.isBlank(path)) {
+            return null;
+        }
+        final Resource resource = resourceResolver.getResource(path);
+        if (resource == null) {
+            return null;
+        }
+        final String json = resource.getValueMap().get(CACHE_JSON, String.class);
+        final long timestamp = resource.getValueMap().get(CACHE_CHECKED_AT, 0L);
+        if (StringUtils.isBlank(json) || timestamp <= 0) {
+            return null;
+        }
+        if (cacheTtlMs > 0 && (System.currentTimeMillis() - timestamp) >= cacheTtlMs) {
+            return null;
+        }
+        return new CacheEntry(json, timestamp);
+    }
+
+    private void persistCacheEntry(final ResourceResolver resourceResolver, final CacheLocation location, final CacheEntry entry) {
+        if (resourceResolver == null || StringUtils.isBlank(location.path)) {
+            return;
+        }
+        try {
+            ResourceUtils.getOrCreateResource(resourceResolver, location.path, SLING_ORDERED_FOLDER);
+            final Resource resource = resourceResolver.getResource(location.path);
+            if (resource == null) {
+                return;
+            }
+            final ModifiableValueMap values = resource.adaptTo(ModifiableValueMap.class);
+            if (values == null) {
+                return;
+            }
+            values.put(CACHE_URL, location.key);
+            values.put(CACHE_JSON, entry.json);
+            values.put(CACHE_CHECKED_AT, entry.timestamp);
+            values.put(CACHE_PAGE_PATH, location.pagePath);
+            resourceResolver.commit();
+            persistPageReference(resourceResolver, location, entry.timestamp);
+        } catch (final PersistenceException e) {
+            logger.warn("CheckLink: failed to persist cache entry for path={}", location.path, e);
+        }
+    }
+
+    private void persistPageReference(final ResourceResolver resourceResolver, final CacheLocation location, final long checkedAt) {
+        if (resourceResolver == null || StringUtils.isBlank(location.pageIndexPath)) {
+            return;
+        }
+        try {
+            ResourceUtils.getOrCreateResource(resourceResolver, location.pageIndexPath, SLING_ORDERED_FOLDER);
+            final Resource resource = resourceResolver.getResource(location.pageIndexPath);
+            if (resource == null) {
+                return;
+            }
+            final ModifiableValueMap values = resource.adaptTo(ModifiableValueMap.class);
+            if (values == null) {
+                return;
+            }
+            values.put(CACHE_URL, location.key);
+            values.put(CACHE_CHECKED_AT, checkedAt);
+            values.put(CACHE_PAGE_PATH, location.pagePath);
+            values.put(CACHE_CACHE_PATH, location.path);
+            resourceResolver.commit();
+        } catch (final PersistenceException e) {
+            logger.warn("CheckLink: failed to persist page reference for path={}", location.pageIndexPath, e);
+        }
+    }
+
+    private void deleteCacheEntry(final ResourceResolver resourceResolver, final CacheLocation location) {
+        if (resourceResolver == null || StringUtils.isBlank(location.path)) {
+            return;
+        }
+        try {
+            final Resource resource = resourceResolver.getResource(location.path);
+            if (resource != null) {
+                resourceResolver.delete(resource);
+            }
+            if (StringUtils.isNotBlank(location.legacyPath)) {
+                final Resource legacy = resourceResolver.getResource(location.legacyPath);
+                if (legacy != null) {
+                    resourceResolver.delete(legacy);
+                }
+            }
+            if (StringUtils.isNotBlank(location.pageIndexPath)) {
+                final Resource pageRef = resourceResolver.getResource(location.pageIndexPath);
+                if (pageRef != null) {
+                    resourceResolver.delete(pageRef);
+                }
+            }
+            resourceResolver.commit();
+        } catch (final PersistenceException e) {
+            logger.warn("CheckLink: failed to purge cache entry for path={}", location.path, e);
+        }
     }
 
     private static String stripScriptTags(final String html) {
@@ -532,7 +726,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
         return SCRIPT_TAG_PATTERN.matcher(html).replaceAll("");
     }
 
-    private Response proxyExternalToWorker(final String url) throws IOException {
+    private Response proxyExternalToWorker(final ResourceResolver resourceResolver, final CacheLocation cacheLocation, final String url) throws IOException {
         if (isBlank(checkerUrl) || isBlank(checkerToken)) {
             return new JsonResponse()
                 .writeAttribute("ok", false)
@@ -575,7 +769,7 @@ public final class CheckLinkServlet extends AbstractBaseServlet {
             }
 
             logger.debug("CheckLink: external url={}, checker valid={}, redirected={}, finalUrl={}", url, valid, redirected, finalUrl);
-            return cacheAndWrap(url, jsonResponse);
+            return cacheAndWrap(resourceResolver, cacheLocation, jsonResponse);
         } catch (final Exception e) {
             logger.warn("CheckLink: checker request failed for url={}", url, e);
             return new JsonResponse()

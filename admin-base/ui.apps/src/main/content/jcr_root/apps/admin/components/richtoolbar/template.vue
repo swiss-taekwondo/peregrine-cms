@@ -2657,11 +2657,6 @@ export default {
           if (editor) editor.dispatchEvent(new Event('input'))
         }
 
-        // This might be required for something else? But it causes empty RTE images to be overwritten with inline (empty) content when added in sidebar
-        // $perAdminApp.action(this, 'writeInlineToModel')
-        // this.$nextTick(() => {
-        //   $perAdminApp.action(this, 'textEditorWriteToModel')
-        // })
       }
     },
 
