@@ -37,6 +37,10 @@ function isUsableMediaText(text = '') {
   return !!value && !isPlaceholderMediaName(value)
 }
 
+export function isImagePath(path = '') {
+  return /\.(jpg|jpeg|png|gif|svg|webp|avif)$/i.test(String(path || ''))
+}
+
 export function normalizeAssetPath(path = '') {
   const value = String(path || '').trim()
   if (!value) return ''

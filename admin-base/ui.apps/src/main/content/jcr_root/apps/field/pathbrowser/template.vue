@@ -70,7 +70,7 @@
 
 <script>
 import {IconLib, PathBrowser} from '../../../../../js/constants'
-import {fallbackMediaText, normalizeAssetPath, resolveMediaText} from '../../js/mediaText'
+import {fallbackMediaText, isImagePath, normalizeAssetPath, resolveMediaText} from '../../js/mediaText'
 import {getBasePath} from '../../../../../js/mixins'
 
 import PathBrowserComponent from '../../admin/components/pathbrowser/template.vue'
@@ -123,9 +123,7 @@ export default {
           }
       },
       methods: {
-           isImagePath(path) {
-             return /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(path || '')
-           },
+           isImagePath,
            getMediaTextTargets() {
              const modelName = String(this.schema && this.schema.model ? this.schema.model : '').toLowerCase()
              const targets = []
