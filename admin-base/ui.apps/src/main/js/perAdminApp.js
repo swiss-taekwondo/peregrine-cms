@@ -37,6 +37,19 @@ function waitForElement(selector, callback) {
   }, 10000);
 }
 
+function initSentry() {
+  if (location.origin === 'https://author.taekwondo.ch' && !window.Cypress) {
+    const sentry = document.createElement('script');
+    sentry.crossOrigin = 'anonymous';
+    sentry.src = 'https://js-de.sentry-cdn.com/0fef68c0c52cc70fbcecadf4c2b145f6.min.js';
+    sentry.dataset.lazy = 'no';
+    // sentry.onload = () => {
+    //     throw new Error('Test Sentry');
+    // };
+    document.currentScript.after(sentry);
+  }
+}
+
 function initHotReload() {
   if (!window.EventSource) {
     return;
@@ -53,6 +66,7 @@ function initHotReload() {
   });
 }
 
+initSentry();
 initHotReload();
 
 waitForElement('.user-info .username', (el) => {

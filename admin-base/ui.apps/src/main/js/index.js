@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,6 +24,19 @@
  */
 import PerAdminApp from './perAdminApp'
 import PerAdminImpl from './apiImpl'
+
+function initSentry() {
+  if (location.origin === 'https://author.taekwondo.ch' && !window.Cypress) {
+    const sentry = document.createElement('script');
+    sentry.crossOrigin = 'anonymous';
+    sentry.src = 'https://js-de.sentry-cdn.com/0fef68c0c52cc70fbcecadf4c2b145f6.min.js';
+    sentry.dataset.lazy = 'no';
+    // sentry.onload = () => {
+    //     throw new Error('Test Sentry');
+    // };
+    document.currentScript.after(sentry);
+  }
+}
 
 function initHotReload() {
     if (!window.EventSource) {
@@ -41,6 +54,7 @@ function initHotReload() {
     })
 }
 
+initSentry()
 initHotReload()
 
 var $pappView = {}
