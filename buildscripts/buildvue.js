@@ -4,10 +4,9 @@ const fs        = require('fs-extra')
 const rollup    = require( 'rollup' )
 const path      = require('path')
 const vue       = require('rollup-plugin-vue')
-const babel     = require('@rollup/plugin-babel').babel
+const buble     = require('rollup-plugin-buble')
 const commonjs  = require('rollup-plugin-commonjs')
 const camelcase = require('camelcase')
-const presetEnv = require('@babel/preset-env')
 
 console.log('========== building vue files ==========')
 
@@ -68,13 +67,7 @@ function compileComponent(file){
         compileTemplate: true,
         css: `${distBasePath}/css/${nameCamelCase}.css`
       }),
-      babel({
-        babelHelpers: 'bundled',
-        babelrc: false,
-        configFile: false,
-        presets: [[presetEnv, {modules: false, targets: {ie: '11'}}]],
-        exclude: 'node_modules/**'
-      }),
+      buble(),
       commonjs()
     ]
   }).then( function(bundle) {
