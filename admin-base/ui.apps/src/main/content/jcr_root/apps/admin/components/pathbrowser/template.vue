@@ -339,7 +339,7 @@
                       :value="linkTitle"
                       @input="setLinkTitle"/>
                 </div>
-                <div v-if="isImageExtension({path: selectedPath}) && isAsset" class="img-group">
+                <div v-if="isImagePath(selectedPath) && isAsset" class="img-group">
                   <div class="form-group">
                     <label for="linkTitle">Image Width (px)</label>
                     <input
@@ -626,19 +626,12 @@ export default {
       return false
     },
     isImagePath,
-    isImageExtension(item) {
-      if (item.path) {
-        return item.path.match(/.(jpg|jpeg|png|gif|svg|webp)$/i)
-      } else {
-        return false
-      }
-    },
     getFileExt(item) {
       return item.name.split('.').pop()
     },
     getFileIcon(item) {
       const ext = this.getFileExt(item)
-      if (this.isImagePath(item)) {
+      if (this.isImagePath(item && item.path)) {
         return {icon: 'image', lib: IconLib.MATERIAL_ICONS}
       } else if (ext === 'xml') {
         return {icon: 'file-code', lib: IconLib.FONT_AWESOME}
@@ -773,7 +766,7 @@ export default {
     isSelectable(item) {
       if (!this.isBrowserTypeImage) {
         return true
-      } else if (this.isImagePath(item) || this.isImageExtension(item)) {
+      } else if (this.isImagePath(item && item.path)) {
         return true
       }
       return false
@@ -785,7 +778,7 @@ export default {
     onFileDropperUploadDone(files) {
       files.reverse().some((file) => {
         file.mimeType = file.type
-        if (this.isImagePath(file)) {
+        if (this.isImagePath(file.name)) {
           this.setSelectedPath(`${this.currentPath}/${file.name}`)
           return true
         }
