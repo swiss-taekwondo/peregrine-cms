@@ -26,16 +26,17 @@ import PerAdminApp from './perAdminApp'
 import PerAdminImpl from './apiImpl'
 
 function initSentry() {
-  if (location.origin === 'https://author.taekwondo.ch' && !window.Cypress) {
-    const sentry = document.createElement('script');
-    sentry.crossOrigin = 'anonymous';
-    sentry.src = 'https://js-de.sentry-cdn.com/0fef68c0c52cc70fbcecadf4c2b145f6.min.js';
-    sentry.dataset.lazy = 'no';
-    // sentry.onload = () => {
-    //     throw new Error('Test Sentry');
-    // };
-    document.currentScript.after(sentry);
-  }
+  axios.get('/apps/admin/analytics.json')
+    .then((analytics) => {
+      if (location.origin === analytics.data.domain && !window.Cypress && analytics.data.script) {
+        const sentry = document.createElement('script');
+        sentry.crossOrigin = 'anonymous';
+        sentry.src = analytics.data.script;
+        sentry.dataset.lazy = 'no';
+        document.currentScript.after(sentry);
+      }
+    })
+    .catch(() => null)
 }
 
 function initHotReload() {
