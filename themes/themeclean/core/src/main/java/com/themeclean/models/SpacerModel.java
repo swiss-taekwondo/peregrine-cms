@@ -210,6 +210,11 @@ public class SpacerModel extends AbstractComponent {
 	@Inject
 	private String bgimage;
 
+	/* {"type":"string","x-source":"inject","x-form-label":"Background Image Alt Text","x-form-type":"text","x-form-visible":"model.backgroundtype == 'image' and model.custombackground == 'true'"} */
+	@Inject
+	@Default(values ="")
+	private String bgimagealttext;
+
 	/* {"type":"string","x-source":"inject","x-form-label":"Overlay","x-form-type":"materialswitch","x-form-visible":"model.backgroundtype == 'image' and model.custombackground == 'true'"} */
 	@Inject
 	private String overlay;
@@ -271,6 +276,11 @@ public class SpacerModel extends AbstractComponent {
 	/* {"type":"string","x-source":"inject","x-form-label":"Background Image","x-form-type":"pathbrowser","x-form-visible":"model.backgroundtype == 'image' and model.custombackground == 'true'","x-form-browserRoot":"/content/themeclean/assets"} */
 	public String getBgimage() {
 		return bgimage;
+	}
+
+	/* {"type":"string","x-source":"inject","x-form-label":"Background Image Alt Text","x-form-type":"text","x-form-visible":"model.backgroundtype == 'image' and model.custombackground == 'true'"} */
+	public String getBgimagealttext() {
+		return bgimagealttext;
 	}
 
 	/* {"type":"string","x-source":"inject","x-form-label":"Overlay","x-form-type":"materialswitch","x-form-visible":"model.backgroundtype == 'image' and model.custombackground == 'true'"} */

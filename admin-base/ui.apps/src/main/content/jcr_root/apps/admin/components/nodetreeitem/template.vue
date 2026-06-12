@@ -37,7 +37,9 @@ export default {
     },
     computed: {
       vTitle() {
-        return this.item.title || this.item.name
+        const path = this.item && this.item.path ? this.item.path : ''
+        const fallbackName = path.split('/').pop() || ''
+        return this.item.title || this.item.name || fallbackName
       },
       expandIcon() {
         return this.isOpen ? 'keyboard_arrow_down' : 'keyboard_arrow_right'

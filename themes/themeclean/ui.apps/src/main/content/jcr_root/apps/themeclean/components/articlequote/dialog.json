@@ -102,6 +102,16 @@
       "placeholder": "bgimage",
       "label": "Background Image",
       "model": "bgimage",
+      "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'",
+      "defaultAltFromAsset": true
+    },
+    {
+      "type": "input",
+      "inputType": "text",
+      "placeholder": "bgimagealttext",
+      "label": "Background Image Alt Text",
+      "model": "bgimagealttext",
+      "defaultFrom": "bgimage",
       "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'"
     },
     {

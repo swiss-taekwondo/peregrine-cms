@@ -280,7 +280,7 @@
                       </div>
                       <template v-if="isFile(item)">
                         <img
-                            v-if="isImage(item)"
+                            v-if="isImagePath(item)"
                             :class="isSelected(item.path) ? 'item-image selected' : 'item-image'"
                             v-bind:style="`width: ${cardSize}px`"
                             v-bind:src="item.path"
@@ -339,7 +339,7 @@
                       :value="linkTitle"
                       @input="setLinkTitle"/>
                 </div>
-                <div v-if="isImageExtension({path: selectedPath}) && isAsset" class="img-group">
+                <div v-if="isImagePath(selectedPath) && isAsset" class="img-group">
                   <div class="form-group">
                     <label for="linkTitle">Image Width (px)</label>
                     <input
@@ -414,7 +414,7 @@
                   <admin-components-iconopenfolder></admin-components-iconopenfolder>
                 </div>
                 <template v-else>
-                  <img v-if="isImage(preview)" class="preview-image" v-bind:src="preview.path" :alt="preview.name"/>
+                  <img v-if="isImagePath(preview)" class="preview-image" v-bind:src="preview.path" :alt="preview.name"/>
                   <icon v-bind="getFileIcon(preview)"/>
                 </template>
                 <dl class="preview-data">
@@ -462,8 +462,9 @@
 </template>
 
 <script>
-import {IconLib, PathBrowser} from '../../../../../../js/constants'
+import { IconLib, PathBrowser } from '../../../../../../js/constants'
 
+import {isImagePath} from '../../../js/mediaText'
 import FileDropper from '../filedropper/template.vue'
 import Icon from '../icon/template.vue'
 
@@ -624,30 +625,13 @@ export default {
     onPrevent() {
       return false
     },
-    isImage(item) {
-      return [
-        'image/png',
-        'image/jpeg',
-        'image/jpg',
-        'image/gif',
-        'timage/tiff',
-        'image/svg+xml',
-        'image/webp',
-      ].indexOf(item.mimeType) >= 0
-    },
-    isImageExtension(item) {
-      if (item.path) {
-        return item.path.match(/.(jpg|jpeg|png|gif|svg|webp)$/i)
-      } else {
-        return false
-      }
-    },
+    isImagePath,
     getFileExt(item) {
       return item.name.split('.').pop()
     },
     getFileIcon(item) {
       const ext = this.getFileExt(item)
-      if (this.isImage(item)) {
+      if (this.isImagePath(item && item.path)) {
         return {icon: 'image', lib: IconLib.MATERIAL_ICONS}
       } else if (ext === 'xml') {
         return {icon: 'file-code', lib: IconLib.FONT_AWESOME}
@@ -782,7 +766,7 @@ export default {
     isSelectable(item) {
       if (!this.isBrowserTypeImage) {
         return true
-      } else if (this.isImage(item) || this.isImageExtension(item)) {
+      } else if (this.isImagePath(item && item.path)) {
         return true
       }
       return false
@@ -794,7 +778,7 @@ export default {
     onFileDropperUploadDone(files) {
       files.reverse().some((file) => {
         file.mimeType = file.type
-        if (this.isImage(file)) {
+        if (this.isImagePath(file.name)) {
           this.setSelectedPath(`${this.currentPath}/${file.name}`)
           return true
         }
