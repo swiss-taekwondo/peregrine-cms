@@ -25,7 +25,7 @@
 import PerAdminApp from './perAdminApp'
 import PerAdminImpl from './apiImpl'
 
-function initSentry() {
+function initAnalytics() {
   axios.get('/apps/admin/analytics.json')
     .then((analytics) => {
       if (location.origin === analytics.data.domain && !window.Cypress && analytics.data.script) {
@@ -55,7 +55,7 @@ function initHotReload() {
     })
 }
 
-initSentry()
+initAnalytics()
 initHotReload()
 
 var $pappView = {}

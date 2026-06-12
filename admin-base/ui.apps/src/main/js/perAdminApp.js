@@ -37,7 +37,7 @@ function waitForElement(selector, callback) {
   }, 10000);
 }
 
-function initSentry() {
+function initAnalytics() {
   axios.get('/apps/admin/analytics.json')
     .then((analytics) => {
       if (location.origin === analytics.data.domain && !window.Cypress && analytics.data.script) {
@@ -67,7 +67,7 @@ function initHotReload() {
   });
 }
 
-initSentry();
+initAnalytics();
 initHotReload();
 
 waitForElement('.user-info .username', (el) => {
