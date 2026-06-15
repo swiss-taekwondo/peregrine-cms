@@ -45,7 +45,7 @@ function initAnalytics() {
           sentry.crossOrigin = 'anonymous';
           sentry.src = analytics.data.script;
           sentry.dataset.lazy = 'no';
-          document.currentScript.after(sentry);
+          document.body.append(sentry);
       }
     })
     .catch(() => null)
