@@ -24,7 +24,7 @@
   -->
 <template>
     <div v-bind:data-per-path="model.path">
-        <img  v-bind:src="image" v-bind:alt="model.caption" style="max;width: 100%;">
+        <img  v-bind:src="image" v-bind:alt="model.alt || model.caption || ''" style="max-width: 100%;">
     </div>
 </template>
 

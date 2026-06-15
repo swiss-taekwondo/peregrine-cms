@@ -69,5 +69,12 @@
       "label": "Description",
       "rows": 10,
       "placeholder": "enter a description for this asset"
+  },
+  {
+      "type": "input",
+      "inputType": "text",
+      "model": "alt",
+      "label": "Alt Text",
+      "placeholder": "alternative text for the image"
   }
 ]}

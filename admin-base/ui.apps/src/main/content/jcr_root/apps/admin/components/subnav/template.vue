@@ -24,7 +24,7 @@
   -->
 <template>
     <div class="nav-content sub-nav" :class="classes">
-        <richtoolbar v-if="renderRichToolbar" class="on-sub-nav" :onSubNav="true"/>
+                <richtoolbar v-if="renderRichToolbar" class="on-sub-nav" :onSubNav="true"/>
         <div v-if="showNodeTree" class="page-tree">
             <admin-components-materializedropdown
                 ref="dropdown"
@@ -57,7 +57,7 @@ import {get} from '../../../../../../js/utils'
 import Richtoolbar from '../richtoolbar/template.vue'
 
 export default {
-    name: "Subnav",
+    name: 'admin-components-subnav',
     components: {Richtoolbar},
     props: ['model'],
     data() {
@@ -113,12 +113,15 @@ export default {
                 return []
             }
         },
-        currentNode() {
+      currentNode() {
           return $perAdminApp.findNodeFromPath(this.nodes, this.getPath())
               || {title: 'loading...'}
-        },
+      },
       vCurrentNodeTitle() {
-          return this.currentNode.title || this.currentNode.name
+          const currentNode = this.currentNode || {}
+          const currentPath = this.getPath() || currentNode.path || ''
+          const fallbackName = currentPath.split('/').pop() || ''
+          return currentNode.title || currentNode.name || fallbackName
       }
     },
     methods: {
