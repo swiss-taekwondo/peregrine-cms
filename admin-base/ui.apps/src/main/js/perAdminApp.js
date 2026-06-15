@@ -37,6 +37,20 @@ function waitForElement(selector, callback) {
   }, 10000);
 }
 
+function initAnalytics() {
+  axios.get('/apps/admin/analytics.json')
+    .then((analytics) => {
+      if (location.origin === analytics.data.domain && !window.Cypress && analytics.data.script) {
+          const sentry = document.createElement('script');
+          sentry.crossOrigin = 'anonymous';
+          sentry.src = analytics.data.script;
+          sentry.dataset.lazy = 'no';
+          document.currentScript.after(sentry);
+      }
+    })
+    .catch(() => null)
+}
+
 function initHotReload() {
   if (!window.EventSource) {
     return;
@@ -53,6 +67,7 @@ function initHotReload() {
   });
 }
 
+initAnalytics();
 initHotReload();
 
 waitForElement('.user-info .username', (el) => {
