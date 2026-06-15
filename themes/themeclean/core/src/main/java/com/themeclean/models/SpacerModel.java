@@ -54,9 +54,6 @@ public class SpacerModel extends AbstractComponent {
     private String bgimage;
 
     @Inject
-    private String overlay;
-
-    @Inject
     @Default(values = "#ffffff")
     private String overlaycolor;
 
@@ -90,11 +87,6 @@ public class SpacerModel extends AbstractComponent {
 
     public String getBgimagealttext() {
       return bgimagealttext;
-    }
-
-
-    public String getOverlay() {
-      return overlay;
     }
 
     public String getBackgroundtype() {
