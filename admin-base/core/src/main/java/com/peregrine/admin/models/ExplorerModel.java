@@ -13,9 +13,9 @@ package com.peregrine.admin.models;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -32,93 +32,44 @@ import static com.peregrine.commons.util.PerConstants.JSON;
 import com.peregrine.nodetypes.models.Container;
 import com.peregrine.nodetypes.models.IComponent;
 import javax.inject.Inject;
-import org.apache.sling.models.annotations.Default;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Exporter;
 import org.apache.sling.models.annotations.Model;
 
-/*
-    //GEN[:DATA
-    {
-  "type": "object",
-  "properties": {
-    "component": {
-      "type": "string",
-      "source": "ignore"
-    },
-    "path": {
-      "type": "string",
-      "source": "ignore"
-    },
-    "dataFrom": {
-      "type": "string",
-      "source": "inject"
-    },
-    "selectionFrom": {
-      "type": "string",
-      "source": "inject"
-    }
-  },
-  "propertyNames": [
-    "component",
-    "path",
-    "dataFrom",
-    "selectionFrom"
-  ],
-  "modelName": "Explorer",
-  "package": "com.peregrine.admin.models",
-  "componentPath": "admin/components/explorer",
-  "classNameParent": "AbstractComponent"
-}
-//GEN]
-*/
-
-//GEN[:DEF
-@Model(adaptables = Resource.class,
-       resourceType = EXPLORER_COMPONENT_PATH,
-       defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL,
-       adapters = IComponent.class)
-@Exporter(name = JACKSON,
-          extensions = JSON)
-
-//GEN]
-public class ExplorerModel
-    extends Container {
+@Model(
+    adaptables = Resource.class,
+    resourceType = EXPLORER_COMPONENT_PATH,
+    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL,
+    adapters = IComponent.class
+)
+@Exporter(name = JACKSON, extensions = JSON)
+public class ExplorerModel extends Container {
 
     public ExplorerModel(Resource r) {
         super(r);
     }
 
-    //GEN[:INJECT
-    /* {"type":"string","source":"inject"} */
-    @Inject private String dataFrom;
+    @Inject
+    private String dataFrom;
 
-    /* {"type":"string","source":"inject"} */
-    @Inject private String selectionFrom;
+    @Inject
+    private String selectionFrom;
 
-
-    //GEN]
-    @Inject 
-    @Default(values = "false") 
+    @Inject
+    @Default(values = "false")
     private String showFilter;
 
-    //GEN[:GETTERS
-    /* {"type":"string","source":"inject"} */
     public String getDataFrom() {
         return dataFrom;
     }
 
-    /* {"type":"string","source":"inject"} */
     public String getSelectionFrom() {
         return selectionFrom;
     }
 
-
-    //GEN]
-
     public String getShowFilter() {
-      return showFilter;
-  }
-
+        return showFilter;
+    }
 }

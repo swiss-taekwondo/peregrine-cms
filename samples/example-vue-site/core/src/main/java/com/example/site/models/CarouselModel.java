@@ -13,9 +13,9 @@ package com.example.site.models;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,9 +27,7 @@ package com.example.site.models;
 
 import com.peregrine.nodetypes.models.Container;
 import com.peregrine.nodetypes.models.IComponent;
-
 import java.util.List;
-
 import javax.inject.Inject;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
@@ -37,56 +35,53 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Exporter;
 import org.apache.sling.models.annotations.Model;
 
-/**
- * Created by rr on 4/18/2017.
- */
-
-//[GEN
 @Model(
-        adaptables = Resource.class,
-        resourceType = "example/components/carousel",
-        defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL,
-        adapters = IComponent.class
+    adaptables = Resource.class,
+    resourceType = "example/components/carousel",
+    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL,
+    adapters = IComponent.class
 )
-@Exporter(
-        name = "jackson",
-        extensions = "json"
-)
-//GEN]
+@Exporter(name = "jackson", extensions = "json")
 public class CarouselModel extends Container {
-
-    //[GEN
 
     public CarouselModel(Resource resource) {
         super(resource);
     }
 
-    @Inject @Default(values = "5000")
+    @Inject
+    @Default(values = "5000")
     private String interval;
 
-    @Inject @Default(values = "hover")
+    @Inject
+    @Default(values = "hover")
     private String pause;
 
-    @Inject @Default(values = "true")
+    @Inject
+    @Default(values = "true")
     private String ride;
 
-    @Inject @Default(values = "true")
+    @Inject
+    @Default(values = "true")
     private String indicators;
 
-    @Inject @Default(values = "true")
+    @Inject
+    @Default(values = "true")
     private String controls;
 
-    @Inject @Default(values = "true")
+    @Inject
+    @Default(values = "true")
     private String wrap;
 
-    @Inject @Default(values = "true")
+    @Inject
+    @Default(values = "true")
     private String keyboard;
 
-	@Inject
-	private List<IComponent> slides;
+    @Inject
+    private List<IComponent> slides;
+
     public List<IComponent> getSlides() {
-		return slides;
-	}
+        return slides;
+    }
 
     public String getInterval() {
         return interval;
@@ -115,7 +110,4 @@ public class CarouselModel extends Container {
     public String getKeyboard() {
         return keyboard;
     }
-
-
-    //GEN]
 }
