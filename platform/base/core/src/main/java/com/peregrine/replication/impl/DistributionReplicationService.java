@@ -52,7 +52,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static com.peregrine.replication.ReplicationUtil.markAsDeactivated;
 import static com.peregrine.replication.ReplicationUtil.updateReplicationProperties;
+import static com.peregrine.commons.util.PerUtil.getJcrContentOrSelf;
 import static org.apache.sling.distribution.DistributionRequestState.ACCEPTED;
 import static org.apache.sling.distribution.DistributionRequestState.DISTRIBUTED;
 import static org.osgi.service.component.annotations.ConfigurationPolicy.REQUIRE;
@@ -179,7 +181,7 @@ public class DistributionReplicationService
                 for(Resource resource : resourceList) {
                     paths[i++] = resource.getPath();
                     // In order to make it possible to have the correct user set and 'Replicated By' we need to set it here and now
-                    updateReplicationProperties(resource, DISTRIBUTION_PENDING, null);
+                    updateReplicationProperties(getJcrContentOrSelf(resource), DISTRIBUTION_PENDING, null);
                 }
 
                 if(distributor != null) {
@@ -198,7 +200,7 @@ public class DistributionReplicationService
                         );
 
                         log.trace("Distributor Response: '{}'", deactivateResp);
-                        if(!deactivateResp.isSuccessful() || !(deactivateResp.getState() == ACCEPTED || deactivateResp.getState() != DISTRIBUTED)) {
+                        if(!deactivateResp.isSuccessful() || !(deactivateResp.getState() == ACCEPTED || deactivateResp.getState() == DISTRIBUTED)) {
                             throw new ReplicationException(String.format(DISTRIBUTION_FAILED, deactivateResp));
                         }
                     }
@@ -211,8 +213,12 @@ public class DistributionReplicationService
                                     activate ? DistributionRequestType.ADD : DistributionRequestType.DELETE,
                                     paths));
                     log.trace("Distributor Response: '{}'", response);
-                    if(!response.isSuccessful() || !(response.getState() == ACCEPTED || response.getState() != DISTRIBUTED)) {
+                    if(!response.isSuccessful() || !(response.getState() == ACCEPTED || response.getState() == DISTRIBUTED)) {
                         throw new ReplicationException(String.format(DISTRIBUTION_FAILED, response));
+                    }
+
+                    if (!activate && (response.getState() == ACCEPTED || response.getState() == DISTRIBUTED)) {
+                        resourceList.forEach(resource -> markAsDeactivated(getJcrContentOrSelf(resource)));
                     }
 
                     answer.addAll(resourceList);

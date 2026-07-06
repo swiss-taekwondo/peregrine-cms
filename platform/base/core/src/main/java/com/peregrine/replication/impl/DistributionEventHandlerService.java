@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import static com.peregrine.replication.ReplicationUtil.updateReplicationProperties;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.EQUALS;
+import static com.peregrine.commons.util.PerUtil.getJcrContentOrSelf;
 import static com.peregrine.commons.util.PerUtil.PER_PREFIX;
 import static com.peregrine.commons.util.PerUtil.loginService;
 import static org.apache.sling.distribution.event.DistributionEventTopics.AGENT_PACKAGE_DISTRIBUTED;
@@ -73,6 +74,10 @@ public class DistributionEventHandlerService implements EventHandler {
             for (String path : paths) {
                 String replicationRef = "";
                 Resource resource = finalResourceResolver.getResource(path);
+                if (resource == null) {
+                    log.warn("Could not update replication properties for distributed path '{}': resource not found", path);
+                    continue;
+                }
                 if (DISTRIBUTION_TYPE_ADD.equals( distributionEvent.getDistributionType().name())) {
                     replicationRef = distributionEvent.getDistributionComponentKind() + "://" + path;
 
@@ -80,7 +85,7 @@ public class DistributionEventHandlerService implements EventHandler {
                     replicationRef = null;
                 }
                 log.info("properties for {} were updated by dist event handler.",path);
-                updateReplicationProperties(resource, replicationRef, null);
+                updateReplicationProperties(getJcrContentOrSelf(resource), replicationRef, null);
             }
         } catch (LoginException e) {
             log.error("Failed to update per:Replication properties", e);

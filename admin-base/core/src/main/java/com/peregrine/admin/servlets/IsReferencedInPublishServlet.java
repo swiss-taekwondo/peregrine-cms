@@ -42,9 +42,9 @@ import static com.peregrine.commons.util.PerUtil.EQUALS;
 import static com.peregrine.commons.util.PerUtil.GET;
 import static com.peregrine.commons.util.PerUtil.PER_PREFIX;
 import static com.peregrine.commons.util.PerUtil.PER_VENDOR;
-import static java.util.Objects.isNull;
-import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
+import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_METHODS;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_RESOURCE_TYPES;
 import static org.osgi.framework.Constants.SERVICE_DESCRIPTION;
@@ -69,18 +69,22 @@ public final class IsReferencedInPublishServlet extends AbstractBaseServlet {
 
     @Override
     protected Response handleRequest(final Request request) throws IOException {
-        final String path = request.getParameter(PATH);
+        final String path = defaultIfBlank(request.getParameter(PATH), request.getSuffix());
+        if (isBlank(path) || request.getResourceResolver().getResource(path) == null) {
+            return new ErrorResponse()
+                    .setHttpErrorCode(SC_BAD_REQUEST)
+                    .setErrorMessage(NO_PATH_PROVIDED)
+                    .setRequestPath(path);
+        }
+
         final var versionsResolver = new VersioningResourceResolver(request.getResourceResolver(), PUBLISHED_LABEL);
         final Resource resource = versionsResolver.getResource(path);
-        if (isNull(resource)) {
-            return new ErrorResponse()
-                .setHttpErrorCode(SC_BAD_REQUEST)
-                .setErrorMessage(NO_PATH_PROVIDED)
-                .setRequestPath(path);
+        if (resource == null) {
+            logger.warn("Could not check published references for '{}': published resource not found", path);
+            return new JsonResponse().writeAttribute("result", false);
         }
 
         return new JsonResponse().writeAttribute("result", referenceLister.isReferenced(resource));
     }
 
 }
-

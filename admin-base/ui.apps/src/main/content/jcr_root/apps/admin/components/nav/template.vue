@@ -143,7 +143,7 @@
       </ul>
     </div>
     <template v-for="child in model.children">
-      <component v-bind:is="child.component" v-bind:model="child"
+      <component v-if="child.component" v-bind:is="child.component" v-bind:model="child"
                  v-bind:key="child.path"></component>
     </template>
   </nav>
@@ -351,7 +351,8 @@ export default {
       this.state = $perAdminApp.getView().state
     },
     getActiveSection() {
-      const breadcrumbs = $perAdminApp.getView().adminPage.breadcrumbs
+      const adminPage = $perAdminApp.getView().adminPage
+      const breadcrumbs = adminPage && adminPage.breadcrumbs
       if (breadcrumbs) {
         return breadcrumbs[0].path.split('/')[4]
       }

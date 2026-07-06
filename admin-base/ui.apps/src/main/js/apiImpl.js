@@ -319,13 +319,41 @@ function update(path) {
       })
 }
 
+function getErrorMessage(error) {
+  if (!error || !error.response) {
+    return error && error.message ? error.message : error
+  }
+
+  const response = error.response
+  const data = response.data
+  if (data && data.error && data.error.message) {
+    return `${response.status} ${response.statusText}: ${data.error.message}`
+  }
+  if (data && data.message) {
+    return `${response.status} ${response.statusText}: ${data.message}`
+  }
+  if (data && typeof data === 'object') {
+    return `${response.status} ${response.statusText}: ${JSON.stringify(data)}`
+  }
+  if (typeof data === 'string') {
+    return `${response.status} ${response.statusText}: ${data}`
+  }
+  return `${response.status} ${response.statusText}`
+}
+
 function updateWithForm(path, data) {
   logger.fine('Update with Form, path: ' + path + ', data: ' + data)
   return axios.post(API_BASE + path, data, postConfig)
       .then((response) => response.data)
       .catch((error) => {
-        logger.error('Update with Form request to', path, 'failed')
-        throw error
+        const message = getErrorMessage(error)
+        logger.error('Update with Form request to', path, 'failed:', message)
+        const normalizedError = error instanceof Error ? error : new Error(message)
+        normalizedError.message = message
+        if (error && error.response) {
+          normalizedError.response = error.response
+        }
+        throw normalizedError
       })
 }
 
@@ -1687,7 +1715,7 @@ class PerAdminImpl {
       formData.append('callback', callback)
       resources.forEach((ref) => formData.append('resources', ref))
       updateWithForm('/admin/repl.json' + path, formData)
-          .then(respData => {
+          .then((respData) => {
             count = 0
             noticeFunction = setInterval(function () {
               if (!document.hasFocus()) {
@@ -1699,8 +1727,7 @@ class PerAdminImpl {
                 const activated = data['activated']
                 const ref = data['per:ReplicationRef']
                 const replicated = data['per:Replicated']
-                if (lastAction === 'deactivated' && activated === false
-                    && !ref) {
+                if (lastAction === 'deactivated' && activated === false) {
                   return true
                 }
 
@@ -1720,10 +1747,13 @@ class PerAdminImpl {
                   .then(data => {
                     if (count++ >= 25) {
                       clearInterval(noticeFunction)
+                      const status = data ? JSON.stringify(data) : 'no status response'
+                      const sourcePath = data && data.sourcePath ? data.sourcePath : path
+                      logger.error(`Action timed out when ${deactivate ? 'un' : ''}publishing ${path}. Last replication status: ${status}`)
                       $perAdminApp.notifyUser('Error',
                           `Action timed out when ${deactivate ? 'un'
-                              : ''}publishing ${data.sourcePath}.`)
-                      reject()
+                              : ''}publishing ${sourcePath}. Last status: ${status}`)
+                      reject(new Error(`Action timed out when ${deactivate ? 'un' : ''}publishing ${sourcePath}.`))
                     } else if (stopPolling(data)) {
                       clearInterval(noticeFunction)
                       const parentPath = path.substring(0,
@@ -1732,11 +1762,15 @@ class PerAdminImpl {
                       $perAdminApp.notifyUser('Success',
                           `${respData.sourcePath} was successfully ${deactivate
                               ? 'un' : ''}published.`)
+                      resolve(data)
                     }
+                  })
+                  .catch(error => {
+                    clearInterval(noticeFunction)
+                    reject(error)
                   })
             }, 1000)
           })
-          .then(() => resolve())
           .catch(error => {
             clearInterval(noticeFunction)
 

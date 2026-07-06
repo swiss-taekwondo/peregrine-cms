@@ -319,9 +319,9 @@ public class LocalFileSystemReplicationService
             if (!deleteFileOrDirectory(toBeDeleted)) {
                 throw new ReplicationException(String.format(FAILED_TO_DELETE_FILE, toBeDeleted.getAbsolutePath()));
             }
-
-            markAsDeactivated(getJcrContentOrSelf(resource));
         }
+
+        markAsDeactivated(getJcrContentOrSelf(resource));
     }
 
     private File createFileWithParentAndName(final Resource parent, final String name) throws ReplicationException {

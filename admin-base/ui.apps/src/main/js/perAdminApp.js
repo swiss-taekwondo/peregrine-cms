@@ -467,7 +467,7 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
               delete view.adminPageStaged;
 
               if (!fromPopState) {
-                let params = view.adminPage.suffixToParameter;
+                let params = view.adminPage && view.adminPage.suffixToParameter;
                 let suffix = '';
                 if (params) {
                   const rendered = [];
@@ -667,8 +667,8 @@ function stateActionImpl(name, target, skipWait) {
           })
           .catch((error) => {
             if (!skipWait) exitWaitState();
-            notifyUserImpl('error', error);
-            reject();
+            notifyUserImpl('error', error && error.message ? error.message : error);
+            reject(error);
           });
       } catch (error) {
         if (!skipWait) exitWaitState();
@@ -810,6 +810,19 @@ function toastImpl(message, className, displayLength, callback) {
  */
 function askUserImpl(title, message, options) {
   const dialog = document.querySelector('#askUserModal')
+  function closeAndRun(callback) {
+    function runCallback() {
+      if (callback && typeof callback === 'function') callback()
+    }
+
+    if (dialog.open) {
+      dialog.addEventListener('close', runCallback, { once: true })
+      dialog.close()
+    } else {
+      runCallback()
+    }
+  }
+
   set(view, '/state/notification/title', title);
   set(view, '/state/notification/message', message);
 
@@ -823,16 +836,13 @@ function askUserImpl(title, message, options) {
   set(view, '/state/notification/blockDelete', options.blockDelete ? true : false);
 
   set(view, '/state/notification/yesFn', () => {
-    if (options.yes && typeof options.yes === 'function') options.yes()
-    dialog.close()
+    closeAndRun(options.yes)
   })
   set(view, '/state/notification/noFn', () => {
-    if (options.no && typeof options.no === 'function') options.no()
-    dialog.close()
+    closeAndRun(options.no)
   })
   set(view, '/state/notification/keepEditingFn', () => {
-    if (options.keepEditing && typeof options.keepEditing === 'function') options.keepEditing()
-    dialog.close()
+    closeAndRun(options.keepEditing)
   })
 
   dialog.showModal()

@@ -30,6 +30,8 @@ export default function(me, target) {
     log.fine('deletePage',target)
     var api = me.getApi()
     me.getNodeFromView('/state/tools').page = undefined
-    return api.deletePage(target)
+    return api.deletePage(target).then(() => {
+        window.location.reload()
+    })
 
 }

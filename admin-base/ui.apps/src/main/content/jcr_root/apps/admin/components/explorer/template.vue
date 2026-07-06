@@ -858,7 +858,11 @@ export default {
                     $perAdminApp.askUser(`Delete ${type}?`, me.$i18n(`Are you sure you want to delete this node and all its children?`), {
                         defaultFocus: 'no',
                         yes() {
-                            $perAdminApp.stateAction(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, path)
+                            Promise.resolve($perAdminApp.stateAction(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, path))
+                                .then(resolve)
+                                .catch(reject)
+                        },
+                        no() {
                             resolve()
                         }
                     })
@@ -878,7 +882,7 @@ export default {
                     type = 'file'
                 }
 
-                this.handleDelete(type, path)
+                return this.handleDelete(type, path)
             },
 
             deleteTenant: function(me, target) {

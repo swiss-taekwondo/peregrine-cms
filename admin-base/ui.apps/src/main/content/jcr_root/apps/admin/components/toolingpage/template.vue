@@ -25,7 +25,7 @@
 <template>
     <div class="tooling-page" v-if="allowRender">
         <template v-for="child in model.children">
-            <component v-bind:is="child.component" v-bind:model="child" v-bind:key="child.path"></component>
+            <component v-if="child.component" v-bind:is="child.component" v-bind:model="child" v-bind:key="child.path"></component>
         </template>
         <admin-components-about></admin-components-about>
         <admin-components-notifyuser></admin-components-notifyuser>

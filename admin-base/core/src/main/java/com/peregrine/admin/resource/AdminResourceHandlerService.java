@@ -84,6 +84,7 @@ import com.peregrine.adaption.PerAsset;
 import com.peregrine.admin.models.Recyclable;
 import com.peregrine.commons.ResourceUtils;
 import com.peregrine.commons.util.PerUtil;
+import com.peregrine.reference.ReferenceLister;
 import com.peregrine.rendition.BaseResourceHandler;
 import com.peregrine.replication.ImageMetadataSelector;
 import java.io.IOException;
@@ -93,6 +94,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -238,6 +240,9 @@ public class AdminResourceHandlerService
 
     @Reference
     private NodeNameValidation nodeNameValidation;
+
+    @Reference
+    private ReferenceLister referenceLister;
 
     private List<ImageMetadataSelector> imageMetadataSelectors = new ArrayList<>();
 
@@ -463,6 +468,8 @@ public class AdminResourceHandlerService
                 throw new ManagementException(String.format(PRIMARY_TYPE_ASKEW_FOR_DELETION, path, primaryType, primaryTypeValue));
             }
 
+            removeIncomingReferences(resource);
+
             final Optional<Resource> parent = Optional.ofNullable(resource.getParent());
             final DeletionResponse response = new DeletionResponse()
                 .setName(resource.getName())
@@ -475,6 +482,74 @@ public class AdminResourceHandlerService
         } catch (PersistenceException e) {
             throw new ManagementException(String.format(FAILED_TO_DELETE, path), e);
         }
+    }
+
+    private void removeIncomingReferences(Resource resource) {
+        final List<com.peregrine.reference.Reference> references = referenceLister.getReferencedByList(resource);
+        if (references.isEmpty()) {
+            return;
+        }
+
+        final Predicate<String> containsReference = containsReferencePredicate(resource);
+        logger.warn("Deleting resource '{}' after removing {} incoming reference(s)", resource.getPath(), references.size());
+        for (com.peregrine.reference.Reference reference : references) {
+            final Resource propertyResource = reference.getPropertyResource();
+            final ModifiableValueMap properties = getModifiableProperties(propertyResource, false);
+            if (properties == null) {
+                logger.warn("Could not remove reference to '{}' from '{}@{}': properties are not modifiable",
+                        resource.getPath(), propertyResource.getPath(), reference.getPropertyName());
+                continue;
+            }
+            final List<String> referencingProperties = findKeysForMatchingValues(
+                    propertyResource.getValueMap(),
+                    containsReference
+            );
+            if (referencingProperties.isEmpty()) {
+                logger.warn("Could not remove reference to '{}' from '{}': no matching properties found",
+                        resource.getPath(), propertyResource.getPath());
+                continue;
+            }
+            for (String propertyName : referencingProperties) {
+                if (removeReferencePropertyValue(properties, propertyName, containsReference)) {
+                    logger.warn("Removed reference to '{}' from property '{}@{}'",
+                            resource.getPath(), propertyResource.getPath(), propertyName);
+                }
+            }
+        }
+    }
+
+    private boolean removeReferencePropertyValue(
+            final ModifiableValueMap properties,
+            final String propertyName,
+            final Predicate<String> containsReference) {
+        final Object value = properties.get(propertyName);
+        if (value instanceof String[]) {
+            final String[] stringValues = (String[]) value;
+            final String[] remainingValues = Arrays.stream(stringValues)
+                    .filter(propertyValue -> !containsReference.test(propertyValue))
+                    .toArray(String[]::new);
+            if (remainingValues.length == stringValues.length) {
+                return false;
+            }
+            if (remainingValues.length == 0) {
+                properties.remove(propertyName);
+            } else {
+                properties.put(propertyName, remainingValues);
+            }
+            return true;
+        }
+
+        if (value instanceof String && containsReference.test((String) value)) {
+            properties.remove(propertyName);
+            return true;
+        }
+
+        return false;
+    }
+
+    private Predicate<String> containsReferencePredicate(final Resource resource) {
+        final Pattern regex = Pattern.compile(String.format("(^|[\" ])%s($|[\" .])", Pattern.quote(resource.getPath())));
+        return value -> regex.matcher(value).find();
     }
 
     @Override

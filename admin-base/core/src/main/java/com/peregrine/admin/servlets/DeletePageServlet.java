@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Optional;
 import javax.servlet.Servlet;
 
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -85,17 +86,24 @@ public class DeletePageServlet extends AbstractBaseServlet {
     protected Response handleRequest(Request request) throws IOException {
         String path = request.getParameter(PATH);
         final ResourceResolver resourceResolver = request.getResourceResolver();
-        if (Optional.ofNullable(path)
+        final Resource resource = Optional.ofNullable(path)
                 .map(resourceResolver::getResource)
-                .map(ReplicationUtil::isSelfOrAnyDescendantReplicated)
-                .orElse(false)
-        ) {
+                .orElse(null);
+        if (resource == null) {
+            logger.warn("Cannot delete page '{}': resource not found", path);
+            return getErrorResponse(path);
+        }
+
+        if (ReplicationUtil.isSelfOrAnyDescendantReplicated(resource)) {
+            logger.warn("Cannot delete page '{}': page or descendant is still published", path);
             return getErrorResponse(path);
         }
 
         try {
+            logger.info("Deleting page '{}'", path);
             DeletionResponse response = resourceManagement.deleteResource(resourceResolver, path, PAGE_PRIMARY_TYPE);
             resourceResolver.commit();
+            logger.info("Deleted page '{}'", path);
             return new JsonResponse()
                 .writeAttribute(TYPE, PAGE)
                 .writeAttribute(STATUS, DELETED)
@@ -103,6 +111,7 @@ public class DeletePageServlet extends AbstractBaseServlet {
                 .writeAttribute(NODE_TYPE, response.getType())
                 .writeAttribute(PARENT_PATH, response.getParentPath());
         } catch (ManagementException e) {
+            logger.error("Cannot delete page '{}': resource handler failed", path, e);
             return getErrorResponse(path).setException(e);
         }
     }
@@ -115,4 +124,3 @@ public class DeletePageServlet extends AbstractBaseServlet {
     }
 
 }
-
