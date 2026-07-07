@@ -854,6 +854,7 @@ export default {
 
             handleDelete: function(type, path) {
                 const me = this
+              setTimeout(() => {
                 return new Promise((resolve, reject) => {
                     $perAdminApp.askUser(`Delete ${type}?`, me.$i18n(`Are you sure you want to delete this node and all its children?`), {
                         defaultFocus: 'no',
@@ -863,6 +864,7 @@ export default {
                         }
                     })
                 })
+                }, 0)
             },
 
             deletePage: function(me, target) {
