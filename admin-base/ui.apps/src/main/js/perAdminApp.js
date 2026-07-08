@@ -65,6 +65,19 @@ function initHotReload() {
   source.addEventListener('reload', () => {
     window.location.reload();
   });
+
+  // Stop retrying after 3 attempts to stop spamming log and network errors
+  let retryCount = 0;
+  const maxRetries = 3;
+  source.addEventListener('error', (event) => {
+    event.preventDefault();
+    if (retryCount < maxRetries) {
+      retryCount++;
+    } else {
+      source.close();
+      console.warn('EventSource failed to connect after 3 attempts. Giving up.');
+    }
+  });
 }
 
 initAnalytics();
