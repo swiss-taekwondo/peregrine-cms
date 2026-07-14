@@ -37,6 +37,20 @@ function waitForElement(selector, callback) {
   }, 10000);
 }
 
+function initAnalytics() {
+  axios.get('/apps/admin/analytics.json')
+    .then((analytics) => {
+      if (location.origin === analytics.data.domain && !window.Cypress && analytics.data.script) {
+          const sentry = document.createElement('script');
+          sentry.crossOrigin = 'anonymous';
+          sentry.src = analytics.data.script;
+          sentry.dataset.lazy = 'no';
+          document.body.append(sentry);
+      }
+    })
+    .catch(() => null)
+}
+
 function initHotReload() {
   if (!window.EventSource) {
     return;
@@ -51,8 +65,22 @@ function initHotReload() {
   source.addEventListener('reload', () => {
     window.location.reload();
   });
+
+  // Stop retrying after 3 attempts to stop spamming log and network errors
+  let retryCount = 0;
+  const maxRetries = 3;
+  source.addEventListener('error', (event) => {
+    event.preventDefault();
+    if (retryCount < maxRetries) {
+      retryCount++;
+    } else {
+      source.close();
+      console.warn('EventSource failed to connect after 3 attempts. Giving up.');
+    }
+  });
 }
 
+initAnalytics();
 initHotReload();
 
 waitForElement('.user-info .username', (el) => {

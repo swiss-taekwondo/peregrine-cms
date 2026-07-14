@@ -145,7 +145,7 @@
               <span class="edit-icon">
                 <action
                     v-bind:model="{
-                      target: path,
+                      target: item,
                       command: 'editReference',
                       tooltipTitle: `edit '${item.name}'`
                     }">
@@ -368,20 +368,26 @@
 </template>
 
 <script>
-import {IconLib, MimeType, NodeType, SUFFIX_PARAM_SEPARATOR} from '../../../../../../js/constants'
-import {deepClone, get, set} from '../../../../../../js/utils'
-import NodeNameValidation from '../../../../../../js/mixins/NodeNameValidation'
-import ReferenceUtil from '../../../../../../js/mixins/ReferenceUtil'
-import Icon from '../icon/template.vue'
-import PathBrowser from '../pathbrowser/template.vue'
-import MaterializeModal from '../materializemodal/template.vue'
-import ConfirmDialog from '../confirmdialog/template.vue'
-import Action from '../action/template.vue'
-import ExplorerPreviewNavItem from '../explorerpreviewnavitem/template.vue'
-import IconEditPage from '../iconeditpage/template.vue'
-import LinearPreloader from '../linearpreloader/template.vue'
-import PageCheckModal from '../pagecheckmodal/template.vue'
-import MaterializeSpinner from '../materializespinner/template.vue'
+import {
+	IconLib,
+	MimeType,
+	NodeType,
+	SUFFIX_PARAM_SEPARATOR,
+} from "../../../../../../js/constants";
+import NodeNameValidation from "../../../../../../js/mixins/NodeNameValidation";
+import ReferenceUtil from "../../../../../../js/mixins/ReferenceUtil";
+import { deepClone, get, set } from "../../../../../../js/utils";
+import { resolveMediaText } from "../../../js/mediaText";
+import Action from "../action/template.vue";
+import ConfirmDialog from "../confirmdialog/template.vue";
+import ExplorerPreviewNavItem from "../explorerpreviewnavitem/template.vue";
+import Icon from "../icon/template.vue";
+import IconEditPage from "../iconeditpage/template.vue";
+import LinearPreloader from "../linearpreloader/template.vue";
+import MaterializeModal from "../materializemodal/template.vue";
+import PathBrowser from "../pathbrowser/template.vue";
+import PageCheckModal from "../pagecheckmodal/template.vue";
+import MaterializeSpinner from "../materializespinner/template.vue";
 
 const Tab = {
   INFO: 'info',
@@ -690,6 +696,11 @@ export default {
       if (this.stateToolsEdit) {
         this.onEdit()
       }
+      this.$nextTick(() => {
+        if (this.node && this.isImage && !this.node.alt && this.node.title) {
+          this.node.alt = this.node.title
+        }
+      })
     },
     stateToolsEdit(edit) {
       this.edit = edit
@@ -799,6 +810,7 @@ export default {
           newVal: newVal
         })
       }
+      this.autoFillAltFromAsset(newVal, schemaKey)
     },
     onValidated(isValid, errors) {
       if (this.edit) {
@@ -806,6 +818,53 @@ export default {
       }
       this.valid.state = isValid;
       this.valid.errors = errors;
+    },
+
+    async autoFillAltFromAsset(newVal, schemaKey) {
+      if (!newVal || typeof newVal !== 'string' || !newVal.startsWith('/content/')) return
+      const schema = this.getSchema(SchemaKey.MODEL)
+      if (!schema || !schema.fields) return
+      const findField = (fields) => {
+        if (!fields) return null
+        for (const f of fields) {
+          if (f.model === schemaKey) return f
+          if (f.fields) {
+            const found = findField(f.fields)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const field = findField(schema.fields)
+      if (!field) return
+      let altModelKey = null
+      if (field.defaultAltFromAsset === true) {
+        altModelKey = schemaKey + 'Alt'
+        if (field.model !== altModelKey) {
+          const byDefaultFrom = (fields) => {
+            for (const f of fields) {
+              if (f.defaultFrom === schemaKey) return f
+              if (f.fields) {
+                const found = byDefaultFrom(f.fields)
+                if (found) return found
+              }
+            }
+            return null
+          }
+          const targetField = byDefaultFrom(schema.fields)
+          if (targetField) {
+            altModelKey = targetField.model
+          }
+        }
+      }
+      if (!altModelKey) return
+      if (this.node[altModelKey]) return
+      const rootData = this.$root && this.$root.$data
+      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
+      const text = await resolveMediaText(newVal, adminNodes)
+      if (text && !this.node[altModelKey]) {
+        this.node[altModelKey] = text
+      }
     },
 
     onConfirmDialog (event) {

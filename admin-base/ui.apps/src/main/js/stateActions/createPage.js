@@ -29,7 +29,10 @@ import {set} from '../utils';
 let log = LoggerFactory.logger('createPage').setLevelDebug()
 
 export default function(me, target) {
-
+    if (!target.title) {
+        // replace hyphens with spaces, capitalize each word
+        target.title = target.name.replace(/-/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    }
     log.fine(target)
 
     const api = me.getApi()

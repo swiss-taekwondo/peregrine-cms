@@ -159,12 +159,11 @@ export default {
     },
 
     loadFileContent() {
-      const options = Object.assign({ url: this.path }, axiosPlainTextOptions);
-
-      return axios(options)
-        .then(({ data }) => {
-          this.content.server = data;
-          this.content.client = data;
+      return axios.get(this.path, { headers: { 'Content-Type': 'text/plain' }})
+        .then((data) => {
+          const content = this.mode?.json ? JSON.stringify(data.data, null, 2) : data.data;
+          this.content.server = content;
+          this.content.client = content;
         })
         .catch((e) => {
           console.error(e);
@@ -191,10 +190,10 @@ export default {
     },
 
     save() {
-      const { path, content, extension } = this;
-      
+      const content = this.mode?.json ? JSON.parse(this.content.client) : this.content.client;
+
       if (!this.validateContent()) return;
-      this.stateAction('saveFile', { path, content: content.client, extension })
+      this.stateAction('saveFile', { path: this.path, content, extension: this.extension })
         .then(() => {
           this.lastSave = new Date();
           this.content.server = this.content.client;
@@ -204,10 +203,10 @@ export default {
     },
 
     saveAndExit() {
-      const { path, content, extension } = this;
+      const content = this.mode?.json ? JSON.parse(this.content.client) : this.content.client;
 
       if (!this.validateContent()) return;
-      this.stateAction('saveFile', { path, content: content.client, extension })
+      this.stateAction('saveFile', { path: this.path, content, extension: this.extension })
         .then(() => this.loadExplorer(this.getParentPath()))
         .catch(() => this.toast('Save failed!', 'error'));
     },
@@ -305,18 +304,6 @@ export default {
       }
     },
   },
-};
-
-const axiosPlainTextOptions = {
-  headers: {
-    'Content-Type': 'text/plain',
-  },
-  responseType: 'text',
-  transformResponse: [
-    (data) => {
-      return data;
-    },
-  ],
 };
 
 const CODEMIRROR_PATH = `/etc/felibs/admin/dependencies/codemirror`;

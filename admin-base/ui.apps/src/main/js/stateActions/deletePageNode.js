@@ -44,4 +44,5 @@ export default function(me, target) {
         })
     }
 
+    return Promise.resolve()
 }

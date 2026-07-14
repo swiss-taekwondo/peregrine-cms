@@ -199,5 +199,3 @@ for(let i = 0; i < vueFiles.length; i++) {
 }
 
 fs.writeFileSync(timestampTokenFile, `${Date.now()}`, 'utf-8');
-
-

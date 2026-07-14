@@ -68,7 +68,7 @@ const allowedStylesMap = {
 const allowedStylesElementsMap = {
   IMG: true,
 }
-function removeUnwantedStyles(tempDiv) {
+function cleanupRteContent(tempDiv) {
   tempDiv.querySelectorAll('[style]').forEach((span) => {
     if (allowedStylesElementsMap[span.nodeName]) return;
     const propertiesToRemove = []
@@ -98,6 +98,11 @@ function removeUnwantedStyles(tempDiv) {
 
   tempDiv.querySelectorAll('[id]').forEach((el) => {
     el.removeAttribute('id')
+  })
+
+  // remove empty anchor tags, sometimes appearing when adding & removing lists
+  tempDiv.querySelectorAll('a:empty').forEach((el) => {
+    el.remove()
   })
 
   return tempDiv
@@ -211,18 +216,24 @@ export default {
           this.$nextTick(() => this.pingToolbar())
         }
       } else if (key === Key.B && ctrlOrCmd) {
+        // override and dispatchevent here for more predictable outcomes and avoid contenteditable default keybinds when we have custom functionality.
         event.preventDefault()
-        document.execCommand('bold', false, null)
-        this.$nextTick(() => this.pingToolbar())
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'bold' } }))
       } else if (key === Key.I && ctrlOrCmd) {
         event.preventDefault()
-        document.execCommand('italic', false, null)
-        this.$nextTick(() => this.pingToolbar())
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'italic' } }))
       } else if (key === Key.U && ctrlOrCmd) {
         event.preventDefault()
-        document.execCommand('underline', false, null)
-        this.$nextTick(() => this.pingToolbar())
-      }
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
+      } else if (key === Key.Z && ctrlOrCmd) {
+        event.preventDefault()
+        event.stopPropagation()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+      } else if (key === Key.Y && ctrlOrCmd) {
+        event.preventDefault()
+        event.stopPropagation()
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
+    }
     },
     onFocusOut() {
       const view = this.view
@@ -323,7 +334,7 @@ export default {
     },
   },
   watch: {
-    value(newValue) {
+    value() {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = this.value
@@ -331,7 +342,7 @@ export default {
       // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
       // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
       if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
-      removeUnwantedStyles(textCheckDiv)
+      cleanupRteContent(textCheckDiv)
       this.value = textCheckDiv.innerHTML
     }
   }

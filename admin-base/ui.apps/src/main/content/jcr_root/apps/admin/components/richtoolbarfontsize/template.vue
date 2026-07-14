@@ -39,6 +39,10 @@ export default {
   name: "FontSizeSelector",
   components: { Icon },
   props: {
+    defaultFontSize: {
+      type: Number,
+      default: null,
+    },
     exec: { type: Function },
     iconLib: {
       type: String,
@@ -159,18 +163,9 @@ export default {
           this.inputValue = inlineFontSize
           return
         }
-
-        const computedFontSize = parseInt(check?.ownerDocument?.defaultView?.getComputedStyle(check).fontSize)
-        if (!isNaN(computedFontSize) && computedFontSize > 0) {
-          this.inputValue = computedFontSize
-          return
-        }
       }
 
-      const defaultFontSize = parseInt(this.getDefaultFontSize())
-      if (defaultFontSize && !isNaN(defaultFontSize)) {
-        this.inputValue = defaultFontSize
-      }
+      if (this.defaultFontSize) this.inputValue = this.defaultFontSize
     },
 
     // sets fontsize of input to that of selected text
@@ -228,8 +223,6 @@ export default {
 
     onListSelect(sizePreset) {
       this.inputValue = sizePreset;
-      this.exec("restoreSelection");
-      this.applyFontSize();
       this.$nextTick(() => {
         this.$refs.inputRef.parentElement.blur();
         this.$refs.inputRef.blur();
@@ -254,10 +247,9 @@ export default {
         selection.removeAllRanges();
         selection.addRange(this.selectionRange);
       }
-      const presetSelectionActive = this.isPresetSelectionActive()
-      if (presetSelectionActive) {
-        return
-      }
+      this.$nextTick(() => {
+        this.applyFontSize();
+      });
     },
     onFocusIn(e) {
       this.focused = true

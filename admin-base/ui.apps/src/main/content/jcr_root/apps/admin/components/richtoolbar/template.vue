@@ -40,6 +40,7 @@ import {
 } from './groups'
 import {get, restoreSelection, saveSelection, saveDomRangeSelection, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
+import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
@@ -216,6 +217,7 @@ export default {
 
   data() {
     return {
+      defaultFontSize: null,
       openGroups: {},
       selection: {
         restore: false,
@@ -241,6 +243,9 @@ export default {
         newWindow: false,
         linkTitle: '',
         altText: undefined,
+        mediaSourcePath: '',
+        mediaSourceText: '',
+        mediaSourceFallback: '',
         path: {
           current: '',
           selected: null,
@@ -366,6 +371,7 @@ export default {
   },
 
   mounted() {
+    document.addEventListener('selectionchange', this.setDefaultFontSize)
     this.$nextTick(() => {
       window.addEventListener('resize', this.scheduleDocElDimensionsUpdate)
       this.initResizeObserver()
@@ -403,6 +409,8 @@ export default {
           this.activeAnchor = null
           if (view) set(view, '/state/inline/lastAnchor', null)
         }
+        this.layoutPing += 1
+        this.$forceUpdate()
         window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
           detail: {
             hasEditorSelection: hasSelection,
@@ -483,6 +491,7 @@ export default {
 
   beforeDestroy() {
     window.removeEventListener('resize', this.scheduleDocElDimensionsUpdate)
+    document.removeEventListener('selectionchange', this.setDefaultFontSize)
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
       this._resizeObserver = null
@@ -580,6 +589,16 @@ export default {
   },
 
   methods: {
+    setDefaultFontSize() {
+      const inlineEditingComponent = document.querySelector('#editview')?.contentDocument?.querySelector('.inline-editing')
+      if (inlineEditingComponent) {
+        const fontSizeNr = parseInt(getComputedStyle(inlineEditingComponent).fontSize)
+        if (!isNaN(fontSizeNr)) {
+          this.defaultFontSize = fontSizeNr
+        }
+      }
+    },
+
     initResizeObserver() {
       if (typeof ResizeObserver === 'undefined' || !this.$el) return
 
@@ -885,6 +904,7 @@ export default {
       return h(RichtoolbarFontSize, {
         key,
         props: {
+          defaultFontSize: this.defaultFontSize,
           exec: this.exec,
           isRangeInEditor: this.isRangeInEditor,
           isNodeInEditor: this.isNodeInEditor,
@@ -1480,8 +1500,30 @@ export default {
       const savedSel = isEditor ? (bufferedSel || liveSel) : (liveSel || bufferedSel)
       const preSelection = doc.defaultView?.getSelection?.() || null
       const preRange = preSelection && preSelection.rangeCount > 0 ? preSelection.getRangeAt(0).cloneRange() : null
+
+      if (preSelection && preRange && !preRange.collapsed) {
+        const startNode = preRange.startContainer
+        if (startNode.nodeType === Node.TEXT_NODE && preRange.startOffset === startNode.textContent.length) {
+          const walker = doc.createTreeWalker(container, NodeFilter.SHOW_ALL)
+          walker.currentNode = startNode
+          let nextNode = walker.nextNode()
+
+          while (nextNode && nextNode.nodeName === 'BR') {
+            nextNode = walker.nextNode()
+          }
+
+          if (nextNode) {
+            const adjustedRange = preRange.cloneRange()
+            adjustedRange.setStart(nextNode, 0)
+            preSelection.removeAllRanges()
+            preSelection.addRange(adjustedRange)
+          }
+        }
+      }
+
       const collapsedSidebarRange = isEditor && preRange && preRange.collapsed ? preRange : null
       const collapsedInlineRange = !isEditor && preRange && preRange.collapsed ? preRange : null
+
       if (isEditor && this._savedRange && doc.defaultView) {
         const selection = doc.defaultView.getSelection()
         if (selection) {
@@ -1795,11 +1837,6 @@ export default {
         setFontSizeOfEl(fontSizeParent, fontSize)
         fontSizeParent.style.fontSize = fontSize
         textEditor.dispatchEvent(new Event('input'))
-        if (textEditor.ownerDocument.querySelector('iframe#editview')) {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        } else {
-          $perAdminApp.action(this, 'writeInlineToModel')
-        }
         return
       }
 
@@ -1819,11 +1856,7 @@ export default {
           span.style.fontSize = fontSize
           range.surroundContents(span)
           this.selectNodes([span])
-          if (textEditor.ownerDocument.querySelector('iframe#editview')) {
-            $perAdminApp.action(this, 'textEditorWriteToModel')
-          } else {
-            $perAdminApp.action(this, 'writeInlineToModel')
-          }
+          textEditor.dispatchEvent(new Event('input'))
         } else {
           setFontSizeOfEl(range.startContainer, fontSize)
         }
@@ -1854,6 +1887,7 @@ export default {
         $perAdminApp.action(this, 'writeInlineToModel')
       }
 
+      textEditor.focus()
       this.$nextTick(() => {
         this.$nextTick(() => {
           const selectionAfter = ownerDoc.getSelection()
@@ -2292,6 +2326,7 @@ export default {
       this.browser.img.width = null
       this.browser.img.height = null
       this.browser.img.objectFit = null
+      this.browser.path.selected = '';
       this.selection.doc = doc
       this.selection.container = container
 
@@ -2306,9 +2341,17 @@ export default {
       this.startBrowsing()
     },
 
-    editImage(vm = this, target) {
+    async getDefaultMediaText(path = '') {
+      const rootData = this.$root && this.$root.$data
+      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
+      return resolveMediaText(path, adminNodes)
+    },
+
+    async editImage(vm = this, target) {
       const title = target.getAttribute('title')
       const src = target.getAttribute('src')
+      const defaultText = title || target.getAttribute('alt') || await vm.getDefaultMediaText(src)
+      const fallbackText = fallbackMediaText(src)
       const srcArr = src.split('/')
       const img = {
         width: target.style.width ? parseInt(target.style.width) : null,
@@ -2316,6 +2359,7 @@ export default {
         objectFit: target.style.objectFit || null,
       }
       vm.param.cmd = 'editImage'
+      vm.selection.restore = false
       vm.browser.header = vm.$i18n('Edit Image')
       vm.browser.path.selected = srcArr.join('/')
       srcArr.pop()
@@ -2323,7 +2367,10 @@ export default {
       vm.browser.withLinkTab = true
       vm.browser.newWindow = undefined
       vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.linkTitle = title
+      vm.browser.linkTitle = defaultText
+      vm.browser.mediaSourcePath = src
+      vm.browser.mediaSourceText = defaultText || ''
+      vm.browser.mediaSourceFallback = fallbackText
       vm.browser.element = target
       vm.browser.img.width = img.width
       vm.browser.img.height = img.height
@@ -2347,8 +2394,8 @@ export default {
       this.getEditorFrom(range).dispatchEvent(new Event('input'))
     },
 
-    editIcon(vm = this, target) {
-      const alt = target.getAttribute('alt') || ''
+    async editIcon(vm = this, target) {
+      const alt = target.getAttribute('alt') || await vm.getDefaultMediaText(target.getAttribute('src') || '')
       const src = target.getAttribute('src') || ''
       const img = {
         width: target.style.width ? parseInt(target.style.width) : 20,
@@ -2433,6 +2480,9 @@ export default {
       this.browser.open = false
       this.browser.withImageTab = false
       this.param.anchor = null
+      this.browser.mediaSourcePath = ''
+      this.browser.mediaSourceText = ''
+      this.browser.mediaSourceFallback = ''
       if (this.selection.restore) {
         this.restoreSelection()
         this.selection.restore = false
@@ -2451,7 +2501,7 @@ export default {
           this.onLinkSelect()
           return
         } else if (['insertImage', 'editImage', 'editIcon'].includes(this.param.cmd)) {
-          this.onImageSelect()
+          this.onImageSelect().catch((err) => console.error(err))
           return
         }
 
@@ -2535,7 +2585,7 @@ export default {
         }
 
         link.appendChild(range.extractContents())
-        if (link.textContent.trim().length < 1) {
+        if (link.textContent.trim().length < 1 && link.children.length === 0) {
           link.textContent = href
         }
         range.insertNode(link)
@@ -2591,14 +2641,14 @@ export default {
       }
     },
 
-    onImageSelect() {
+    async onImageSelect() {
       if (this.param.cmd === 'editIcon') {
         const imgEl = this.browser.element
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        imgEl.setAttribute('alt', this.browser.altText || '')
+        imgEl.setAttribute('alt', this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected) || '')
         imgEl.setAttribute('style', styles.join(';'))
         const container = imgEl.closest('[data-per-inline]')
         if (container) $perAdminApp.action(this, 'writeElementToModel', container)
@@ -2609,23 +2659,24 @@ export default {
       }
       if (this.param.cmd === 'editImage') {
         const imgEl = this.browser.element
-        const linkTitle = this.browser.linkTitle
+        const linkTitle = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
         imgEl.setAttribute('src', this.browser.path.selected)
-        imgEl.setAttribute('alt', linkTitle ? linkTitle : '')
-        imgEl.setAttribute('title', linkTitle ? linkTitle : '')
+        imgEl.setAttribute('alt', linkTitle || '')
+        imgEl.setAttribute('title', linkTitle || '')
         imgEl.setAttribute('style', styles.join(';'))
         if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
           $perAdminApp.action(this, 'reWrapEditable')
         }
-        $perAdminApp.action(this, 'writeInlineToModel')
-        this.$nextTick(() => {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        })
+        const editor = imgEl.closest('[contenteditable="true"]')
+        if (editor) editor.dispatchEvent(new Event('input'))
         this.browser.element = null
+        this.browser.mediaSourcePath = ''
+        this.browser.mediaSourceText = ''
+        this.browser.mediaSourceFallback = ''
       } else {
         const doc = this.selection.doc || this.getInlineDoc() || document
         const win = doc.defaultView || window
@@ -2637,11 +2688,12 @@ export default {
           if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
           if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
           if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+          const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
 
           const img = doc.createElement('img')
           img.setAttribute('src', this.browser.path.selected)
-          img.setAttribute('alt', this.browser.linkTitle || '')
-          img.setAttribute('title', this.browser.linkTitle || '')
+          img.setAttribute('alt', mediaText || '')
+          img.setAttribute('title', mediaText || '')
           if (styles.length) {
             img.setAttribute('style', styles.join(';'))
           }
@@ -2658,6 +2710,9 @@ export default {
         }
 
       }
+      this.browser.mediaSourcePath = ''
+      this.browser.mediaSourceText = ''
+      this.browser.mediaSourceFallback = ''
     },
 
     setBrowserPathCurrent(path) {
@@ -2666,6 +2721,12 @@ export default {
 
     setBrowserPathSelected(path) {
       this.browser.path.selected = path
+      if (this.param.cmd === 'editImage' && path && path !== this.browser.mediaSourcePath) {
+        const current = String(this.browser.linkTitle || '').trim()
+        if (!current || current === this.browser.mediaSourceText || current === this.browser.mediaSourceFallback) {
+          this.browser.linkTitle = ''
+        }
+      }
     },
 
     setBrowserResourceType(type) {

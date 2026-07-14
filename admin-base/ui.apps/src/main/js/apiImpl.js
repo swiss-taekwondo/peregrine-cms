@@ -1819,14 +1819,31 @@ class PerAdminImpl {
           .then(() => resolve())
           .catch(error => {
             clearInterval(noticeFunction)
-            const reason = (error && error.response && error.response.data
-                && error.response.data.message)
-                || (error && error.message)
-                || String(error)
-            $perAdminApp.notifyUser('Errors',
-                `were encountered when ${deactivate ? 'un'
-                    : ''}publishing ${path}. ${reason}`)
-            reject(reason)
+
+            let errorMessage = `Errors were encountered when ${deactivate ? 'un' : ''}publishing ${path}. Please check with your admin.`;
+
+            if (error.response && error.response.data) {
+              const data = error.response.data;
+
+              if (data.exception && Array.isArray(data.exception) && data.exception.length > 0) {
+                const firstLine = data.exception[0];
+                const match = firstLine.match(/HTTP \d+ - (.*)/);
+
+                if (match && match[1]) {
+                  try {
+                    const parsedDetail = JSON.parse(match[1]);
+                    errorMessage = parsedDetail.error || parsedDetail.message || errorMessage;
+                  } catch (e) {
+                    errorMessage = match[1];
+                  }
+                }
+              } else if (data.message && data.message !== "Replication Failed") {
+                errorMessage = data.message;
+              }
+            }
+
+            $perAdminApp.notifyUser('Error', errorMessage);
+            reject(errorMessage);
           })
     })
   }
