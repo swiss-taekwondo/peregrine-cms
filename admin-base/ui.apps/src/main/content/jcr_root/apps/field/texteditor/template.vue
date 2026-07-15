@@ -54,59 +54,7 @@
 import {Key} from '../../../../../js/constants'
 import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
-
-const allowedClassesMap = {
-  'peregrine-icon': true,
-}
-const allowedStylesMap = {
-  // bold, italic, etc handled by html tags
-  "text-align": true,
-  "font-size": true,
-  'width':true,
-  'height':true,
-};
-const allowedStylesElementsMap = {
-  IMG: true,
-}
-function cleanupRteContent(tempDiv) {
-  tempDiv.querySelectorAll('[style]').forEach((span) => {
-    if (allowedStylesElementsMap[span.nodeName]) return;
-    const propertiesToRemove = []
-    for (let i = 0; i < span.style.length; i++) {
-      const property = span.style.item(i);
-      if (!allowedStylesMap[property]) {
-        propertiesToRemove.push(property);
-      }
-    }
-    // must be done in later step, otherwise length changes
-    for (let i = 0; i < propertiesToRemove.length; i++) {
-      span.style.removeProperty(propertiesToRemove[i]);
-    }
-  })
-
-  tempDiv.querySelectorAll('[class]').forEach((el) => {
-    const newClassName = Array.from(el.classList).filter((cls) => allowedClassesMap[cls]).join(' ')
-    el.className = newClassName;
-  })
-
-  tempDiv.querySelectorAll('[data-per-inline]').forEach((el) => {
-    el.removeAttribute('data-per-inline')
-  })
-  tempDiv.querySelectorAll('[contenteditable]').forEach((el) => {
-    el.removeAttribute('contenteditable')
-  })
-
-  tempDiv.querySelectorAll('[id]').forEach((el) => {
-    el.removeAttribute('id')
-  })
-
-  // remove empty anchor tags, sometimes appearing when adding & removing lists
-  tempDiv.querySelectorAll('a:empty').forEach((el) => {
-    el.remove()
-  })
-
-  return tempDiv
-}
+import DOMPurify from 'dompurify'
 
 function getAnchorFromSelection(selection) {
   const anchorNode = selection && selection.rangeCount > 0 ? selection.anchorNode : null
@@ -132,6 +80,66 @@ function resolveHeadingShortcutDigit(event) {
   }
 
   return null
+}
+
+const allowedClasses = [
+	'peregrine-icon',
+];
+const allowedStyles = [
+	'text-align',
+	'font-size',
+	'width',
+	'height',
+	'vertical-align',
+	'display',
+];
+DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+ if (data.attrName === 'class') {
+    const filtered = data.attrValue
+      .split(/\s+/)
+      .filter(cls => allowedClasses.includes(cls))
+      .join(' ');
+
+    if (filtered) {
+      data.attrValue = filtered;
+    } else {
+      data.keepAttr = false;
+    }
+  }
+
+  if (data.attrName === 'style') {
+    const declarations = data.attrValue
+      .split(';')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const filtered = [];
+
+    for (const decl of declarations) {
+      const idx = decl.indexOf(':');
+      if (idx === -1) continue;
+
+      const property = decl.slice(0, idx).trim().toLowerCase();
+      const value = decl.slice(idx + 1).trim();
+
+      if (allowedStyles.includes(property)) {
+        filtered.push(`${property}: ${value}`);
+      }
+    }
+
+    if (filtered.length) {
+      data.attrValue = filtered.join('; ');
+    } else {
+      data.keepAttr = false;
+    }
+  }
+})
+const domPurifyConfig = {
+	ALLOWED_TAGS: [
+		'p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br',
+		'strong', 'em', 'b', 'i', 'u', 'a', 'img',
+		'ul', 'ol', 'li', 'sub', 'sup'
+	],
 }
 
 export default {
@@ -337,12 +345,14 @@ export default {
     value() {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
-      textCheckDiv.innerHTML = this.value
+      textCheckDiv.innerHTML = DOMPurify.sanitize(this.value, domPurifyConfig)
+      textCheckDiv.querySelectorAll('a:empty').forEach((el) => {
+        el.remove()
+      })
       // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
       // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
       // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
       if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
-      cleanupRteContent(textCheckDiv)
       this.value = textCheckDiv.innerHTML
     }
   }
