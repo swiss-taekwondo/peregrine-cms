@@ -2528,6 +2528,10 @@ export default {
       const typeLC = this.browser.type?.toLowerCase()
       const isAssetOrFile = typeLC === PathBrowser.Type.ASSET || typeLC === 'file'
       let href = this.browser.path.selected || ''
+      if (!href) {
+        console.warn('no href specified in onLinkSelect')
+        return
+      }
 
       const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
       if (href.startsWith('/') && isPageType && !href.includes('.html')) {
@@ -2584,19 +2588,13 @@ export default {
           }
         }
 
-        link.appendChild(range.extractContents())
+        link.append(range.extractContents())
         if (link.textContent.trim().length < 1 && link.children.length === 0) {
           link.textContent = href
         }
         range.insertNode(link)
         this._savedRange = null
-        if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
-          $perAdminApp.action(this, 'reWrapEditable')
-        }
-        $perAdminApp.action(this, 'writeInlineToModel')
-        this.$nextTick(() => {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        })
+        textEditor.dispatchEvent(new Event('input'))
       } else {
         let anchor = this.param.anchor
         if (!anchor || !anchor.parentNode) {
