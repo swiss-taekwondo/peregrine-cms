@@ -140,6 +140,9 @@ const domPurifyConfig = {
 		'strong', 'em', 'b', 'i', 'u', 'a', 'img',
 		'ul', 'ol', 'li', 'sub', 'sup'
 	],
+	ADD_ATTR: [
+		'target'
+	]
 }
 
 export default {
