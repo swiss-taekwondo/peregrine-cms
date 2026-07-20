@@ -175,7 +175,7 @@ export default {
             target.references.push(ref.path);
           }
         });
-        if (this.references.is_assets_folder && !target.references.length) {
+        if (this.references?.is_assets_folder && !target.references.length) {
           $perAdminApp.toast("No items to publish. Please select at least one item.", "error");
           return;
         }
@@ -216,7 +216,7 @@ export default {
     const me = this;
     $perAdminApp.getApi().populateReferences(this.path, true)
       .then(function() {
-        Vue.set(me.references, "publish", !me.references.is_assets_folder);
+        Vue.set(me.references, "publish", !me.references?.is_assets_folder);
         if (me.references.references != undefined) {
           me.references.references.forEach((ref) => {
             me.initializePublishActionFlag(ref);
