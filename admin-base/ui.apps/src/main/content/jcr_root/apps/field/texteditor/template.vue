@@ -346,8 +346,12 @@ export default {
       if (!this.value) return
       const textCheckDiv = document.createElement('div')
       textCheckDiv.innerHTML = DOMPurify.sanitize(this.value, domPurifyConfig)
-      textCheckDiv.querySelectorAll('a:empty').forEach((el) => {
-        el.remove()
+      // Replace links with no href or only whitespace with their content
+      textCheckDiv.querySelectorAll('a').forEach((el) => {
+        if (!el.getAttribute('href') || (!el.textContent.trim() && !el.querySelector('img'))) {
+          console.log("replacing invalid link with it's content:", el)
+          el.replaceWith(...el.childNodes)
+        }
       })
       // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
       // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
