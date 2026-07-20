@@ -2688,29 +2688,29 @@ export default {
         const sel = window.getSelection()
         const range = this._savedRange
 
-          const styles = []
-          if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-          if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-          if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-          const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
+        const styles = []
+        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+        const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
 
-          const img = document.createElement('img')
-          img.setAttribute('src', this.browser.path.selected)
-          img.setAttribute('alt', mediaText || '')
-          img.setAttribute('title', mediaText || '')
-          if (styles.length) {
-            img.setAttribute('style', styles.join(';'))
-          }
+        const img = document.createElement('img')
+        img.setAttribute('src', this.browser.path.selected)
+        img.setAttribute('alt', mediaText || '')
+        img.setAttribute('title', mediaText || '')
+        if (styles.length) {
+          img.setAttribute('style', styles.join(';'))
+        }
 
-          range.deleteContents()
-          range.insertNode(img)
-          range.setStartAfter(img)
-          range.collapse(true)
-          sel.removeAllRanges()
-          sel.addRange(range)
+        range.deleteContents()
+        range.insertNode(img)
+        range.setStartAfter(img)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
 
-          const editor = this.getEditorFrom(range)
-          if (editor) editor.dispatchEvent(new Event('input'))
+        const editor = this.getEditorFrom(range)
+        if (editor) editor.dispatchEvent(new Event('input'))
 
       }
       this.browser.mediaSourcePath = ''
