@@ -35,9 +35,9 @@
 <!--    <exclude pattern="/content/docs/objects/tags/.*"/>-->
 <!--  </filter>-->
   <filter root="/etc/felibs/admin"/>
-<!--  <filter root="/apps/admin">-->
-<!--    <exclude pattern="/apps/admin/install/.*"/>-->
-<!--  </filter>-->
+  <filter root="/apps/admin">
+    <exclude pattern="/apps/admin/install/.*"/>
+  </filter>
 <!--  <filter root="/apps/field"/>-->
 <!--  <filter root="/favicon.ico"/>-->
 <!--  <filter root="/live">-->
