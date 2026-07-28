@@ -55,6 +55,10 @@ window.onclick = function(ev) {
 
     if(node) {
         var toUrl = node.href
+        if (node.target === '_blank') {
+            window.open(toUrl, '_blank', 'noopener,noreferrer')
+            return false
+        }
         const isHash = toUrl ? node.getAttribute('href').startsWith('#') : false;
         // check if the link has the attribute 'download'
         const isDownload = node.hasAttribute('download');
