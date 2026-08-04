@@ -69,17 +69,9 @@
 
 <sly data-sly-include="renderer.html"></sly>
 
-<sly data-sly-test="${helper.model.inlineCSS}">
-    <style>
-        <sly data-sly-list="${helper.model.inlineSiteCSS}">
-            ${item @ context='unsafe'}
-        </sly>
-    </style>
-</sly>
-<sly data-sly-test="${!helper.model.inlineCSS}">
-    <sly data-sly-list="${helper.model.siteCSS}">
-        <link rel="stylesheet" href="${item}" type="text/css">
-    </sly>
+<style data-sly-test="${helper.model.inlineCSS}"><sly data-sly-list="${helper.model.inlineSiteCSS}">${item @ context='unsafe'}</sly></style>
+<sly data-sly-test="${!helper.model.inlineCSS}" data-sly-list="${helper.model.siteCSS}">
+    <link rel="stylesheet" href="${item}" type="text/css">
 </sly>
 
 <script>

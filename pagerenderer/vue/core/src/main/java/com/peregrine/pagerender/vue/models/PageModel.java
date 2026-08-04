@@ -207,6 +207,29 @@ public class PageModel extends Container {
         return siteCSS;
     }
 
+    /**
+     * Minifies a CSS string by removing comments, line breaks, and extra spaces.
+     */
+    private String minifyCSS(String css) {
+        if (css == null) {
+            return "";
+        }
+
+        // 1. Remove multi-line comments: /* ... */
+        css = css.replaceAll("/\\*[\\s\\S]*?\\*/", "");
+
+        // 2. Replace line breaks and tabs with a single space
+        css = css.replaceAll("[\\n\\r\\t]", " ");
+
+        // 3. Replace multiple spaces with a single space
+        css = css.replaceAll("\\s+", " ");
+
+        // 4. Remove spaces around structural characters: { } : ; , >
+        css = css.replaceAll("\\s*([\\{\\}\\:\\;\\,\\>])\\s*", "$1");
+
+        return css.trim();
+    }
+
     public Boolean getInlineCSS() {
         if (!inlineCSS) {
             Boolean value = (Boolean) getInheritedProperty(INLINE_CSS);
@@ -233,7 +256,8 @@ public class PageModel extends Container {
                     if (resource != null) {
                         InputStream is = resource.adaptTo(InputStream.class);
                         if (is != null) {
-                            cssContents.add(IOUtils.toString(is, StandardCharsets.UTF_8));
+                            String rawCss = IOUtils.toString(is, StandardCharsets.UTF_8);
+                            cssContents.add(minifyCSS(rawCss));
                             continue; // Skip HTTP fetch if JCR file exists
                         }
                     }
@@ -248,7 +272,8 @@ public class PageModel extends Container {
                     conn.setRequestMethod("GET");
 
                     try (java.io.InputStream in = conn.getInputStream()) {
-                        cssContents.add(IOUtils.toString(in, StandardCharsets.UTF_8));
+                        String rawCss = IOUtils.toString(in, StandardCharsets.UTF_8);
+                        cssContents.add(minifyCSS(rawCss));
                     }
                 } catch (Exception e) {
                     log.error("Failed to inline CSS for path: {}.", path, e);
