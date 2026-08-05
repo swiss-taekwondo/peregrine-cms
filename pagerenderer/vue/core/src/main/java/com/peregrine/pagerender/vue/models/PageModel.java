@@ -263,9 +263,9 @@ public class PageModel extends Container {
                     }
 
                     // Fallback: Fetch dynamic clientlib via HTTP request
-                    String domain = StringUtils.isNotBlank(getPrimaryDomain())
-                            ? getPrimaryDomain()
-                            : getFallbackDomain();
+                    String domain = StringUtils.isNotBlank(getFallbackDomain())
+                            ? getFallbackDomain()
+                            : getPrimaryDomain();
 
                     java.net.URL url = new java.net.URL(domain + path);
                     java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
