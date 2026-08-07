@@ -276,6 +276,7 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  padding: 1px;
 
   *  {
     width: 100% !important;
@@ -284,6 +285,9 @@ export default {
   }
   input {
     grid-area: 1 / 1 / 2 / 6;
+    transition:
+		border-color 0.15s ease-in-out,
+		box-shadow 0.15s ease-in-out;
   }
   .picker-open {
     grid-area: 1 / 6 / 2 / 7;

@@ -65,6 +65,9 @@ fieldset[disabled] .multiselect {
   min-height: 40px;
   text-align: left;
   color: customColor("blue-grey", "darken-2");
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  transition: border-top-color 0.15s ease-in-out, border-bottom-color 0.15s ease-in-out;
 }
 
 .multiselect * {
@@ -80,13 +83,18 @@ fieldset[disabled] .multiselect {
   opacity: 0.6;
 }
 
-.multiselect--active {
+.multiselect.multiselect--active:not(.multiselect--above) {
   z-index: 50;
+  border-top-color: #607d8b;
 }
 
-.multiselect--active .multiselect__current,
-.multiselect--active .multiselect__input,
-.multiselect--active .multiselect__tags {
+.multiselect--above.multiselect--active {
+  border-bottom-color: #607d8b;
+}
+
+.multiselect.multiselect--active .multiselect__current,
+.multiselect.multiselect--active .multiselect__input,
+.multiselect.multiselect--active .multiselect__tags {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -148,15 +156,21 @@ fieldset[disabled] .multiselect {
   padding: 0 40px 0 0.75rem;
   border: 1px solid customColor("blue-grey", "lighten-4");
   background: #fff;
+  height: 3rem;
 }
 
 .multiselect__tags input.multiselect__input {
   border-top: none;
   border-left: none;
   border-right: none;
-  border-bottom-color: transparent;
+  border-color: transparent !important;
+  box-shadow: none !important;
   padding-left: 0;
   width: 100%;
+  height: calc(3rem - 2px);
+  top: 0px;
+  bottom: 2px;
+  font-size: 14px;
 }
 
 .multiselect__tag {
@@ -238,9 +252,9 @@ fieldset[disabled] .multiselect {
 
 .multiselect__placeholder {
   color: #ADADAD;
-  display: inline-block;
-  margin-bottom: 10px;
-  padding-top: 2px;
+  display: flex;
+  align-items: center;
+  height: 100%;
 }
 
 .multiselect--active .multiselect__placeholder {
@@ -259,6 +273,9 @@ fieldset[disabled] .multiselect {
   -webkit-overflow-scrolling: touch;
   -webkit-box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
   box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
+  transition:
+		border-color 0.15s ease-in-out,
+		box-shadow 0.15s ease-in-out;
 }
 
 .multiselect__content {
@@ -351,7 +368,6 @@ fieldset[disabled] .multiselect {
 .multiselect__option--selected.multiselect__option--highlight:after {
   content: attr(data-deselect);
   font-size: 20px;
-  // color: customColor("red", "base");
 }
 
 .multiselect--disabled {
