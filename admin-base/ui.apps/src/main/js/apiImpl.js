@@ -612,6 +612,12 @@ class PerAdminImpl {
                   }
                 }
 
+                if (field.inputType === 'color') {
+                    if (!field.default) {
+                        field.default = '#000000'
+                    }
+                }
+
                 if (field.type === 'collection') {
                   if (Array.isArray(field.fields)) {
                     for (let i = 0; i < field.fields.length; i++) {
@@ -701,21 +707,37 @@ class PerAdminImpl {
 
   populateObject(path, target, name, schema) {
     return this.populateComponentDefinitionFromNode(path)
-      .then(() => {
+      .then((componentName) => {
         return fetch('/admin/getObject.json' + path)
           .then(async (data) => {
             if (!schema) {
-              schema = await fetch('/admin/componentDefinition.json' + path).then((data) => data.model);
+              const componentDefs = $perAdminApp.getNodeFromView('/admin/componentDefinitions')
+              const cmpDef = componentDefs ? componentDefs[componentName] : null
+              schema = cmpDef ? cmpDef.model : null
             }
-            if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
-              if (data[field.model] && field.multifield && field.serialized) {
-                try {
-                  data[field.model] = JSON.parse(data[field.model])
-                } catch(e) {
-                  data[field.model] = []
+            const applyDefaults = (fields) => {
+              if (!fields) return
+              fields.forEach((field) => {
+                if (data[field.model] && field.multifield && field.serialized) {
+                  try {
+                    data[field.model] = JSON.parse(data[field.model])
+                  } catch(e) {
+                    data[field.model] = []
+                  }
                 }
+                if (field.inputType === 'color' && !data[field.model]) {
+                  data[field.model] = field.default
+                }
+              })
+            }
+            if (schema) {
+              applyDefaults(schema.fields)
+              if (schema.groups) {
+                schema.groups.forEach((group) => {
+                  applyDefaults(group.fields)
+                })
               }
-            });
+            }
             if (data.tags) {
               data.tags = JSON.parse(data.tags)
             }

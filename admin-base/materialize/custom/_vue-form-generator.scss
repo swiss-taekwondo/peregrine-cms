@@ -34,9 +34,6 @@
     margin: 0;
     box-sizing: border-box;
 
-    .collection {
-    }
-
     .field-wrap {
         margin: 5px 0px;
 
@@ -156,6 +153,7 @@
                 .wrapper {
                     position: relative;
                     input[type="color"]{
+                        cursor: pointer;
                         width: 100%;
                         height: 3rem;
                         padding: 0 5rem 0 0.15rem;
@@ -514,10 +512,10 @@
                         .lever {
                             margin-left: 0px;
                             // background-color: customColor("blue-grey", "lighten-3");
-                            &:after {
+                            // &:after {
                                 // background-color: customColor("blue-grey", "lighten-3");
                                 //box-shadow: none;
-                            }
+                            // }
                         }
                         input[type=checkbox]:checked {
                             + .lever {
@@ -669,11 +667,11 @@
                             &.deleted {
                                 display: none;
                             }
-                            &:first-child {
+                            // &:first-child {
                                 // .collapsible-header {
                                 //     border-top: 1px solid customColor("blue-grey", "lighten-4");
                                 // }
-                            }
+                            // }
                             &:last-child {
                                 .collapsible-body {
                                     border-bottom: none !important;
@@ -983,8 +981,13 @@
 }
 
 p.text-editor[readonly="readonly"],
-input:read-only:not([type="range"]),
-input:disabled:not([type="range"]) {
+input:read-only:not([type="range"]):not([type="color"]),
+input:disabled:not([type="range"]):not([type="color"]) {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
+}
+
+input[type="color"]:read-only,
+input[type="color"]:disabled {
+    cursor: default;
 }
