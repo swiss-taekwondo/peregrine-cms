@@ -64,8 +64,6 @@ import {set} from '../../../../../../js/utils'
 export default {
   props: ['model'],
   updated: function () {
-    let stateTools = $perAdminApp.getNodeFromViewWithDefault('/state/tools', {})
-    stateTools._deleted = {} // reset to empty?
     setTimeout(() => {
       const node = $perAdminApp.getNodeFromViewOrNull('/state/editor') || {}
       this.path = node.path
