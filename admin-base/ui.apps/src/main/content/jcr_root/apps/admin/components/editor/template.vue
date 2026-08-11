@@ -63,6 +63,10 @@ import {set} from '../../../../../../js/utils'
 
 export default {
   props: ['model'],
+  mounted: function () {
+    let stateTools = $perAdminApp.getNodeFromViewWithDefault('/state/tools', {})
+    stateTools._deleted = {}
+  },
   updated: function () {
     setTimeout(() => {
       const node = $perAdminApp.getNodeFromViewOrNull('/state/editor') || {}
@@ -170,9 +174,25 @@ export default {
           //Insert children
           for (const i in node) {
             const child = node[i]
-            targetNode[child.name] = child
+            if (child._opDelete) {
+              if (!targetNode[child.name]) {
+                targetNode[child.name] = child
+              }
+            } else if (!targetNode[child.name] || !targetNode[child.name]._opDelete) {
+              targetNode[child.name] = child
+            } else if (!child.path && targetNode[child.name] && targetNode[child.name]._opDelete) {
+              targetNode[child.name] = child
+            }
           }
-          data[key] = Object.values(targetNode)
+          data[key] = Object.values(targetNode).sort((a, b) => {
+            if (a.name && b.name) {
+              const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+              const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+              return a.name.localeCompare(b.name);
+            }
+            return 0;
+          })
         }
       }
 

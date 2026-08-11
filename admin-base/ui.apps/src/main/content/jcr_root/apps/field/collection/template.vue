@@ -39,11 +39,11 @@
             ref="header"
             class="collapsible-header"
             draggable="true"
-            @dragstart="onDragStart(item, index, $event)"
-            @dragover.prevent="onDragOver($event, index)"
-            @dragenter.prevent="onDragEnter"
-            @dragleave.prevent="onDragLeave($event, index)"
-            @drop.prevent="onDrop($event, index, item)"
+            @dragstart.stop="onDragStart(item, index, $event)"
+            @dragover.stop.prevent="onDragOver($event, index)"
+            @dragenter.stop.prevent="onDragEnter"
+            @dragleave.stop.prevent="onDragLeave($event, index)"
+            @drop.stop.prevent="onDrop($event, index, item)"
             @click.stop.prevent="onSetActiveItem(index)">
           <i class="material-icons">drag_handle</i>
           <span v-if="schema.multifield">{{ itemName(item, index) }}</span>
@@ -51,7 +51,7 @@
               v-else
               ref="input"
               v-model="value[index]">
-          <i class="material-icons delete-icon" @click="onRemoveItem(item, index)">delete</i>
+          <i class="material-icons delete-icon" @click.stop="onRemoveItem(item, index)">delete</i>
         </div>
         <transition
             @enter="enter"
