@@ -13,9 +13,9 @@ package com.peregrine.pagerender.vue.models;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -41,6 +41,9 @@ import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Named;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import org.apache.commons.io.IOUtils;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
@@ -51,6 +54,9 @@ import org.apache.sling.models.annotations.Exporter;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.Optional;
 import org.apache.sling.models.factory.ModelFactory;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Created by rr on 12/2/2016.
@@ -64,7 +70,9 @@ import org.apache.sling.models.factory.ModelFactory;
     name = JACKSON,
     extensions = JSON)
 public class PageModel extends Container {
+    private static final Logger log = LoggerFactory.getLogger(PageModel.class);
 
+    public static final String INLINE_CSS = "inlineCSS";
     public static final String SITE_CSS = "siteCSS";
     public static final String PREFETCH_DNS = "prefetchDNS";
     public static final String DOMAINS = "domains";
@@ -157,6 +165,9 @@ public class PageModel extends Container {
     @Optional
     private Boolean noFollow = false;
 
+    @Inject
+    @Optional
+    private Boolean inlineCSS = false;
 
     public String getSiteRoot() {
         String path = getPagePath();
@@ -194,6 +205,82 @@ public class PageModel extends Container {
             }
         }
         return siteCSS;
+    }
+
+    /**
+     * Minifies a CSS string by removing comments, line breaks, and extra spaces.
+     */
+    private String minifyCSS(String css) {
+        if (css == null) {
+            return "";
+        }
+
+        // 1. Remove multi-line comments: /* ... */
+        css = css.replaceAll("/\\*[\\s\\S]*?\\*/", "");
+
+        // 2. Replace line breaks and tabs with a single space
+        css = css.replaceAll("[\\n\\r\\t]", " ");
+
+        // 3. Replace multiple spaces with a single space
+        css = css.replaceAll("\\s+", " ");
+
+        // 4. Remove spaces around structural characters: { } : ; , >
+        css = css.replaceAll("\\s*([\\{\\}\\:\\;\\,\\>])\\s*", "$1");
+
+        return css.trim();
+    }
+
+    public Boolean getInlineCSS() {
+        if (!inlineCSS) {
+            Boolean value = (Boolean) getInheritedProperty(INLINE_CSS);
+            if (value != null) return value;
+            if (getTemplate() != null) {
+                PageModel templatePageModel = getTemplatePageModel();
+                if (templatePageModel != null) {
+                    return templatePageModel.getInlineCSS();
+                }
+            }
+        }
+        return inlineCSS;
+    }
+
+    public List<String> getInlineSiteCSS() {
+        List<String> cssContents = new ArrayList<>();
+        String[] paths = getSiteCSS();
+
+        if (paths != null) {
+            for (String path : paths) {
+                try {
+                    // Try reading the physical file from the JCR first
+                    Resource resource = getResource().getResourceResolver().getResource(path + "/jcr:content");
+                    if (resource != null) {
+                        InputStream is = resource.adaptTo(InputStream.class);
+                        if (is != null) {
+                            String rawCss = IOUtils.toString(is, StandardCharsets.UTF_8);
+                            cssContents.add(minifyCSS(rawCss));
+                            continue; // Skip HTTP fetch if JCR file exists
+                        }
+                    }
+
+                    // Fallback: Fetch dynamic clientlib via HTTP request
+                    String domain = StringUtils.isNotBlank(getFallbackDomain())
+                            ? getFallbackDomain()
+                            : getPrimaryDomain();
+
+                    java.net.URL url = new java.net.URL(domain + path);
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+
+                    try (java.io.InputStream in = conn.getInputStream()) {
+                        String rawCss = IOUtils.toString(in, StandardCharsets.UTF_8);
+                        cssContents.add(minifyCSS(rawCss));
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to inline CSS for path: {}.", path, e);
+                }
+            }
+        }
+        return cssContents;
     }
 
     /**
@@ -323,7 +410,7 @@ public class PageModel extends Container {
             for(Resource tag: tags.getChildren()) {
                 String tagString = tag.getValueMap().get("value", String.class);
                 Resource tagResource = tag.getResourceResolver().getResource(tagString);
-                if (tagResource != null) { 
+                if (tagResource != null) {
                     answer.add(new Tag(tag));
                 }
             }
@@ -338,7 +425,7 @@ public class PageModel extends Container {
             for(Resource tag: tags.getChildren()) {
                 String tagString = tag.getValueMap().get("value", String.class);
                 Resource tagResource = tag.getResourceResolver().getResource(tagString);
-                if (tagResource != null) { 
+                if (tagResource != null) {
                     answer.add(new Tag(tag).getName());
                 }
             }
