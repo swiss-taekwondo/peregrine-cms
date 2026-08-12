@@ -911,8 +911,10 @@ export default {
       this.checkActivationStatusAndPerform(() => {
         $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
             .then(() => {
+              this.path.selected = this.browserRoot
               this.isOpen = true;
             }).catch(() => {
+          this.path.selected = this.browserRoot
           $perAdminApp.getApi().populateNodesForBrowser(`/content/${site.tenant}`, 'pathBrowser');
         });
       });
@@ -921,8 +923,10 @@ export default {
     copyNode() {
       $perAdminApp.getApi().populateNodesForBrowser(this.path.current, 'pathBrowser')
           .then(() => {
+            this.path.selected = this.browserRoot
             this.isCopyOpen = true;
           }).catch(() => {
+        this.path.selected = this.browserRoot
         $perAdminApp.getApi().populateNodesForBrowser(`/content/${site.tenant}`, 'pathBrowser');
       });
 
