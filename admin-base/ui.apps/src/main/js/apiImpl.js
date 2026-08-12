@@ -608,7 +608,23 @@ class PerAdminImpl {
                 let visible = field.visible
                 if (visible) {
                   field.visible = function () {
-                    return exprEval.Parser.evaluate(visible, this)
+                    const result = exprEval.Parser.evaluate(visible, this)
+                    if (!result && field.valueWhenInvisible) {
+                      console.log('visible setting override to:', field.valueWhenInvisible)
+                      this.model[field.model] = field.valueWhenInvisible
+                    }
+                    return result;
+                  }
+                }
+                // visibility eval
+                if (field.jsEvalVisible) {
+                  field.visible = function () {
+                    const result = eval(field.jsEvalVisible)
+                    if (!result && field.valueWhenInvisible) {
+                      console.log('visible setting override to:', field.valueWhenInvisible)
+                      this.model[field.model] = field.valueWhenInvisible
+                    }
+                    return result
                   }
                 }
 
