@@ -265,6 +265,9 @@ function getComponentByNameImpl(name) {
       const editView = document.getElementById("editview")
       if (editView && editView.contentWindow) {
         cmp = editView.contentWindow[cmpName]
+        if (cmp) {
+          window[cmpName] = cmp
+        }
       }
     }
 
