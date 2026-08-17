@@ -64,8 +64,6 @@ import {set} from '../../../../../../js/utils'
 export default {
   props: ['model'],
   updated: function () {
-    let stateTools = $perAdminApp.getNodeFromViewWithDefault('/state/tools', {})
-    stateTools._deleted = {} // reset to empty?
     setTimeout(() => {
       const node = $perAdminApp.getNodeFromViewOrNull('/state/editor') || {}
       this.path = node.path
@@ -138,6 +136,8 @@ export default {
     }
   },
   mounted() {
+    let stateTools = $perAdminApp.getNodeFromViewWithDefault('/state/tools', {})
+    stateTools._deleted = {}
     this.isTouch = 'ontouchstart' in window || navigator.maxTouchPoints
     if (this.schema && this.schema.hasOwnProperty('groups')) {
       this.hideGroups()
@@ -151,32 +151,50 @@ export default {
       let data = JSON.parse(JSON.stringify(this.dataModel))
       let _deleted = $perAdminApp.getNodeFromViewWithDefault('/state/tools/_deleted', {})
 
-      //Merge _deleted child items back into the object that we need to save.
-      //Loop through the model for this object/page/asset and find objects that have children
-      for (const key in data) {
-        //If data[key] or deleted[key] is an array of objects
-        if ((data && Array.isArray(data[key]) && data[key].length && typeof data[key][0] === 'object') ||
-            (_deleted && Array.isArray(_deleted[key]) && _deleted[key].length && typeof _deleted[key][0] === 'object')) {
+      // Merge _deleted child items back into the object that we need to save recursively.
+      const mergeDeleted = (currentNode, nodePath) => {
+        if (!currentNode || typeof currentNode !== 'object') return;
 
-          let node = data[key]
+        for (const key in currentNode) {
+          const hasDeletedItems = _deleted && Array.isArray(_deleted[key]) && _deleted[key].length > 0;
+          const isArray = Array.isArray(currentNode[key]);
 
-          //Use an object to easily merge back in deleted nodes
-          let targetNode = {}
-          //Insert deleted children
-          if (_deleted) {
-            for (const j in _deleted[key]) {
-              const deleted = _deleted[key][j]
-              targetNode[deleted.name] = deleted
+          if (isArray || hasDeletedItems) {
+            // 1. Prevent empty arrays from polluting the JCR
+            if (isArray && currentNode[key].length === 0 && !hasDeletedItems) {
+              delete currentNode[key];
+              continue;
             }
+
+            let nodeArray = currentNode[key] || [];
+            let targetMap = {};
+
+            if (hasDeletedItems) {
+              for (const deleted of _deleted[key]) {
+                const expectedPath = nodePath + '/' + key + '/' + deleted.name;
+                if (deleted.path === expectedPath) {
+                  targetMap[deleted.name] = deleted;
+                }
+              }
+            }
+
+            for (const i in nodeArray) {
+              const child = nodeArray[i];
+              targetMap[child.name] = child;
+              const childPath = nodePath + '/' + key + '/' + child.name;
+              mergeDeleted(child, childPath);
+            }
+
+            // 4. Send EVERYTHING natively as an Array!
+            currentNode[key] = Object.values(targetMap);
+
+          } else if (typeof currentNode[key] === 'object' && currentNode[key] !== null) {
+            mergeDeleted(currentNode[key], nodePath + '/' + key);
           }
-          //Insert children
-          for (const i in node) {
-            const child = node[i]
-            targetNode[child.name] = child
-          }
-          data[key] = Object.values(targetNode)
         }
-      }
+      };
+
+      mergeDeleted(data, this.path);
 
       var view = $perAdminApp.getView()
       $perAdminApp.action(this, 'onEditorExitFullscreen')
