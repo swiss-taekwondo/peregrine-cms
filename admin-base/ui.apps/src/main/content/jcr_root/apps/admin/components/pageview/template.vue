@@ -25,10 +25,6 @@ export default {
       type: Object,
       required: true,
     },
-    onDelete: {
-      type: Function,
-      default: (type, path) => new Promise(),
-    },
   },
   data() {
     return {
@@ -73,6 +69,10 @@ export default {
         tenant = view.state.tenant;
       }
       return `/content/${tenant.name}`;
+    },
+    onDelete(type, path) {
+      const deleteAction = 'delete' + type.charAt(0).toUpperCase() + type.slice(1);
+      return $perAdminApp.stateAction(deleteAction, path);
     },
   },
 };
