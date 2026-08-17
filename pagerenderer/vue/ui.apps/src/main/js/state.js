@@ -54,6 +54,8 @@ window.onclick = function(ev) {
     var node = getClickable(ev.target)
 
     if(node) {
+        if (!node.getAttribute('href')) return false;
+
         var toUrl = node.href
         if (node.target === '_blank') {
             window.open(toUrl, '_blank', 'noopener,noreferrer')
