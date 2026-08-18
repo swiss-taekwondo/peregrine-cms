@@ -2215,11 +2215,8 @@ public class AdminResourceHandlerService
             // There is a resource item -> move the new one after the last one
             moveNode(answer, previousSibling, false, false);
         }
-        // Now update the child with any remaining properties
-        ModifiableValueMap newChildProperties = getModifiableProperties(answer, false);
-        for (Object childPropertyKey : itemProperties.keySet()) {
-            newChildProperties.put(childPropertyKey + "", itemProperties.get(childPropertyKey));
-        }
+        // Now update the child recursively
+        updateResourceTree(answer, itemProperties);
         return answer;
     }
 

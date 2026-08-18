@@ -258,7 +258,20 @@ function getComponentByNameImpl(name) {
     for(var i = 0; i < segments.length; i++) {
         segments[i] = segments[i].charAt(0).toUpperCase() + segments[i].slice(1)
     }
-    return window['cmp'+segments.join('')]
+    const cmpName = "cmp" + segments.join("")
+    let cmp = window[cmpName]
+    if (!cmp) {
+      // Find the component in the editor iframe if lazy loaded
+      const editView = document.getElementById("editview")
+      if (editView && editView.contentWindow) {
+        cmp = editView.contentWindow[cmpName]
+        if (cmp) {
+          window[cmpName] = cmp
+        }
+      }
+    }
+
+    return cmp
 }
 
 /**
