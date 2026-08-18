@@ -409,6 +409,9 @@ export default {
       setTimeout(() => {
         model = model.split('.')
         model.reverse()
+        if (model[model.length - 1] === 'model') {
+          model.pop()
+        }
         const $field = this.getFieldComponent(this.$refs.vfg, model.pop())
         if ($field && $field.field && $field.field.type) {
           const fieldType = $field.field.type
@@ -422,7 +425,7 @@ export default {
             } else if (fieldType === 'collection') {
               this.focusCollectionField(model, $field)
             } else {
-              console.warn('Unsupported field type: ', field.type)
+              console.warn('Unsupported field type: ', $field.field.type)
             }
           })
 
@@ -441,6 +444,11 @@ export default {
         setTimeout(() => {
           const $collectionVfg = $collection.$children[0]
           const $collectionField = this.getFieldComponent($collectionVfg, model.pop())
+          if (!$collectionField) return;
+          if ($collectionField.field.type === 'collection') {
+            this.focusCollectionField(model, $collectionField);
+            return;
+          }
           set(this.view, '/state/inline/rich', this.isRichEditor($collectionField.field))
           this.clearFocusStuff()
           this.focus.loop = setInterval(() => {
