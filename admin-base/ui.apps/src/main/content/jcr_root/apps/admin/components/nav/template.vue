@@ -30,7 +30,7 @@
           <admin-components-logo/>
         </div>
         <admin-components-materializemodal ref="notificationsModal">
-          <p>Notifications: Coming soon...</p>
+          <!-- <p>Notifications: Coming soon...</p> -->
           <h5>-------------------------------------------------------------------------------</h5>
           <h3>
             Change Website has been moved:
@@ -74,6 +74,7 @@
       </div>
       <ul class="nav-right nav-mobile">
         <admin-components-materializemodal ref="languageModal">
+          <span>testing</span>
           <template>
             <vue-multiselect
                 :value="language"
@@ -269,6 +270,9 @@ export default {
   mounted() {
     this.checkResponsive()
     window.addEventListener('resize', this.checkResponsive)
+    // const name = window.localStorage.getItem('adminLanguage')
+    // this.$i18nSetLanguage(name)
+    // $perAdminApp.forceFullRedraw()
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.checkResponsive)
@@ -317,6 +321,7 @@ export default {
     },
     onSelectLang({name}) {
       this.$i18nSetLanguage(name)
+      window.localStorage.setItem('adminLanguage', name)
       $perAdminApp.forceFullRedraw()
     },
     onSelectTenant(tenant) {

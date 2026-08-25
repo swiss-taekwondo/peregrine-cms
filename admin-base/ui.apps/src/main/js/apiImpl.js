@@ -805,6 +805,7 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       axios.get('/i18n/admin/' + language + '.infinity.json')
           .then((response) => {
+          console.log('response', response)
             populateView('/admin/i18n', language, response.data)
                 .then(() => resolve())
           })

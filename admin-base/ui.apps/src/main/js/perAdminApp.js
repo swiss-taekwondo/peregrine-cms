@@ -1005,6 +1005,8 @@ function getExtensionImpl(id) {
 
 function loadi18nImpl() {
   if (!view.state.language) {
+    const name = window.localStorage.getItem('adminLanguage')
+    console.log('loadi18nImpl:', name)
     Vue.set(view.state, 'language', 'en');
   }
   api.populateI18N(view.state.language);
