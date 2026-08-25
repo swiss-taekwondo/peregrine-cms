@@ -351,6 +351,16 @@ export default {
       this.state = $perAdminApp.getView().state
     },
     getActiveSection() {
+      const state = $perAdminApp.getView().state
+      if (state && state.tools && state.tools.file) {
+        const path = state.tools.file
+        const sectionNames = ['assets', 'pages', 'objects', 'templates']
+        for (const name of sectionNames) {
+          if (path.includes('/' + name + '/')) {
+            return name
+          }
+        }
+      }
       const breadcrumbs = $perAdminApp.getView().adminPage.breadcrumbs
       if (breadcrumbs) {
         return breadcrumbs[0].path.split('/')[4]
