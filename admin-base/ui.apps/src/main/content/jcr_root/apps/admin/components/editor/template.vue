@@ -148,6 +148,14 @@ export default {
   },
   methods: {
     onOk(e) {
+      if (this.$refs.vfg && this.$refs.vfg.validate) {
+        const isValid = this.$refs.vfg.validate()
+        if (!isValid) {
+          console.log('[VALIDATION] Form has validation errors, preventing save')
+          $perAdminApp.notifyUser('error', 'Please fix validation errors before saving')
+          return
+        }
+      }
       let data = JSON.parse(JSON.stringify(this.dataModel))
       let _deleted = $perAdminApp.getNodeFromViewWithDefault('/state/tools/_deleted', {})
 

@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="/etc/felibs/admin.css" type="text/css">
     <link rel="stylesheet" href="/etc/felibs/admin/dependencies.css" type="text/css">
     <link rel="stylesheet" href="/etc/felibs/admin/dependencies/font-awesome/css/font-awesome.min.css" type="text/css">
+    <link rel="stylesheet" href="/etc/felibs/admin/dependencies/intlTelInput.css" type="text/css">
 
     <script type="text/javascript">
         if(/MSIE \d|Trident.*rv:/.test(navigator.userAgent)) {
@@ -185,6 +186,7 @@
         $perAdminApp.loadComponent('field-material-datetime')
         $perAdminApp.loadComponent('field-material-textarea')
         $perAdminApp.loadComponent('field-material-multiselect')
+        $perAdminApp.loadComponent('field-material-telephone')
         $perAdminApp.loadComponent('field-material-range')
         $perAdminApp.loadComponent('field-listselection')
         $perAdminApp.loadComponent('field-location-input')
@@ -199,7 +201,6 @@
         $perAdminApp.loadComponent('admin-components-draghandle')
         $perAdminApp.loadComponent('admin-components-iconbrowser')
         $perAdminApp.loadComponent('pagerendervue-components-placeholder')
-
 
         // init peregrine admin app
         $perAdminApp.init($perAdminView)
