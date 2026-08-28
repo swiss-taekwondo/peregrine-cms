@@ -1039,7 +1039,16 @@ export default {
       // Validate telephone inputs using intlTelInput
       const telInputs = document.querySelectorAll('.iti__tel-input');
       for (const input of telInputs) {
-        if (input.iti && !input.iti.isValidNumber()) {
+        if (input.iti && !input.value.trim() && input.dataset.model) {
+          const deleteProps = this.node._opDeleteProps || [];
+          if (deleteProps.indexOf(input.dataset.model) === -1) {
+            deleteProps.push(input.dataset.model);
+          }
+          this.node._opDeleteProps = deleteProps;
+          set(this.node, input.dataset.model, '');
+        }
+
+        if (input.iti && input.value.trim() && !input.iti.isValidNumber()) {
           // Set error on VFG's fieldErrors to trigger UI feedback
           if (this.$refs.vfg && this.$refs.vfg.fieldErrors) {
             const telField = this.$refs.vfg.schema.fields.find(f => f.inputType === 'tel');

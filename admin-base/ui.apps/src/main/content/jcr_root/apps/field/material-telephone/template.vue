@@ -113,6 +113,7 @@ export default {
 			separateDialCode: true,
 			initialCountry: 'ch'
 		});
+		input.dataset.model = this.schema.model;
 
 		if (this.value) {
 			this.updatingFromValue = true;
@@ -164,29 +165,42 @@ export default {
 				return;
 			}
 
-			const number = this.iti.getNumber();
+			const isEmpty = !this.$refs.phoneInput.value.trim();
+			const number = isEmpty ? '' : this.iti.getNumber();
 
-			if (number !== this.value) {
-				this.$emit('input', number);
-			}
+			this.toggleDeleteProp(isEmpty);
+			this.value = number;
 
 			this.validate();
 		},
 
-		validate() {
-			if (!this.iti) {
+		toggleDeleteProp(shouldDelete) {
+			if (!this.schema.model) {
 				return;
 			}
 
-			const isValid = this.iti.isValidNumber();
-			const error = this.iti.getValidationError();
-			const errorMessages = {
-				1: 'Invalid country code',
-				2: 'Too short',
-				3: 'Too long',
-				4: 'Invalid phone number'
-			};
-			const errorMsg = errorMessages[error] || 'Invalid phone number';
+			const deleteProps = this.model._opDeleteProps || [];
+			const nextDeleteProps = deleteProps.filter((prop) => prop !== this.schema.model);
+
+			if (shouldDelete) {
+				nextDeleteProps.push(this.schema.model);
+			}
+
+			if (nextDeleteProps.length) {
+				this.model._opDeleteProps = nextDeleteProps;
+			} else {
+				delete this.model._opDeleteProps;
+			}
+		},
+
+		validate() {
+			if (!this.iti) {
+				return [];
+			}
+
+			const isEmpty = !this.$refs.phoneInput.value.trim();
+			const isValid = isEmpty || this.iti.isValidNumber();
+			const errorMsg = 'Invalid phone number';
 
 			const fieldWrapper =
 				this.$el.closest('.field-material-telephone');
@@ -221,6 +235,8 @@ export default {
 					}
 				}
 			}
+
+			return this.fieldErrors;
 		}
 	}
 };
