@@ -634,6 +634,17 @@ class PerAdminImpl {
                     }
                 }
 
+                if (field.inputType === 'url' || field.inputType === 'email') {
+                    const type = field.inputType;
+                    if (!field.validator) {
+                        field.validator = type
+                    } else if (typeof field.validator === 'string') {
+                        field.validator = [field.validator, type]
+                    } else if (Array.isArray(field.validator)) {
+                        field.validator.push(type)
+                    }
+                }
+
                 if (field.type === 'collection') {
                   if (Array.isArray(field.fields)) {
                     for (let i = 0; i < field.fields.length; i++) {
