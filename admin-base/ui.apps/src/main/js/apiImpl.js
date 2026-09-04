@@ -291,7 +291,7 @@ function fetch(path) {
           '<!DOCTYPE')) || (response.request && response.request.responseURL
           && response.request.responseURL.indexOf('/system/sling/form/login')
           >= 0)) {
-        window.location = '/system/sling/form/login'
+        window.location = '/system/sling/form/login?resource=' + encodeURIComponent(window.location.pathname + window.location.search)
         reject('need to authenticate')
       }
       resolve(response.data)
@@ -299,7 +299,7 @@ function fetch(path) {
   }).catch((error) => {
     logger.error('Fetch request to', path, 'failed')
     if (path.startsWith('/admin/access.json?')) {
-      window.location = '/system/sling/form/login'
+      window.location = '/system/sling/form/login?resource=' + encodeURIComponent(window.location.pathname + window.location.search)
     }
     throw error
   })
