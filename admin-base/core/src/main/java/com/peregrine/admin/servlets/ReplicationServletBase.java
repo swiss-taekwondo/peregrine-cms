@@ -92,7 +92,12 @@ public abstract class ReplicationServletBase extends AbstractBaseServlet {
     ) throws IOException, ReplicationException, RepositoryException;
 
     protected static ErrorResponse badRequestReplicationFailed(final Exception e) throws IOException {
-        return badRequest(REPLICATION_FAILED).setException(e);
+        final String message = e.getMessage();
+        return badRequest(
+                message == null || message.isBlank()
+                        ? REPLICATION_FAILED
+                        : REPLICATION_FAILED + ": " + message
+        ).setException(e);
     }
 
     protected static ErrorResponse badRequest(final String message) throws IOException {

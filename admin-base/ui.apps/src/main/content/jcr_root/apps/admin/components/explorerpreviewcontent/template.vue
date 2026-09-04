@@ -203,7 +203,21 @@
         <admin-components-publishinginfo v-bind:node="nodeFromPath" v-if="nodeFromPath"/>
 
         <div v-if="allowOperations && node" class="action-list">
-          <div class="action" :title="`Open Web Publishing ${nodeType} Dialog`" @click="openPublishingModal()">
+          <div v-if="nodeType === NodeType.PAGE || nodeType === NodeType.TEMPLATE" class="action" v-bind:class="{'operationDisabledOnActivatedItem': isPageCheckSummaryLoading || isVerifyingLinks}" title="Check the page before publishing" @click="isPageCheckSummaryLoading || isVerifyingLinks ? null : openPageCheckModal()">
+            <i class="material-icons">playlist_add_check</i>
+            <span>Page Check</span>
+            <admin-components-materializespinner v-if="isPageCheckSummaryLoading || isVerifyingLinks" class="page-check-spinner"/>
+            <span v-else class="page-check-action-icons">
+              <template v-if="pageCheckHasRun">
+              <i v-if="currentIssueCount === 0" class="material-icons page-check-action-ok">check_circle</i>
+              <span v-else-if="currentIssueCount > 0" class="page-check-action-error">
+                <i class="material-icons">error_outline</i>
+                <span class="page-check-action-count">{{ currentIssueCount }}</span>
+              </span>
+              </template>
+            </span>
+          </div>
+          <div class="action" :title="publishabilityTitle" @click="openPublishingModal()">
             <i class="material-icons">publish</i>
             Publish to Web ({{nodeType}})
           </div>
@@ -233,6 +247,22 @@
           v-on:complete="closePublishing"
           v-bind:modalTitle="`Web Publishing: ${nodeName}`">
       </admin-components-publishingmodal>
+
+      <admin-components-pagecheckmodal
+          v-if="isPageCheckDialogOpen"
+          v-bind:isOpen="isPageCheckDialogOpen"
+          v-bind:path="currentObject"
+          v-bind:node="pageCheckNode"
+          v-bind:nodeType="nodeType"
+          v-bind:linkVerificationResults="linkVerificationResults"
+          v-bind:verifying="isVerifyingLinks"
+          v-on:complete="closePageCheck"
+          v-on:summary="onPageCheckSummary"
+          v-on:edit-page-properties="editPagePropertiesFromCheck"
+          v-on:reverify-links="verifyLinks"
+          v-on:purge-and-reverify="purgeAndReverify"
+          v-bind:modalTitle="`Page Check: ${nodeName}`">
+      </admin-components-pagecheckmodal>
 
       <template v-else-if="isTab(Tab.ACTIONS)">
         <span class="panel-title">Actions</span>
@@ -357,6 +387,8 @@ import IconEditPage from "../iconeditpage/template.vue";
 import LinearPreloader from "../linearpreloader/template.vue";
 import MaterializeModal from "../materializemodal/template.vue";
 import PathBrowser from "../pathbrowser/template.vue";
+import PageCheckModal from "../pagecheckmodal/template.vue";
+import MaterializeSpinner from "../materializespinner/template.vue";
 
 const Tab = {
   INFO: 'info',
@@ -383,13 +415,11 @@ export default {
     ConfirmDialog,
     Action,
     ExplorerPreviewNavItem,
-    IconEditPage
+    IconEditPage,
+    'admin-components-pagecheckmodal': PageCheckModal,
+    'admin-components-materializespinner': MaterializeSpinner
   },
   props: {
-    model: {
-      type: Object,
-      required: true
-    },
     nodeType: {
       type: String,
       required: true
@@ -431,8 +461,8 @@ export default {
       isOpen: false,
       isCopyOpen: false,
       isPublishDialogOpen: false,
+      isPageCheckDialogOpen: false,
       modalVisible: false,
-      selectedPath: null,
       options: {
         validateAfterLoad: true,
         validateAfterChanged: true,
@@ -448,7 +478,7 @@ export default {
         allowCopy: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
         allowDelete: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.ASSET, NodeType.FILE, NodeType.OBJECT],
         allowTranslate: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.OBJECT],
-        allowWebPublish: [NodeType.PAGE, NodeType.FILE],
+        allowWebPublish: [NodeType.PAGE, NodeType.TEMPLATE, NodeType.FILE],
       },
       path: {
         current: null,
@@ -458,11 +488,40 @@ export default {
         changes: []
       },
       loading: false,
-      isReferencedInPublish: true
+      isReferencedInPublish: true,
+      pageCheckSummary: null,
+      isPageCheckSummaryLoading: false,
+      linkVerificationResults: [],
+      pageCheckHasRun: false,
+      isPurgeRecheck: false,
+      isVerifyingLinks: false,
     }
   },
   mixins: [NodeNameValidation,ReferenceUtil],
   computed: {
+    brokenLinkCount() {
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (r.ok || r.redirect) return false;
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return true;
+      }).length;
+    },
+    redirectIncorrectCount() {
+      const seen = {};
+      return (this.linkVerificationResults || []).filter(r => {
+        if (!r.redirect || !r.finalOk || r.loginRedirect) return false;
+        if (r.finalUrl === r.href || r.finalUrl === r.href + '/') return false;
+        if (seen[r.href]) return false;
+        seen[r.href] = true;
+        return true;
+      }).length;
+    },
+    currentIssueCount() {
+      if (this.pageCheckSummary) return this.pageCheckSummary.issueCount;
+      return this.brokenLinkCount + this.redirectIncorrectCount;
+    },
     uNodeType() {
       return this.capFirstLetter(this.nodeType);
     },
@@ -487,6 +546,15 @@ export default {
     },
     nodeFromPath() {
       return $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, this.currentObject);
+    },
+    pageCheckNode() {
+      const view = $perAdminApp.getView();
+      const page = get(view, '/pageView/page', null);
+      const pagePath = get(view, '/pageView/path', null);
+      if (page && pagePath === this.currentObject) {
+        return page;
+      }
+      return this.nodeFromPath;
     },
     node() {
       if (this.nodeType === NodeType.OBJECT) {
@@ -522,6 +590,9 @@ export default {
     },
     hasReferences() {
       return this.nodeTypeGroups.references.indexOf(this.nodeType) > -1;
+    },
+    publishabilityTitle() {
+      return `Open Web Publishing ${this.nodeType} Dialog`;
     },
     referencedBy() {
       if ($perAdminApp.getView().state.referencedBy) {
@@ -613,6 +684,10 @@ export default {
       }
     },
     currentObject : function(path) {
+      this.pageCheckSummary = null;
+      this.isPageCheckSummaryLoading = false;
+      this.pageCheckHasRun = false;
+      this.linkVerificationResults = [];
       if (this.activeTab === 'versions') {
         this.showVersions()
       }
@@ -636,34 +711,21 @@ export default {
     this.activeTab = this.tab
   },
   mounted() {
-    this.path.selected = this.selectedPath
     this.path.current = this.currentPath
+    if (this.activeTab === Tab.PUBLISHING) {
+      this.updateIsReferencedInPublish()
+    }
+    if (this.isEdit) {
+      const pendingPath = sessionStorage.getItem('pendingComponentPath');
+      if (pendingPath) {
+        sessionStorage.removeItem('pendingComponentPath');
+        this.$nextTick(() => {
+          $perAdminApp.stateAction('editComponent', pendingPath).catch(() => {});
+        });
+      }
+    }
   },
   methods: {
-    itemToTarget(path) {
-      const ret = { path, target: path }
-      const tenant = $perAdminApp.getNodeFromViewOrNull('/state/tenant')
-      if(path.startsWith(`/content/${tenant.name}/pages`)) {
-        ret.path = `/content/admin/pages/pages/edit.html/path:${path}`
-      } else if (path.startsWith(`/content/${tenant.name}/templates`)) {
-        ret.path = `/content/admin/pages/templates/edit.html/path:${path}`
-      } else {
-        const segments = path.split('/')
-        if(segments.length > 0) {
-          segments.pop()
-        }
-        path = segments.join('/')
-        ret.target = path
-        if (path.startsWith(`/content/${tenant.name}/assets`)) {
-          ret.load = ret.path = `/content/admin/pages/assets.html/path:${path}`
-          ret.type = 'ASSET'
-        } else if (path.startsWith(`/content/${tenant.name}/objects`)) {
-          ret.load = ret.path = `/content/admin/pages/objects.html/path:${path}`
-          ret.type = 'OBJECT'
-        }
-      }
-      return ret
-    },
     getSchema(schemaKey) {
       if (!this.node) {
         return null;
@@ -852,9 +914,341 @@ export default {
     },
 
     openPublishingModal(){
-      console.log("Open Publishing Modal")
-      // this.$refs.publishingModal.open()
       this.isPublishDialogOpen = true;
+    },
+    openPageCheckModal(){
+      this.isPageCheckDialogOpen = true;
+      this.startPageCheckSummaryLoad();
+    },
+    purgeAndReverify() {
+      this.isPurgeRecheck = true;
+      this.startPageCheckSummaryLoad();
+    },
+    startPageCheckSummaryLoad() {
+      if (this.nodeType !== NodeType.PAGE && this.nodeType !== NodeType.TEMPLATE) {
+        return;
+      }
+      this.isPageCheckSummaryLoading = true;
+      this.linkVerificationResults = [];
+      this.verifyLinks();
+    },
+    isExternalLink(href) {
+      return /^https?:\/\//i.test(String(href || ''));
+    },
+    isInternalLink(href) {
+      const value = String(href || '').trim();
+      if (!value || value === '#' || value.toLowerCase().startsWith('javascript:')) {
+        return false;
+      }
+      return value.startsWith('/') || (!value.startsWith('http://') && !value.startsWith('https://'));
+    },
+    isEmptyHref(href) {
+      if (href === undefined || href === null) {
+        return true;
+      }
+      const value = String(href).trim();
+      return value === '' || value === '#' || value.toLowerCase() === 'javascript:void(0)';
+    },
+    findHtmlTags(value, tagName) {
+      if (typeof value !== 'string' || value.toLowerCase().indexOf(`<${tagName}`) === -1) {
+        return [];
+      }
+      const flags = 'gi';
+      const pattern = tagName === 'img'
+          ? new RegExp(`<${tagName}\\b[^>]*>`, flags)
+          : new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>`, flags);
+      return value.match(pattern) || [];
+    },
+    getHtmlAttribute(tag, attribute) {
+      const pattern = new RegExp(`${attribute}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
+      const match = tag.match(pattern);
+      if (!match) {
+        return '';
+      }
+      return match[2] || match[3] || match[4] || '';
+    },
+    linkTextFromHtml(tag) {
+      return String(tag || '').replace(/<[^>]*>/g, '').trim();
+    },
+    findLinkKey(owner) {
+      for (const key of Object.keys(owner || {})) {
+        const lower = key.toLowerCase();
+        if ((lower.endsWith('link') || lower.endsWith('url') || lower === 'href')
+            && typeof owner[key] === 'string') {
+          return key;
+        }
+      }
+      return 'link';
+    },
+    linkTextFromStructuredLink(owner, propertyKey) {
+      const node = owner || {};
+      for (const key of Object.keys(node)) {
+        const lower = key.toLowerCase();
+        if ((lower.endsWith('label') || lower.endsWith('text') || lower === 'title')
+            && node[key] !== undefined && node[key] !== null) {
+          return String(node[key]).replace(/<[^>]*>/g, '').trim();
+        }
+      }
+      const fallback = node[propertyKey];
+      return String(fallback || '').replace(/<[^>]*>/g, '').trim();
+    },
+    looksLikeRequiredLinkField(record) {
+      const key = record.key.toLowerCase();
+      const isLinkKey = (key.endsWith('link') || key.endsWith('url') || key === 'href') && key !== 'canonicalurl';
+      if (!isLinkKey) return false;
+      const value = record.value;
+      if (typeof value !== 'string') return false;
+      return value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://');
+    },
+    collectRecords(value, path, records, ancestors) {
+      if (value === null || value === undefined) return;
+      if (ancestors.indexOf(value) > -1) return;
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => {
+          this.collectRecords(item, `${path}[${index}]`, records, ancestors);
+        });
+        return;
+      }
+      if (typeof value !== 'object') return;
+      const nextAncestors = ancestors.slice();
+      nextAncestors.push(value);
+      Object.keys(value).forEach(key => {
+        const item = value[key];
+        if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+          records.push({ key, value: item, owner: value, path });
+        } else {
+          // Always use the accumulated path, not item.path.
+          // item.path is a relative JCR path that breaks the accumulated
+          // hierarchy and causes path inconsistency in records.
+          this.collectRecords(item, `${path}/${key}`, records, nextAncestors);
+        }
+      });
+    },
+    async verifyLink(urlToCheck) {
+      try {
+        const purgeParam = this.isPurgeRecheck ? '&purge=true' : '';
+        const pagePathParam = this.currentObject ? `&pagePath=${encodeURIComponent(this.currentObject)}` : '';
+        const apiUrl = `/extension/check-link?url=${encodeURIComponent(urlToCheck)}${pagePathParam}${purgeParam}`;
+        const response = await fetch(apiUrl, { method: 'GET', credentials: 'same-origin' });
+        if (response.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
+        const data = await response.json();
+        if (data.checkerError) return { ok: false, checkerError: true, error: data.error || 'External link checker unavailable' };
+        if (data.error) return { ok: false, status: data.status || 0, error: data.error };
+        if (data.redirect) {
+          return { ok: data.finalOk !== false, status: data.status, redirect: true, redirectUrl: data.redirectUrl, finalUrl: data.finalUrl, finalStatus: data.finalStatus, finalOk: data.finalOk, loginRedirect: data.loginRedirect || false };
+        }
+        return { ok: data.ok, status: data.status };
+      } catch (e) {
+        return { ok: false, status: 0, error: 'Failed to verify link' };
+      }
+    },
+    async verifyInternalLink(path) {
+      const checkUrl = (p) => {
+        const purgeParam = this.isPurgeRecheck ? '&purge=true' : '';
+        const pagePathParam = this.currentObject ? `&pagePath=${encodeURIComponent(this.currentObject)}` : '';
+        const url = `/extension/check-link?url=${encodeURIComponent(window.location.origin + p)}${pagePathParam}${purgeParam}`;
+        return fetch(url, { method: 'GET', credentials: 'same-origin' });
+      };
+      const parseResponse = async (resp) => {
+        if (resp.status === 401) return { ok: false, status: 401, error: 'Unauthorized' };
+        const data = await resp.json();
+        if (data.error) return { ok: false, status: data.status || 0, error: data.error };
+        if (data.redirect) {
+          return { ok: data.finalOk !== false, status: data.status, redirect: true, redirectUrl: data.redirectUrl, finalUrl: data.finalUrl, finalStatus: data.finalStatus, finalOk: data.finalOk, loginRedirect: data.loginRedirect || false };
+        }
+        return { ok: data.ok, status: data.status };
+      };
+      try {
+        const response = await checkUrl(path);
+        const result = await parseResponse(response);
+        // Sling serves pages with .html extension. If a bare path returns 403
+        // (login required), 404 (not found), or redirects to login, try
+        // appending .html — the page may still be accessible with the extension.
+        if (!result.ok && (result.status === 403 || result.status === 404 || result.loginRedirect) && !path.endsWith('.html')) {
+          const htmlResponse = await checkUrl(path + '.html');
+          const htmlResult = await parseResponse(htmlResponse);
+          if (htmlResult.ok) return htmlResult;
+        }
+        return result;
+      } catch (e) {
+        return { ok: false, status: 0, error: 'Failed to verify internal link' };
+      }
+    },
+    resolveInternalLink(href) {
+      const value = String(href || '').trim();
+      if (value.startsWith('/')) return value;
+      const pagePath = this.currentObject || '';
+      const basePath = pagePath.substring(0, pagePath.lastIndexOf('/') + 1);
+      return `${basePath}${value}`;
+    },
+    async verifyLinks() {
+      if (this.nodeType !== NodeType.PAGE && this.nodeType !== NodeType.TEMPLATE) {
+        this.isPurgeRecheck = false;
+        this.isVerifyingLinks = false;
+        this.linkVerificationResults = [];
+        return;
+      }
+      this.isVerifyingLinks = true;
+
+      // Always re-fetch the page data so newly added content is included.
+      // pageView.page may contain stale data from a previous editor session.
+      let pageData = null;
+      try {
+        await $perAdminApp.getApi().populatePageView(this.currentObject);
+        pageData = get($perAdminApp.getView(), '/pageView/page', null);
+      } catch (e) {
+        this.isPurgeRecheck = false;
+        this.isVerifyingLinks = false;
+        return;
+      }
+      if (!pageData) {
+        this.isPurgeRecheck = false;
+        this.isVerifyingLinks = false;
+        return;
+      }
+
+      const content = pageData['jcr:content'] || pageData;
+      const records = [];
+      this.collectRecords(content, this.currentObject, records, []);
+      const allLinks = [];
+      const occurrenceMap = {};
+      const addLink = (href, location, linkText, meta) => {
+        if (this.isEmptyHref(href)) return;
+        const entry = { href, location, linkText, ...meta };
+        if (!occurrenceMap[href]) occurrenceMap[href] = [];
+        occurrenceMap[href].push(entry);
+        allLinks.push(entry);
+      };
+      records.forEach(record => {
+        if (typeof record.value === 'string') {
+          this.findHtmlTags(record.value, 'a').forEach(tag => {
+            const href = this.getHtmlAttribute(tag, 'href');
+            addLink(href, `${record.path}/${record.key}`, this.linkTextFromHtml(tag), {
+              owner: record.owner,
+              saveOwner: record.saveOwner,
+              htmlTag: tag,
+              htmlValue: record.value,
+              propertyKey: 'text',
+              type: 'html-link'
+            });
+          });
+        }
+        if (record.key === 'htmlelement' && String(record.value).toLowerCase() === 'a') {
+          const linkKey = this.findLinkKey(record.owner || {});
+          const href = (record.owner || {})[linkKey];
+          addLink(href, record.path, this.linkTextFromStructuredLink(record.owner, linkKey), {
+            owner: record.owner,
+            saveOwner: record.saveOwner,
+            propertyKey: linkKey,
+            type: 'link-field'
+          });
+        }
+        if (this.looksLikeRequiredLinkField(record)) {
+          addLink(record.value, `${record.path}/${record.key}`, '', {
+            owner: record.owner,
+            saveOwner: record.saveOwner,
+            propertyKey: record.key,
+            type: 'link-field'
+          });
+        }
+      });
+      if (allLinks.length === 0) {
+        this.isPurgeRecheck = false;
+        this.isVerifyingLinks = false;
+        this.linkVerificationResults = [];
+        return;
+      }
+      const uniqueHrefs = [...new Set(allLinks.map(l => l.href))];
+      const batchSize = 5;
+      const newResults = [];
+      for (let i = 0; i < uniqueHrefs.length; i += batchSize) {
+        const batch = uniqueHrefs.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(async (href) => {
+          let result;
+          if (this.isExternalLink(href)) {
+            result = await this.verifyLink(href);
+          } else if (this.isInternalLink(href)) {
+            result = await this.verifyInternalLink(this.resolveInternalLink(href));
+          } else {
+            result = { ok: true, status: 0, error: null };
+          }
+          return { href, result };
+        }));
+        results.forEach(({ href, result }) => {
+          const occurrences = occurrenceMap[href] || [];
+          // Multiple records from the same component instance should count as a
+          // single occurrence. In Peregrine, a component instance is the node
+          // at the deepest array-indexed segment that is NOT a structural wrapper
+          // (children[N] or experiences[N]). Everything after that segment is
+          // either a property or a nested child of the same component.
+          const componentLocation = (loc) => {
+            if (!loc) return loc;
+            // Strip translation-variant segments first
+            let path = loc.replace(/\/experiences(?:\/lang_[^\/]+|\[\d+\])/g, '');
+            // Find all array-indexed segments like /children[2], /columns[1]
+            const segments = path.match(/\/\w+\[\d+\]/g) || [];
+            // Find the last segment that is NOT a structural wrapper
+            let cutoff = -1;
+            for (let i = segments.length - 1; i >= 0; i--) {
+              const seg = segments[i];
+              if (!seg.startsWith('/children[')) {
+                cutoff = path.indexOf(seg) + seg.length;
+                break;
+              }
+            }
+            if (cutoff >= 0) {
+              return path.substring(0, cutoff);
+            }
+            // Fallback: deepest array-indexed segment
+            if (segments.length > 0) {
+              const lastSeg = segments[segments.length - 1];
+              const idx = path.indexOf(lastSeg);
+              return path.substring(0, idx + lastSeg.length);
+            }
+            return path;
+          };
+          const baseLocs = new Set(occurrences.map((link, index) => {
+            // HTML links in the same text field are distinct occurrences
+            if (link.htmlTag) {
+              return link.location + '#' + index;
+            }
+            return componentLocation(link.location);
+          }));
+          const totalCount = baseLocs.size;
+          occurrences.forEach(link => {
+            newResults.push({
+              href: this.isInternalLink(link.href) ? this.resolveInternalLink(link.href) : link.href,
+              linkText: link.linkText,
+              location: link.location,
+              ok: result.ok,
+              status: result.status,
+              error: result.error,
+              checkerError: result.checkerError || false,
+              redirect: result.redirect || false,
+              redirectUrl: result.redirectUrl || null,
+              finalUrl: result.finalUrl || null,
+              finalStatus: result.finalStatus || null,
+              finalOk: result.finalOk !== undefined ? result.finalOk : null,
+              loginRedirect: result.loginRedirect || false,
+              owner: link.owner || null,
+              saveOwner: link.saveOwner || null,
+              propertyKey: link.propertyKey || null,
+              htmlTag: link.htmlTag || null,
+              htmlValue: link.htmlValue || null,
+              linkType: link.type || null,
+              fromTemplate: !!(link.saveOwner && link.saveOwner.fromTemplate) || !!(link.owner && link.owner.fromTemplate),
+              _totalOccurrences: totalCount
+            });
+          });
+        });
+      }
+      this.linkVerificationResults = newResults;
+      this.pageCheckHasRun = true;
+      this.isPurgeRecheck = false;
+      this.isVerifyingLinks = false;
+      this.$nextTick(() => {
+        this.isPageCheckSummaryLoading = false;
+      });
     },
     unPublishResource(me, path) {
       if (me.anyDescendantActivated) {
@@ -874,8 +1268,20 @@ export default {
       }
     },
     closePublishing(){
-      console.log("Close Publishing Modal")
       this.isPublishDialogOpen = false;
+    },
+    closePageCheck(){
+      this.isPageCheckDialogOpen = false;
+    },
+    onPageCheckSummary(summary) {
+      this.pageCheckSummary = summary;
+    },
+    editPagePropertiesFromCheck(){
+      this.isPageCheckDialogOpen = false;
+      this.setActiveTab(Tab.INFO);
+      this.$nextTick(() => {
+        this.onEdit();
+      });
     },
 
     checkActivationStatusAndPerform(action) {
@@ -981,9 +1387,6 @@ export default {
             noText: 'No',
             yes() {
               $perAdminApp.stateAction('restoreVersion', {path: self.currentObject, versionName: version.name});
-            },
-            no() {
-              console.log('no')
             }
           })
     },
@@ -1169,7 +1572,6 @@ export default {
           this.isReferencedInPublish = false;
         });
     },
-
     getGeneratedFileSchema() {
       return {
         fields: [
@@ -1217,6 +1619,59 @@ export default {
 .deleteVersionWrapper {
   margin-left: auto;
 }
+.page-check-spinner {
+  width: 16px !important;
+  height: 16px !important;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: auto;
+}
+.action-list .action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.page-check-spinner .spinner-layer {
+  border-width: 2px !important;
+}
+.page-check-spinner .circle-clip {
+  width: 8px !important;
+  height: 8px !important;
+}
+.page-check-action-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.page-check-action-ok {
+  color: #2e7d32;
+}
+.page-check-action-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 0;
+}
+.page-check-action-error .material-icons {
+  font-size: 18px;
+  line-height: 1;
+  color: #c62828;
+}
+.page-check-action-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 50%;
+  background: #c62828;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
 .labelChip {
   display: block;
   width: fit-content;
@@ -1226,9 +1681,10 @@ export default {
   opacity: 0.4;
   cursor: default!important;
 }
-</style>
-
-<style scoped>
+.operationDisabledOnActivatedItem > span {
+  display: flex;
+  align-items: center;
+}
 .info-view-image {
     cursor: pointer;
 }
@@ -1236,60 +1692,5 @@ export default {
 .info-view-video {
     width: 100%;
     height: 100%;
-}
-
-.explorer-preview .explorer-preview-content.preview-asset .asset-info-view img {
-    max-height: 50vh;
-    height: 100%;
-    width: 100%;
-    object-fit: contain;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-
-    .modal-content {
-        img {
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            min-width: 50vw;
-            min-height: 50vh;
-            max-width: 90vw;
-            max-height: 90vh;
-            display: block;
-            margin: auto;
-        }
-
-        img {
-            pointer-events: none;
-        }
-
-        button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            background-color: white;
-            color: black;
-            border: 2px solid black;
-            border-radius: 100%;
-            aspect-ratio: 1 / 1;
-            align-items: center;
-
-            &:hover, &:focus, &:active {
-                background-color: black;
-                color: white;
-                border: 2px solid white;
-            }
-        }
-    }
 }
 </style>

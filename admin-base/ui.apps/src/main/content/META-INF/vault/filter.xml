@@ -35,6 +35,7 @@
 <!--    <exclude pattern="/content/docs/objects/tags/.*"/>-->
 <!--  </filter>-->
   <filter root="/etc/felibs/admin"/>
+  <filter root="/perapi/admin/isPublishable"/>
   <filter root="/apps/admin">
     <exclude pattern="/apps/admin/install/.*"/>
   </filter>

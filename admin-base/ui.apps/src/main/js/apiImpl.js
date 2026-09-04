@@ -478,6 +478,82 @@ function fetchRef(service, path, sameTenant = false) {
   return fetch(`/admin/${service}.json${path}?${new URLSearchParams({ sameTenant })}`)
 }
 
+function isResourceLikeNode(node) {
+  return !!(node && typeof node === 'object' && (
+    node.component ||
+    node['sling:resourceType'] ||
+    node['jcr:primaryType'] ||
+    node.children
+  ))
+}
+
+function absoluteNodePath(pagePath, nodePath) {
+  if (!nodePath) {
+    return ''
+  }
+  const value = String(nodePath)
+  if (value.indexOf('/content/') === 0) {
+    return value
+  }
+  if (value.indexOf('/jcr:content') === 0) {
+    return (pagePath + value).replace(/\/\//g, '/')
+  }
+  return ''
+}
+
+function childNodePath(pagePath, parentPath, child, key) {
+  const absolutePath = absoluteNodePath(pagePath, child && child.path)
+  if (absolutePath) {
+    return absolutePath
+  }
+  const relativePath = child && child.path && String(child.path).charAt(0) !== '/'
+    ? String(child.path)
+    : ''
+  const childName = relativePath || (child && child.name) || key || ''
+  return parentPath && childName ? parentPath + '/' + childName : ''
+}
+
+function normalizePageNodePaths(node, pagePath, nodePath) {
+  if (!node || typeof node !== 'object') {
+    return node
+  }
+  const currentPath = absoluteNodePath(pagePath, node.path) || nodePath
+  if (currentPath && isResourceLikeNode(node)) {
+    node.path = currentPath
+  }
+  Object.keys(node).forEach((key) => {
+    const child = node[key]
+    if (!child || typeof child !== 'object') {
+      return
+    }
+    if (key === 'jcr:content') {
+      normalizePageNodePaths(child, pagePath, pagePath + '/jcr:content')
+      return
+    }
+    if (key === 'children' && Array.isArray(child)) {
+      child.forEach((item) => {
+        const itemPath = childNodePath(pagePath, currentPath, item, '')
+        normalizePageNodePaths(item, pagePath, itemPath)
+      })
+      return
+    }
+    if (Array.isArray(child)) {
+      child.forEach((item) => {
+        const itemPath = isResourceLikeNode(item) ? childNodePath(pagePath, currentPath, item, '') : ''
+        normalizePageNodePaths(item, pagePath, itemPath)
+      })
+      return
+    }
+    if (child.path || isResourceLikeNode(child)) {
+      const childPath = childNodePath(pagePath, currentPath, child, key)
+      normalizePageNodePaths(child, pagePath, childPath)
+      return
+    }
+    normalizePageNodePaths(child, pagePath, '')
+  })
+  return node
+}
+
 class PerAdminImpl {
 
   constructor(cb) {
@@ -728,8 +804,10 @@ class PerAdminImpl {
   }
 
   populatePageView(path) {
-    return fetch('/admin/readNode.json' + path)
-        .then((data) => populateView('/pageView', 'page', data))
+    return fetch('/admin/readNode.json' + path + '?_=' + Date.now())
+        .catch(() => axios.get(pagePathToDataPath(path) + '?_=' + Date.now()).then((response) => response.data))
+        .then((data) => normalizePageNodePaths(data, path, path))
+        .then((data) => populateView('/pageView', 'path', path).then(() => populateView('/pageView', 'page', data)))
   }
 
   populateObject(path, target, name, schema) {
@@ -1399,7 +1477,9 @@ class PerAdminImpl {
       stripNulls(nodeData)
 
       // Sanitize the target path for backend calls
-      const targetNodePath = (path + node.path).replace(/\/\//g, '/');
+      const targetNodePath = String(node.path || '').startsWith('/content/')
+        ? node.path
+        : (path + node.path).replace(/\/\//g, '/');
 
       axios.get(pagePathToDataPath(path))
         .then(res => res.data)
@@ -1794,24 +1874,19 @@ class PerAdminImpl {
             if (error.response && error.response.data) {
               const data = error.response.data;
 
-              // Try to extract the specific webhook error from the Java stack trace
               if (data.exception && Array.isArray(data.exception) && data.exception.length > 0) {
                 const firstLine = data.exception[0];
-                // Match "HTTP <status> - <json payload>"
                 const match = firstLine.match(/HTTP \d+ - (.*)/);
 
                 if (match && match[1]) {
                   try {
                     const parsedDetail = JSON.parse(match[1]);
-                    // Use the specific 'error' or 'message' from the webhook response
                     errorMessage = parsedDetail.error || parsedDetail.message || errorMessage;
                   } catch (e) {
-                    // If it's not valid JSON, just show the raw string
                     errorMessage = match[1];
                   }
                 }
               } else if (data.message && data.message !== "Replication Failed") {
-                // Fallback to the generic message if it's not the useless default one
                 errorMessage = data.message;
               }
             }
@@ -1905,7 +1980,7 @@ class PerAdminImpl {
   }
 
   isReferencedInPublish(path) {
-    return fetch(`/admin/isReferencedInPublish.json${path}`)
+    return fetch(`/admin/isReferencedInPublish.json?path=${encodeURIComponent(path)}`)
   }
 
   _postFormDataImpl(url, data, config) {

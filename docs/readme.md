@@ -22,6 +22,17 @@ percli server install
 After the installation is complete a browser window opens (you may have to refresh the window). You can log in to 
 Peregrine CMS with `admin/admin` as credentials. 
 
+### External Link Validation
+
+External links are validated through a separate service. To enable this:
+1. Go to the System Console Config Manager: `http://localhost:8080/system/console/configMgr`
+2. Search for **Peregrine: Check Link Servlet**
+3. Set **URL** to the external validation service URL (e.g. `https://linkchecker.com`)
+4. Set **Token** to the bearer token for that service
+5. Save
+
+If not configured, external links will show up in a "Failed Test" tab with a message that the checker is unavailable.
+
 To set up your own site in Peregrine CMS have a look at our [quickstart](http://www.peregrine-cms.com/docs/sitedev/quickstart.html)
 guide. 
 
