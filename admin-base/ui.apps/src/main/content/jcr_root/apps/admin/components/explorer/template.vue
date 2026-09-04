@@ -841,33 +841,29 @@ export default {
                 } else if (target.anyDescendantActivated) {
                     $perAdminApp.toast("One of the children of this resource is still published. Please unpublish all of them first.", "warn", 5000)
                 } else if (target.isReferenced) {
-                  $perAdminApp.askUser('Warning',
+                  return $perAdminApp.askUser('Warning',
                     ("Deleting may break references. Would you like to continue ?"), {
                       yesText: 'Yes',
-                      yes: function yes() {
-                        me.deletePage(me, target);
+                      yes: function() {
+                        return me.deletePage(me, target)
                       },
                     });
                 } else if(me.path === '/content') {
                     me.deleteTenant(me, target)
                 } else {
-                    me.deletePage(me, target)
+                    return me.deletePage(me, target)
                 }
             },
 
             handleDelete: function(type, path) {
                 const me = this
-              setTimeout(() => {
-                return new Promise((resolve, reject) => {
-                    $perAdminApp.askUser(`Delete ${type}?`, me.$i18n(`Are you sure you want to delete this node and all its children?`), {
-                        defaultFocus: 'no',
-                        yes() {
-                            $perAdminApp.stateAction(`delete${type.charAt(0).toUpperCase() + type.slice(1)}`, path)
-                            resolve()
-                        }
-                    })
+                var deleteAction = 'delete' + type.charAt(0).toUpperCase() + type.slice(1)
+                return $perAdminApp.askUser('Delete ' + type + '?', me.$i18n('Are you sure you want to delete this node and all its children?'), {
+                    defaultFocus: 'no',
+                    yes: function() {
+                        return $perAdminApp.stateAction(deleteAction, path)
+                    }
                 })
-                }, 0)
             },
 
             deletePage: function(me, target) {
@@ -883,7 +879,8 @@ export default {
                     type = 'file'
                 }
 
-                this.handleDelete(type, path)
+                var deleteAction = 'delete' + type.charAt(0).toUpperCase() + type.slice(1)
+                return $perAdminApp.stateAction(deleteAction, path)
             },
 
             deleteTenant: function(me, target) {

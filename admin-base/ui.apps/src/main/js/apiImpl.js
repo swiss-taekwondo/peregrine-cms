@@ -684,8 +684,41 @@ class PerAdminImpl {
                 let visible = field.visible
                 if (visible) {
                   field.visible = function () {
-                    return exprEval.Parser.evaluate(visible, this)
+                    const result = exprEval.Parser.evaluate(visible, this)
+                    if (!result && field.valueWhenInvisible) {
+                      console.log('visible setting override to:', field.valueWhenInvisible)
+                      this.model[field.model] = field.valueWhenInvisible
+                    }
+                    return result;
                   }
+                }
+                // visibility eval
+                if (field.jsEvalVisible) {
+                  field.visible = function () {
+                    const result = eval(field.jsEvalVisible)
+                    if (!result && field.valueWhenInvisible) {
+                      console.log('visible setting override to:', field.valueWhenInvisible)
+                      this.model[field.model] = field.valueWhenInvisible
+                    }
+                    return result
+                  }
+                }
+
+                if (field.inputType === 'color') {
+                    if (!field.default) {
+                        field.default = '#000000'
+                    }
+                }
+
+                if (field.inputType === 'url' || field.inputType === 'email') {
+                    const type = field.inputType;
+                    if (!field.validator) {
+                        field.validator = type
+                    } else if (typeof field.validator === 'string') {
+                        field.validator = [field.validator, type]
+                    } else if (Array.isArray(field.validator)) {
+                        field.validator.push(type)
+                    }
                 }
 
                 if (field.type === 'collection') {
@@ -779,21 +812,37 @@ class PerAdminImpl {
 
   populateObject(path, target, name, schema) {
     return this.populateComponentDefinitionFromNode(path)
-      .then(() => {
+      .then((componentName) => {
         return fetch('/admin/getObject.json' + path)
           .then(async (data) => {
             if (!schema) {
-              schema = await fetch('/admin/componentDefinition.json' + path).then((data) => data.model);
+              const componentDefs = $perAdminApp.getNodeFromView('/admin/componentDefinitions')
+              const cmpDef = componentDefs ? componentDefs[componentName] : null
+              schema = cmpDef ? cmpDef.model : null
             }
-            if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
-              if (data[field.model] && field.multifield && field.serialized) {
-                try {
-                  data[field.model] = JSON.parse(data[field.model])
-                } catch(e) {
-                  data[field.model] = []
+            const applyDefaults = (fields) => {
+              if (!fields) return
+              fields.forEach((field) => {
+                if (data[field.model] && field.multifield && field.serialized) {
+                  try {
+                    data[field.model] = JSON.parse(data[field.model])
+                  } catch(e) {
+                    data[field.model] = []
+                  }
                 }
+                if (field.inputType === 'color' && !data[field.model]) {
+                  data[field.model] = field.default
+                }
+              })
+            }
+            if (schema) {
+              applyDefaults(schema.fields)
+              if (schema.groups) {
+                schema.groups.forEach((group) => {
+                  applyDefaults(group.fields)
+                })
               }
-            });
+            }
             if (data.tags) {
               data.tags = JSON.parse(data.tags)
             }

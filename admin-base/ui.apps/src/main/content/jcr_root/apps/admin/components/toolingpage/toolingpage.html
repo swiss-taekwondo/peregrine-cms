@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="/etc/felibs/admin.css" type="text/css">
     <link rel="stylesheet" href="/etc/felibs/admin/dependencies.css" type="text/css">
     <link rel="stylesheet" href="/etc/felibs/admin/dependencies/font-awesome/css/font-awesome.min.css" type="text/css">
+    <link rel="stylesheet" href="/etc/felibs/admin/dependencies/intlTelInput.css" type="text/css">
 
     <script type="text/javascript">
         if(/MSIE \d|Trident.*rv:/.test(navigator.userAgent)) {
@@ -94,7 +95,7 @@
 </head>
 <body>
 
-<div id="waitMask" style="display: none; z-index: 999; position: absolute; top: 0; right: 0; height: 100%; width: 100%; cursor: wait; background-color: black; opacity: 0.2;pointer-events: none;">
+<div id="waitMask" style="display: none; z-index: 999; position: fixed; top: 0; right: 0; height: 100%; width: 100%; cursor: wait; background-color: black; opacity: 0.2;pointer-events: none;">
     <div id="waitMaskSpinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
         <div class="preloader-wrapper big active">
             <div class="spinner-layer">
@@ -185,6 +186,7 @@
         $perAdminApp.loadComponent('field-material-datetime')
         $perAdminApp.loadComponent('field-material-textarea')
         $perAdminApp.loadComponent('field-material-multiselect')
+        $perAdminApp.loadComponent('field-material-telephone')
         $perAdminApp.loadComponent('field-material-range')
         $perAdminApp.loadComponent('field-listselection')
         $perAdminApp.loadComponent('field-location-input')
@@ -199,7 +201,6 @@
         $perAdminApp.loadComponent('admin-components-draghandle')
         $perAdminApp.loadComponent('admin-components-iconbrowser')
         $perAdminApp.loadComponent('pagerendervue-components-placeholder')
-
 
         // init peregrine admin app
         $perAdminApp.init($perAdminView)

@@ -29,7 +29,7 @@
 <!--  <filter root="/content/pagerendervue">-->
 <!--    <exclude pattern="/content/pagerendervue/objects/tags/.*"/>-->
 <!--  </filter>-->
-<!--  <filter root="/apps/pagerendervue">-->
-<!--    <exclude pattern="/apps/pagerendervue/install/.*"/>-->
-<!--  </filter>-->
+  <filter root="/apps/pagerendervue">
+    <exclude pattern="/apps/pagerendervue/install/.*"/>
+  </filter>
 </workspaceFilter>

@@ -2337,7 +2337,7 @@ export default {
 
       const savedSel = saveSelection(container, doc) || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
       this.selection.buffer = savedSel
-      this.selection.restore = !!savedSel
+      this.selection.restore = false
       this.startBrowsing()
     },
 
@@ -2528,6 +2528,18 @@ export default {
       const typeLC = this.browser.type?.toLowerCase()
       const isAssetOrFile = typeLC === PathBrowser.Type.ASSET || typeLC === 'file'
       let href = this.browser.path.selected || ''
+      if (!href.trim()) {
+        console.warn('no href specified in onLinkSelect')
+        $perAdminApp.toast("Invalid link", "warn", 3000)
+        return
+      }
+      try {
+        new URL(href, window.location.origin)
+      } catch (e) {
+        console.warn('invalid href specified in onLinkSelect', href, e)
+        $perAdminApp.toast("Invalid link", "warn", 3000)
+        return
+      }
 
       const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
       if (href.startsWith('/') && isPageType && !href.includes('.html')) {
@@ -2584,19 +2596,13 @@ export default {
           }
         }
 
-        link.appendChild(range.extractContents())
+        link.append(range.extractContents())
         if (link.textContent.trim().length < 1 && link.children.length === 0) {
           link.textContent = href
         }
         range.insertNode(link)
         this._savedRange = null
-        if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
-          $perAdminApp.action(this, 'reWrapEditable')
-        }
-        $perAdminApp.action(this, 'writeInlineToModel')
-        this.$nextTick(() => {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        })
+        textEditor.dispatchEvent(new Event('input'))
       } else {
         let anchor = this.param.anchor
         if (!anchor || !anchor.parentNode) {
@@ -2678,36 +2684,33 @@ export default {
         this.browser.mediaSourceText = ''
         this.browser.mediaSourceFallback = ''
       } else {
-        const doc = this.selection.doc || this.getInlineDoc() || document
-        const win = doc.defaultView || window
-        const sel = win.getSelection ? win.getSelection() : window.getSelection()
+        // insertImage
+        const sel = window.getSelection()
+        const range = this._savedRange
 
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0)
-          const styles = []
-          if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-          if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-          if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-          const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
+        const styles = []
+        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+        const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
 
-          const img = doc.createElement('img')
-          img.setAttribute('src', this.browser.path.selected)
-          img.setAttribute('alt', mediaText || '')
-          img.setAttribute('title', mediaText || '')
-          if (styles.length) {
-            img.setAttribute('style', styles.join(';'))
-          }
-
-          range.deleteContents()
-          range.insertNode(img)
-          range.setStartAfter(img)
-          range.collapse(true)
-          sel.removeAllRanges()
-          sel.addRange(range)
-
-          const editor = this.getEditorFrom(range)
-          if (editor) editor.dispatchEvent(new Event('input'))
+        const img = document.createElement('img')
+        img.setAttribute('src', this.browser.path.selected)
+        img.setAttribute('alt', mediaText || '')
+        img.setAttribute('title', mediaText || '')
+        if (styles.length) {
+          img.setAttribute('style', styles.join(';'))
         }
+
+        range.deleteContents()
+        range.insertNode(img)
+        range.setStartAfter(img)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+
+        const editor = this.getEditorFrom(range)
+        if (editor) editor.dispatchEvent(new Event('input'))
 
       }
       this.browser.mediaSourcePath = ''

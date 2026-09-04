@@ -121,10 +121,26 @@ function initPeregrineApp() {
     Vue.config.productionTip = false
     Vue.use(experiences)
     Vue.use(helper)
+    let isRefreshing = false
 
     perVueApp = new Vue({
         el: '#peregrine-app',
-        data: getPerView()
+        data: getPerView(),
+        mounted() {
+            window.addEventListener('per:refresh', () => {
+                if (isRefreshing) return
+                isRefreshing = true
+                console.log('per:refresh forcing re-render')
+                const pageContent = Object.assign({}, this.page)
+                this.page = {}
+                this.$nextTick(() => {
+                    this.page = pageContent
+                    this.$nextTick(() => {
+                        isRefreshing = false
+                    })
+                })
+            })
+        },
     });
 }
 

@@ -258,7 +258,20 @@ function getComponentByNameImpl(name) {
     for(var i = 0; i < segments.length; i++) {
         segments[i] = segments[i].charAt(0).toUpperCase() + segments[i].slice(1)
     }
-    return window['cmp'+segments.join('')]
+    const cmpName = "cmp" + segments.join("")
+    let cmp = window[cmpName]
+    if (!cmp) {
+      // Find the component in the editor iframe if lazy loaded
+      const editView = document.getElementById("editview")
+      if (editView && editView.contentWindow) {
+        cmp = editView.contentWindow[cmpName]
+        if (cmp) {
+          window[cmpName] = cmp
+        }
+      }
+    }
+
+    return cmp
 }
 
 /**
@@ -835,17 +848,34 @@ function askUserImpl(title, message, options) {
   set(view, '/state/notification/warning', options.warning ? true : false);
   set(view, '/state/notification/blockDelete', options.blockDelete ? true : false);
 
-  set(view, '/state/notification/yesFn', () => {
-    if (options.yes && typeof options.yes === 'function') options.yes()
-    dialog.close()
-  })
+  return new Promise((resolve) => {
+    set(view, '/state/notification/yesFn', () => {
+      if (options.yes && typeof options.yes === 'function') {
+        const result = options.yes()
+        if (result && typeof result.then === 'function') {
+          result.then(() => { dialog.close(); resolve(); }).catch(err => {
+            console.error('askUser yes callback failed:', err)
+            dialog.close()
+            resolve()
+          })
+        } else {
+          dialog.close()
+          resolve()
+        }
+      } else {
+        dialog.close()
+        resolve()
+      }
+    })
   set(view, '/state/notification/noFn', () => {
     if (options.no && typeof options.no === 'function') options.no()
     dialog.close()
+    resolve()
   })
   set(view, '/state/notification/keepEditingFn', () => {
     if (options.keepEditing && typeof options.keepEditing === 'function') options.keepEditing()
     dialog.close()
+    resolve()
   })
 
   dialog.showModal()
@@ -870,6 +900,7 @@ function askUserImpl(title, message, options) {
   }
 
   setTimeout(setFocus, 0)
+  })
 }
 
 /**
@@ -1252,7 +1283,7 @@ var PerAdminApp = {
    * @param options
    */
   askUser(title, message, options) {
-    askUserImpl(title, message, options);
+    return askUserImpl(title, message, options);
   },
 
   /**
