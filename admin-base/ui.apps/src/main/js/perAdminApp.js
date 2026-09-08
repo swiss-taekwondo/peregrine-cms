@@ -440,6 +440,43 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
 
     var pathInfo = makePathInfo(initialPath.toString());
     var path = pathInfo.path;
+    var sectionPath = path.match(/^\/content\/admin\/pages\/(pages|assets|objects|templates)\.html$/);
+    function getCurrentTenant() {
+      if (view.state.tenant) {
+        return view.state.tenant;
+      }
+      const storedState = sessionStorage.getItem('perAdminApp.state');
+      if (!storedState) {
+        return null;
+      }
+      try {
+        const state = JSON.parse(storedState);
+        return state.tenant || null;
+      } catch (error) {
+        logger.warn('could not parse stored admin state', error);
+        return null;
+      }
+    }
+
+    if (sectionPath && !pathInfo.suffixParams.path && getCurrentTenant()) {
+      const section = sectionPath[1];
+      const tenant = getCurrentTenant();
+      const roots = tenant.roots || {};
+      const rootPath = roots[section] || `/content/${tenant.name}/${section}`;
+      initialPath = `${path}/path${SUFFIX_PARAM_SEPARATOR}${rootPath}`;
+      pathInfo = makePathInfo(initialPath.toString());
+      path = pathInfo.path;
+    }
+
+    function getSectionRootPath() {
+      const tenant = getCurrentTenant();
+      if (!sectionPath || !tenant) {
+        return null;
+      }
+      const section = sectionPath[1];
+      const roots = tenant.roots || {};
+      return roots[section] || `/content/${tenant.name}/${section}`;
+    }
 
     var dataUrl = pagePathToDataPath(path);
 
@@ -456,6 +493,7 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
           } else {
             logger.fine('tenant missing');
             return api.populateTenants().then(() => {
+              if (!view.admin.tenants) return;
               const tenant = view.admin.tenants.filter(
                 (node) => node.name === segments[2]
               );
@@ -493,7 +531,10 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
               delete view.adminPageStaged;
 
               if (!fromPopState) {
-                let params = view.adminPage.suffixToParameter;
+                let params;
+                if (view.adminPage) {
+                  params = view.adminPage.suffixToParameter;
+                }
                 let suffix = '';
                 if (params) {
                   const rendered = [];
@@ -503,15 +544,16 @@ function loadContentImpl(initialPath, firstTime, fromPopState) {
                     } else {
                       rendered.push(params[i]);
                     }
-                    if (i === 0) {
-                      suffix += '/';
-                    } else {
-                      suffix += SUFFIX_PARAM_SEPARATOR;
+                    const suffixValue = getNodeFromImpl(view, params[i + 1]);
+                    if (suffixValue) {
+                      suffix += `${i === 0 ? '/' : SUFFIX_PARAM_SEPARATOR}${params[i]}${SUFFIX_PARAM_SEPARATOR}${suffixValue}`;
                     }
-
-                    suffix += params[i];
-                    suffix += SUFFIX_PARAM_SEPARATOR;
-                    suffix += getNodeFromImpl(view, params[i + 1]);
+                  }
+                }
+                if (!suffix && sectionPath) {
+                  const rootPath = getSectionRootPath();
+                  if (rootPath) {
+                    suffix = `/path${SUFFIX_PARAM_SEPARATOR}${rootPath}`;
                   }
                 }
                 let targetPath =

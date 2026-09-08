@@ -719,6 +719,15 @@ export default {
             },
 
             selectPath: function(me, target) {
+                if (typeof target === 'string') {
+                    if(target.indexOf('.html') >= 0) {
+                        $perAdminApp.loadContent(target)
+                    } else {
+                        $perAdminApp.loadContent(target + '.html')
+                    }
+                    return
+                }
+
                 let resourceType = target.resourceType
                 if(resourceType) {
                     if(resourceType === 'per:Object') {
