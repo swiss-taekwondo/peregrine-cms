@@ -29,24 +29,6 @@
       v-bind:subtitle="''" @on-complete="onComplete" 
       error-color="#d32f2f"
       color="#546e7a">
-        <!-- <tab-content title="select component" :before-change="leaveTabOne">
-            <fieldset class="vue-form-generator">
-                <div class="form-group required">
-                    <label>Select Component</label>
-                    <ul class="collection">
-                        <li class="collection-item"
-                            v-for="component in components"
-                            v-on:click.stop.prevent="selectComponent(null, component.path)"
-                            v-bind:class="isSelected(component.path) ? 'active' : ''">
-                            <admin-components-action v-bind:model="{ command: 'selectComponent', target: component.path, title: component.name }"></admin-components-action>
-                        </li>
-                    </ul>
-                    <div v-if="formErrors.unselectedComponentError" class="errors">
-                        <span track-by="index">selection required</span>
-                    </div>
-                </div>
-            </fieldset>
-        </tab-content> -->
         <tab-content title="choose name" :before-change="leaveTabTwo">
             <p>
                 You are about to create a template. A template inherits

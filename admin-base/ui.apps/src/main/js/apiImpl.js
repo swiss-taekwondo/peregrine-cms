@@ -22,7 +22,6 @@
  * under the License.
  * #L%
  */
-// var axios = require('axios')
 
 import {LoggerFactory} from './logger'
 import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
@@ -306,19 +305,6 @@ function fetch(path) {
 
 }
 
-function update(path) {
-  logger.fine('Update, path: ', path)
-  return axios.post(API_BASE + path, null, postConfig)
-      .then((response) => {
-        logger.fine('Update, response data: ' + response.data)
-        return response.data
-      })
-      .catch((error) => {
-        logger.error('Update request to', path, 'failed')
-        throw error
-      })
-}
-
 function updateWithForm(path, data) {
   logger.fine('Update with Form, path: ' + path + ', data: ' + data)
   return axios.post(API_BASE + path, data, postConfig)
@@ -410,18 +396,6 @@ function populateView(path, name, data) {
   })
 
 }
-
-// function updateExplorerDialog() {
-//   const view = callbacks.getView()
-//   const page = get(view, '/state/tools/page', '')
-//   const template = get(view, '/state/tools/template', '')
-//   if (page) {
-//     $perAdminApp.stateAction('showPageInfo', {selected: page})
-//   }
-//   if (template) {
-//     $perAdminApp.stateAction('showPageInfo', {selected: template})
-//   }
-// }
 
 function translateFields(fields) {
   const $i18n = Vue.prototype.$i18n
@@ -543,12 +517,6 @@ class PerAdminImpl {
       includeParents = false) {
     const skeletonPagePath = path.split('/').slice(0, 4).join('/')
         + '/skeleton-pages'
-
-    // try {
-    //   if (get(skeletonPagePath, null)) {
-    //     this.populateContent(skeletonPagePath)
-    //   }
-    // } catch(err) {}
 
     return this.populateNodesForBrowser(skeletonPagePath, target,
         includeParents)
@@ -702,16 +670,8 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       fetch('/admin/listTenants.json')
           .then((data) => {
-            // const state = callbacks.getView().state
-            // if (!state.tenant && data.tenants.length > 0) {
-            //   $perAdminApp.stateAction('setTenant',
-            //       data.tenants[data.tenants.length - 1])
-            //       .then(() => populateView('/admin', 'tenants', data.tenants))
-            //       .then(() => resolve())
-            // } else {
             populateView('/admin', 'tenants', data.tenants)
                 .then(() => resolve())
-            // }
           })
     })
   }
@@ -1880,7 +1840,6 @@ class PerAdminImpl {
           config)
           .then(() => this.populateNodesForBrowser(path))
           .catch(error => {
-//            logger.error('Failed to upload: ' + error)
             reject('Unable to upload due to an error. ' + error)
           })
     }

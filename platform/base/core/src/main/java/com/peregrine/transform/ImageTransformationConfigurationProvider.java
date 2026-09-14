@@ -69,33 +69,7 @@ public class ImageTransformationConfigurationProvider {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-//    private final Map<String, List<ImageTransformationConfiguration>> imageTransformationSetups = new HashMap<String, List<ImageTransformationConfiguration>>();
-//    private final List<ImageTransformationConfiguration> imageTransformationSetups = new ArrayList<>();
     private List<ImageTransformationSetup> imageTransformationSetupList = new ArrayList<>();
-
-//    public boolean isImageTransformationConfigurationEnabled(String name, String path) {
-//        boolean answer = false;
-//        List<ImageTransformationConfiguration> imageTransformationConfigurationList = imageTransformationSetups.stream()
-//            .filter(p -> p.getName().equals(name) && path.startsWith(p.getPath()))
-//            .collect(Collectors.toList());
-//        if(!imageTransformationConfigurationList.isEmpty()) {
-//            boolean ok = true;
-//            for(ImageTransformationConfiguration configuration: imageTransformationConfigurationList) {
-//                ImageTransformation imageTransformation = imageTransformationProvider.getImageTransformation(configuration.getTransformationName());
-//                if(imageTransformation == null) {
-//                    ok = false;
-//                    break;
-//                } else {
-//                    if(!imageTransformation.isValid()) {
-//                        ok = false;
-//                        break;
-//                    }
-//                }
-//            }
-//            answer = ok;
-//        }
-//        return answer;
-//    }
 
     /**
      * Provides the Image Transformation Configurations for a given Setup

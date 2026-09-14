@@ -107,8 +107,6 @@ if(params.index)    {
     }
 }
 
-// console.log('Host: ' + host + ', Port: ' + port + ', User: ' + username + ', Passsword: ' + password + ', Index: ' + index + ', Verbose: ' + logDebug)
-
 let rootUrl = `http://${host}:${port}`
 let contentUrl = `${rootUrl}/content/`
 let testFolderName = 'rename-resource-test'

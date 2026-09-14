@@ -142,9 +142,5 @@
             $perAdminApp.stateAction('deletePageNode', { pagePath: view.pageView.path, path: view.state.editor.path } )
         }
       }
-//      ,
-//      beforeMount: function() {
-//        if(!perAdminView.state.editor) this.$set(perAdminView.state, 'editor', { })
-//      }
     }
 </script>

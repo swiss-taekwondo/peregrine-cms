@@ -79,7 +79,6 @@
     mounted() {
       const vm = this
       this.$modal = $(vm.$refs.modal)
-      //this.$modal.appendTo('body')
       $(this.$modal).modal({
         dismissible: vm.dismissible,
         opacity: vm.opacity,

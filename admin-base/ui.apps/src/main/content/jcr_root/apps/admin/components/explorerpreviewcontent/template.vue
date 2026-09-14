@@ -853,7 +853,6 @@ export default {
 
     openPublishingModal(){
       console.log("Open Publishing Modal")
-      // this.$refs.publishingModal.open()
       this.isPublishDialogOpen = true;
     },
     unPublishResource(me, path) {

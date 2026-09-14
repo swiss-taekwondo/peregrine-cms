@@ -134,8 +134,6 @@ export default {
 			'input',
 			this.handlePhoneChange
 		);
-
-		// this.validate();
 	},
 
 	beforeDestroy() {

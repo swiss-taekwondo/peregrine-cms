@@ -139,9 +139,6 @@ function loadComponentImpl(name) {
         log.fine('loading component', name)
 
         var varName = componentNameToVarName(name)
-        // if(window[varName]) {
-        //     Vue.component(name, window[varName])
-        // }
         // if we are in edit mode push the component to the perAdminApp as well
         if(window.parent.$perAdminApp && !window.parent[varName]) {
             window.parent[varName] = window[varName]
@@ -218,9 +215,7 @@ function processLoadedContent(data, path, firstTime, fromPopState) {
         getPerView().page = data;
         getPerView().path = path.slice(0, path.indexOf('.html'));
         getPerView().status = 'loaded';
-//        if(firstTime) {
-            initPeregrineApp();
-//        }
+        initPeregrineApp();
 
         if(document.location !== path && !fromPopState && !firstTime) {
             log.fine("PUSHSTATE : " + path);
@@ -262,22 +257,7 @@ function loadContentImpl(path, firstTime, fromPopState) {
     axios.get(dataUrl).then(function (response) {
         log.fine('got data for', path)
 
-        // if(response.data.template) {
-        //
-        //     var pageData = response.data
-        //
-        //     axios.get(response.data.template+'.data.json').then(function(response) {
-        //
-        //         var templateData = response.data
-        //         var mergedData = merge(templateData, pageData)
-        //         //merging nav, footer and content together with pageData
-        //         processLoadedContent(mergedData, path, firstTime, fromPopState)
-        //     }).catch(function(error) {
-        //         log.error("error getting %s %j", dataUrl, error);
-        //     })
-        // } else {
         processLoadedContent(response.data, path, firstTime, fromPopState)
-        // }
 
     }).catch(function(error) {
         log.error("error getting %s %j", dataUrl, error);

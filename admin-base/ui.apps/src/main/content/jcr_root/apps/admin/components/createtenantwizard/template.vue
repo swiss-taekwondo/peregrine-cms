@@ -234,9 +234,6 @@
                 return !me.formErrors.unselectedThemeError;
             },
             leaveTabOne: function() {
-                // if('' !== ''+this.formmodel.templatePath) {
-                //    $perAdminApp.getApi().populateComponentDefinitionFromNode(this.formmodel.templatePath)
-                // }
                 return this.validateTabOne(this);
             },
             nameAvailable(value) {

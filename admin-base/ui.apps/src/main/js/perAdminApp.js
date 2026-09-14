@@ -335,20 +335,6 @@ function initPeregrineApp() {
         data: view
     });
 
-    const state = sessionStorage.getItem('perAdminApp.state')
-    const admin = sessionStorage.getItem('perAdminApp.admin')
-
-
-    // if(state && admin) {
-    //     view.state = JSON.parse(state)
-    //     view.admin = JSON.parse(admin)
-
-    //     // make i18n and language selection survive session storage
-    //     view.state.language = lang
-    //     view.admin.i18n = i18nData
-    //     if(tenant) { view.state.tenant = tenant }
-    // }
-
     app.$watch('state', function(newVal, oldVal) {
         sessionStorage.setItem('perAdminApp.state', JSON.stringify(newVal))
     }, { deep: true })

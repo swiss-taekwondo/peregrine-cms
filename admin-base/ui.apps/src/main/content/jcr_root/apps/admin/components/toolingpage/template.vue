@@ -71,19 +71,6 @@ export default {
     },
     methods: {
         selectPath: function(me, target) {
-            // const view = $perAdminApp.getView()
-            // const tenant = view.state.tenant
-            // const action = target.action || target
-            // const section = action.split('/').slice(-1).pop()
-            // set(view, '/state/current/section/name', section)
-            // const payload = {
-            //     path: `/state/tools/${section}`
-            //     // ,
-            //     // selected: `/content/${tenant.name}/${section}`
-            // }
-            // $perAdminApp.stateAction('selectToolsNodesPath', payload).then(() => {
-            //     $perAdminApp.loadContent(action + '.html')
-            // })
             if(target.indexOf('.html') >= 0) {
                 $perAdminApp.loadContent(target)
             } else {

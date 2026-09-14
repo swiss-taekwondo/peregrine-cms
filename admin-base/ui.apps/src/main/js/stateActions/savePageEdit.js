@@ -48,14 +48,5 @@ export default function(me, target) {
         }).catch( error => {
            reject(error)
          })
-
     })
-    // me.getApi().populateComponentDefinitionFromNode(view.pageView.path+target).then( (name) => {
-    //         log.fine('component name is', name)
-    //         set(view, '/state/editor/component', name)
-    //         set(view, '/state/editor/path', target)
-    //         set(view, '/state/editorVisible', true)
-    //         set(view, '/state/rightPanelVisible', true)
-    //     }
-    // )
 }

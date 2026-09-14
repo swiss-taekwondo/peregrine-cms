@@ -47,7 +47,4 @@ ENV RUNMODE=${runmode}
 
 ENTRYPOINT /app/scripts/start.sh ${RUNMODE} && tail -qF /app/sling/logs/error.log
 
-#HEALTHCHECK --interval=15s --retries=20 \
-#  CMD /app/healthcheck.sh
-
 EXPOSE 8080
