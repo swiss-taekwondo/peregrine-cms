@@ -28,6 +28,7 @@ import {LoggerFactory} from './logger'
 import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
 import {Field, Toast} from './constants'
 import Notifier from './utils/notifier'
+import {dataFields} from './utils/dialogFields'
 
 let logger = LoggerFactory.logger('apiImpl').setLevelDebug()
 
@@ -432,6 +433,7 @@ function translateFields(fields) {
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]
     if (field) {
+      if (field.type === 'uigroup' || field.type === 'uigroupswitch') translateFields(field.fields)
       if (field.label) {
         const label = field.label.split(':').join('..')
         fields[i].label = $i18n(label)
@@ -571,7 +573,7 @@ class PerAdminImpl {
       fetch('/admin/componentDefinition.json' + path)
           .then((data) => {
             name = data.name
-            let component = callbacks.getComponentByName(name)
+            let component = name ? callbacks.getComponentByName(name) : null
             if (component && component.methods
                 && component.methods.augmentEditorSchema) {
               data.model = component.methods.augmentEditorSchema(data.model)
@@ -645,6 +647,13 @@ class PerAdminImpl {
                     }
                 }
 
+                if (field.type === 'uigroup') {
+                  (field.fields || []).forEach(processField)
+                  return
+                }
+                if (field.type === 'uigroupswitch') {
+                  (field.fields || []).forEach(processField)
+                }
                 if (field.type === 'collection') {
                   if (Array.isArray(field.fields)) {
                     for (let i = 0; i < field.fields.length; i++) {
@@ -744,7 +753,7 @@ class PerAdminImpl {
             }
             const applyDefaults = (fields) => {
               if (!fields) return
-              fields.forEach((field) => {
+              dataFields(fields).forEach((field) => {
                 if (data[field.model] && field.multifield && field.serialized) {
                   try {
                     data[field.model] = JSON.parse(data[field.model])
@@ -1543,7 +1552,8 @@ class PerAdminImpl {
       delete nodeData['jcr:lastModified']
       delete nodeData['jcr:lastModifiedBy']
 
-      if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
+      const fields = schema ? (schema.fields || []).concat(...(schema.groups || []).map(group => group.fields || [])) : []
+      dataFields(fields).forEach((field) => {
         if (nodeData[field.model] && field.multifield && field.serialized) {
           const list = [];
           Object.values(nodeData[field.model]).forEach((item) => {
