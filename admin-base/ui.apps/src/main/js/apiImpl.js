@@ -572,6 +572,7 @@ class PerAdminImpl {
           .then((data) => {
             name = data.name
             let component = callbacks.getComponentByName(name)
+            const dialogConditions = data.model && (data.model.conditions || data.model.checks)
             if (component && component.methods
                 && component.methods.augmentEditorSchema) {
               data.model = component.methods.augmentEditorSchema(data.model)
@@ -580,6 +581,61 @@ class PerAdminImpl {
 
             let promises = []
             if (data && data.model) {
+              const conditions = {};
+              const runCondition = (context, conditionName) => {
+                const condition = conditions[conditionName];
+                if (!condition.cached) {
+                  console.log('[DEBUG CACHE] evaluating uncached condition:', conditionName);
+                  return condition.evaluate.call(context);
+                }
+
+                if (!context.dialogConditionCache) context.dialogConditionCache = {};
+                if (Object.prototype.hasOwnProperty.call(context.dialogConditionCache, conditionName)) {
+                  console.log('[DEBUG CACHE] cache hit:', conditionName);
+                  return context.dialogConditionCache[conditionName];
+                }
+
+                console.log('[DEBUG CACHE] evaluating and caching:', conditionName);
+                const result = condition.evaluate.call(context);
+                context.dialogConditionCache[conditionName] = result;
+                if (!context.dialogConditionCacheResetQueued) {
+                  context.dialogConditionCacheResetQueued = true;
+                  const resetCache = () => {
+                    console.log('[DEBUG CACHE] clearing condition cache');
+                    context.dialogConditionCache = {};
+                    context.dialogConditionCacheResetQueued = false;
+                  };
+
+                  if (context.$nextTick) {
+                    context.$nextTick(resetCache);
+                  } else {
+                    setTimeout(resetCache, 0);
+                  }
+                }
+                return result;
+              }
+              const modelConditions = data.model.conditions || data.model.checks || dialogConditions;
+              if (Array.isArray(modelConditions)) {
+                modelConditions.forEach((condition) => {
+                  if (!condition.name) return;
+                  if (condition.jsEvalVisible) {
+                    conditions[condition.name] = {
+                      cached: condition.cached === true,
+                      evaluate: function () {
+                        return eval(condition.jsEvalVisible);
+                      }
+                    }
+                  } else if (condition.visible) {
+                    conditions[condition.name] = {
+                      cached: condition.cached === true,
+                      evaluate: function () {
+                        return exprEval.Parser.evaluate(condition.visible, this);
+                      }
+                    }
+                  }
+                })
+              }
+
               const processField = (field) => {
                 let from = field.valuesFrom
                 if (from) {
@@ -606,14 +662,23 @@ class PerAdminImpl {
                   promises.push(promise)
                 }
                 let visible = field.visible
-                if (visible) {
+                if (visible && conditions[visible]) {
+                  field.visible = function () {
+                    const result = runCondition(this, visible)
+                    if (!result && field.valueWhenInvisible) {
+                      console.log('visible setting override to:', field.valueWhenInvisible)
+                      this.model[field.model] = field.valueWhenInvisible
+                    }
+                    return result
+                  }
+                } else if (visible) {
                   field.visible = function () {
                     const result = exprEval.Parser.evaluate(visible, this)
                     if (!result && field.valueWhenInvisible) {
                       console.log('visible setting override to:', field.valueWhenInvisible)
                       this.model[field.model] = field.valueWhenInvisible
                     }
-                    return result;
+                    return result
                   }
                 }
                 // visibility eval
