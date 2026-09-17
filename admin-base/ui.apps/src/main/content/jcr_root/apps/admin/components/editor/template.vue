@@ -491,9 +491,5 @@ export default {
       }
     },
   }
-//      ,
-//      beforeMount: function() {
-//        if(!perAdminView.state.editor) this.$set(perAdminView.state, 'editor', { })
-//      }
 }
 </script>

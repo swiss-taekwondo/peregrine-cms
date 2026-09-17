@@ -44,10 +44,7 @@ public class Helper implements Use {
     public String getPath() {
         return resource.getPath();
     }
-//    public String getHello() {
-//        return "hello";
-//    }
-//
+
     public Object getModel() {
         return model;
     }

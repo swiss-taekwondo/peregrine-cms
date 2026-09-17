@@ -170,11 +170,6 @@
                                 max="400"
                                 v-model="cardSize"/>
                         </p>
-                        <!--<admin-components-spinner
-                            v-if="isotopeLoading"
-                            width="60"
-                            position="center">
-                        </admin-components-spinner> -->
 
                         <isotope
                             ref="isotope"

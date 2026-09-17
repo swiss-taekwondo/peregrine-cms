@@ -1,6 +1,5 @@
 module.exports = {
     convert: function($, f) {
-        //f.bindPath($)
     	f.wrap($, 'themeclean-components-block')
         f.bindAttribute($.parent(),'model','model')
         f.addIf($.find('h1').first(), 'editAndEmpty')

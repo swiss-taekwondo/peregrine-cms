@@ -40,10 +40,6 @@ public class Helper implements Use {
     private String siteRootPath;
     private String siteName;
 
-    public String getHello() {
-        return "hello";
-    }
-
     public String getSiteName() {
         return siteName;
     }

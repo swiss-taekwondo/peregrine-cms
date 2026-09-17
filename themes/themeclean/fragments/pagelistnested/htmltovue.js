@@ -1,6 +1,5 @@
 module.exports = {
     convert: function($, f) {
-        //f.bindPath($)
         f.addFor($.find('li.children').first(), 'model.childrenPages', 'child')
         f.bindAttribute($.find('li.children a').first(),'href',f.pathToUrl('child.path'))
         f.mapField($.find('li.children a').first(),'child.title')

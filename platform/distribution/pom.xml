@@ -59,20 +59,6 @@
                         <version>1.7.30</version>
                     </dependency>
                 </dependencies>
-                <!-- <executions>
-                    <execution>
-                        <id>generate-scr-scrdescriptor</id>
-                        <goals>
-                            <goal>scr</goal>
-                        </goals>
-                        <configuration>
-                            <strictMode>true</strictMode>
-                            <properties>
-                                <service.vendor>headwire.com inc</service.vendor>
-                            </properties>
-                        </configuration>
-                    </execution>
-                </executions> -->
             </plugin>
             <plugin>
                 <groupId>org.apache.sling</groupId>

@@ -22,12 +22,12 @@
  * under the License.
  * #L%
  */
-// var axios = require('axios')
 
 import {LoggerFactory} from './logger'
 import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
 import {Field, Toast} from './constants'
 import Notifier from './utils/notifier'
+import {dataFields} from './utils/dialogFields'
 
 let logger = LoggerFactory.logger('apiImpl').setLevelDebug()
 
@@ -306,19 +306,6 @@ function fetch(path) {
 
 }
 
-function update(path) {
-  logger.fine('Update, path: ', path)
-  return axios.post(API_BASE + path, null, postConfig)
-      .then((response) => {
-        logger.fine('Update, response data: ' + response.data)
-        return response.data
-      })
-      .catch((error) => {
-        logger.error('Update request to', path, 'failed')
-        throw error
-      })
-}
-
 function updateWithForm(path, data) {
   logger.fine('Update with Form, path: ' + path + ', data: ' + data)
   return axios.post(API_BASE + path, data, postConfig)
@@ -411,18 +398,6 @@ function populateView(path, name, data) {
 
 }
 
-// function updateExplorerDialog() {
-//   const view = callbacks.getView()
-//   const page = get(view, '/state/tools/page', '')
-//   const template = get(view, '/state/tools/template', '')
-//   if (page) {
-//     $perAdminApp.stateAction('showPageInfo', {selected: page})
-//   }
-//   if (template) {
-//     $perAdminApp.stateAction('showPageInfo', {selected: template})
-//   }
-// }
-
 function translateFields(fields) {
   const $i18n = Vue.prototype.$i18n
   if (!$i18n) return fields
@@ -432,6 +407,7 @@ function translateFields(fields) {
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]
     if (field) {
+      if (field.type === 'uigroup' || field.type === 'uigroupswitch') translateFields(field.fields)
       if (field.label) {
         const label = field.label.split(':').join('..')
         fields[i].label = $i18n(label)
@@ -544,12 +520,6 @@ class PerAdminImpl {
     const skeletonPagePath = path.split('/').slice(0, 4).join('/')
         + '/skeleton-pages'
 
-    // try {
-    //   if (get(skeletonPagePath, null)) {
-    //     this.populateContent(skeletonPagePath)
-    //   }
-    // } catch(err) {}
-
     return this.populateNodesForBrowser(skeletonPagePath, target,
         includeParents)
   }
@@ -571,7 +541,7 @@ class PerAdminImpl {
       fetch('/admin/componentDefinition.json' + path)
           .then((data) => {
             name = data.name
-            let component = callbacks.getComponentByName(name)
+            let component = name ? callbacks.getComponentByName(name) : null
             const dialogConditions = data.model && (data.model.conditions || data.model.checks)
             if (component && component.methods
                 && component.methods.augmentEditorSchema) {
@@ -710,6 +680,13 @@ class PerAdminImpl {
                     }
                 }
 
+                if (field.type === 'uigroup') {
+                  (field.fields || []).forEach(processField)
+                  return
+                }
+                if (field.type === 'uigroupswitch') {
+                  (field.fields || []).forEach(processField)
+                }
                 if (field.type === 'collection') {
                   if (Array.isArray(field.fields)) {
                     for (let i = 0; i < field.fields.length; i++) {
@@ -767,16 +744,8 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       fetch('/admin/listTenants.json')
           .then((data) => {
-            // const state = callbacks.getView().state
-            // if (!state.tenant && data.tenants.length > 0) {
-            //   $perAdminApp.stateAction('setTenant',
-            //       data.tenants[data.tenants.length - 1])
-            //       .then(() => populateView('/admin', 'tenants', data.tenants))
-            //       .then(() => resolve())
-            // } else {
             populateView('/admin', 'tenants', data.tenants)
                 .then(() => resolve())
-            // }
           })
     })
   }
@@ -809,7 +778,7 @@ class PerAdminImpl {
             }
             const applyDefaults = (fields) => {
               if (!fields) return
-              fields.forEach((field) => {
+              dataFields(fields).forEach((field) => {
                 if (data[field.model] && field.multifield && field.serialized) {
                   try {
                     data[field.model] = JSON.parse(data[field.model])
@@ -1608,7 +1577,8 @@ class PerAdminImpl {
       delete nodeData['jcr:lastModified']
       delete nodeData['jcr:lastModifiedBy']
 
-      if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
+      const fields = schema ? (schema.fields || []).concat(...(schema.groups || []).map(group => group.fields || [])) : []
+      dataFields(fields).forEach((field) => {
         if (nodeData[field.model] && field.multifield && field.serialized) {
           const list = [];
           Object.values(nodeData[field.model]).forEach((item) => {
@@ -1945,7 +1915,6 @@ class PerAdminImpl {
           config)
           .then(() => this.populateNodesForBrowser(path))
           .catch(error => {
-//            logger.error('Failed to upload: ' + error)
             reject('Unable to upload due to an error. ' + error)
           })
     }

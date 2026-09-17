@@ -23,12 +23,8 @@
 	export default {
 		mixins: [ VueFormGenerator.abstractField ],
 		mounted() {
-			// $(this.$refs.textarea).trigger('autoresize');
 		},
 		updated() {
-			// if( document.activeElement != this.$refs.textarea ){
-			// 	$(this.$refs.textarea).trigger('autoresize');
-			// }
 		}
 	}
 </script>

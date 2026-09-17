@@ -34,14 +34,12 @@ import static com.peregrine.commons.util.PerConstants.JSON_MIME_TYPE;
             Constants.SERVICE_DESCRIPTION + EQ + "GraphiQL Filter",
             Constants.SERVICE_RANKING + ":Integer" + EQ + Integer.MAX_VALUE,
             "sling.filter.scope=request"
-//            EngineConstants.SLING_FILTER_SCOPE + EQ + EngineConstants.FILTER_SCOPE_REQUEST
     }
 )
 public final class GraphiQLRequestFilter implements Filter {
 
     private static final String CONTENT_PREFIX = "/content/";
     private static final String GRAPHIQL_SUFFIX = "/graphiql.html";
-//    private static final String GRAPHIQL_PATH = "/content/graphiql/index.html";
     private static final String GRAPHIQL_PATH = "/content/graphiql/index";
 
     private static final Logger logger = LoggerFactory.getLogger(GraphiQLRequestFilter.class);
@@ -71,12 +69,6 @@ public final class GraphiQLRequestFilter implements Filter {
             int index = requestPath.indexOf('/', CONTENT_PREFIX.length());
             String tenant = requestPath.substring(CONTENT_PREFIX.length(), index);
             if (tenant.length() > 0) {
-//                request.getRequestDispatcher(GRAPHIQL_PATH + "/content/" + tenant).forward(
-//                    request, response
-//                );
-//                request.getRequestDispatcher(GRAPHIQL_PATH).forward(
-//                    request, response
-//                );
                 try {
                     Map<String, Object> parameters = new HashMap<>() {{
                         put("tenant", tenant);
@@ -100,17 +92,6 @@ public final class GraphiQLRequestFilter implements Filter {
         }
         logger.error("Continue with regular Chain");
         chain.doFilter(request, response);
-    }
-
-    private static SlingHttpServletRequest unwrap(final ServletRequest request) {
-        ServletRequest result = request;
-        while (result instanceof SlingHttpServletRequestWrapper) {
-            result = ((SlingHttpServletRequestWrapper) result).getSlingRequest();
-        }
-
-        return result instanceof SlingHttpServletRequest
-                ? (SlingHttpServletRequest) result
-                : null;
     }
 
     @Override
