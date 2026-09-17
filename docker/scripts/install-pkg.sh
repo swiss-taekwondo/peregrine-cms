@@ -27,7 +27,6 @@ if [ $# -ne 1 ]; then
 fi
 
 PKG=$1
-#PKG=/com.peregrine-cms/admin.sling.ui.apps-1.0-SNAPSHOT.zip
 
 # Request package install
 curl -u ${USER}:${PASS} \

@@ -173,7 +173,6 @@ export default {
         this.value = []
       }
       this.value.push(newChild)
-      // Vue.set(this.value, this.value.length -1, newChild)
       this.onSetActiveItem(this.value.length - 1)
       this.$forceUpdate()
     },

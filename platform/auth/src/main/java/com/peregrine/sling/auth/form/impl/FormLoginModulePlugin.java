@@ -101,7 +101,6 @@ final class FormLoginModulePlugin implements LoginModulePlugin {
      * @see CookieAuthenticationHandler#hasAuthData(Credentials)
      */
     public boolean canHandle(Credentials credentials) {
-        // return authHandler.hasAuthData(credentials);
         return true;
     }
 

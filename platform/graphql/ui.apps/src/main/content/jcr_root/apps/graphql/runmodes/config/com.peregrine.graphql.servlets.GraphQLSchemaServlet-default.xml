@@ -29,6 +29,6 @@
           sling.servlet.selectors=""
           sling.servlet.resourceTypes="graphql/query"
           sling.servlet.methods="[GET,POST]"
-          sling.servlet.extensions="[GQLschema,schemaBuildFailures]"
+          sling.servlet.extensions="[GQLschema]"
 >
 </jcr:root>

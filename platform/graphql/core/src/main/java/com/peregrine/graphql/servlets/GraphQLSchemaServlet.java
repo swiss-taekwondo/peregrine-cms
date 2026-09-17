@@ -47,7 +47,6 @@ import static com.peregrine.commons.util.PerUtil.*;
 public class GraphQLSchemaServlet extends SlingSafeMethodsServlet {
 
     public static final String GRAPHQL_SCHEMA_EXTENSION = "GQLschema";
-    public static final String GRAPHQL_SCHEMA_BUILD_FAILURES = "schemaBuildFailures";
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
@@ -73,7 +72,7 @@ public class GraphQLSchemaServlet extends SlingSafeMethodsServlet {
         @AttributeDefinition(
             name = "Extensions",
             description="Standard Sling servlet property")
-        String[] sling_servlet_extensions() default {GRAPHQL_SCHEMA_EXTENSION, GRAPHQL_SCHEMA_BUILD_FAILURES};
+        String[] sling_servlet_extensions() default {GRAPHQL_SCHEMA_EXTENSION};
     }
 
 
@@ -93,11 +92,7 @@ public class GraphQLSchemaServlet extends SlingSafeMethodsServlet {
 
     @Override
     public void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws IOException {
-        if (GRAPHQL_SCHEMA_BUILD_FAILURES.equals(request.getRequestPathInfo().getExtension())) {
-            getSchemaErrors(request, response);
-        } else {
-            getSchema(request, response);
-        }
+        getSchema(request, response);
     }
 
     void getSchema(SlingHttpServletRequest request, SlingHttpServletResponse response) throws IOException {
@@ -112,27 +107,4 @@ public class GraphQLSchemaServlet extends SlingSafeMethodsServlet {
         }
     }
 
-    void getSchemaErrors(SlingHttpServletRequest request, SlingHttpServletResponse response) throws IOException {
-//        try {
-//            final Iterable<SchemaError> schemaErrors = service.getSchemaErrors(request.getResource());
-//            response.setContentType("application/json;charset=UTF-8");
-//            response.getWriter().print(toJson(schemaErrors));
-//        } catch (BuilderException ex) {
-//            LOG.warn("Could not determine schema errors.", ex);
-//            throw new IOException(ex);
-//        }
-    }
-//
-//    String toJson(final Iterable<SchemaError> schemaErrors) throws JsonProcessingException {
-//        return this.objectMapper.writeValueAsString(schemaErrors);
-//    }
-//
-//    boolean isSchemaErrorsFeatureEnabled(final ToggleRouter toggleRouter) {
-//        try {
-//            return toggleRouter.isEnabled(FEATURE_TOGGLE_SCHEMA_ERRORS);
-//        } catch (final Exception ex) {
-//            log.error("Error while trying to check feature toggle: " + ex.getMessage());
-//            return false;
-//        }
-//    }
 }

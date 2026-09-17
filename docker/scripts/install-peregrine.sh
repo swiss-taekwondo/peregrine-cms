@@ -42,10 +42,6 @@ do
 done
 
 SLING_PID=`ps -ef | grep org.apache.sling.feature.launcher | grep -v grep | awk '{print $2}'`
-# echo "Stopping Peregrine... $SLING_PID"
 kill $SLING_PID
-
-#echo "Starting Sling for the second time..."
-#/app/scripts/start.sh
 
 cd ${SAVE_PWD}
