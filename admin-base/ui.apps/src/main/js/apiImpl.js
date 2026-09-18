@@ -552,6 +552,9 @@ class PerAdminImpl {
             let promises = []
             if (data && data.model) {
               const conditions = {};
+              let evaluationCache = {};
+              let cacheResetQueued = false;
+
               const runCondition = (context, conditionName) => {
                 const condition = conditions[conditionName];
                 if (!condition.cached) {
@@ -559,29 +562,29 @@ class PerAdminImpl {
                   return condition.evaluate.call(context);
                 }
 
-                if (!context.dialogConditionCache) context.dialogConditionCache = {};
-                if (Object.prototype.hasOwnProperty.call(context.dialogConditionCache, conditionName)) {
+                if (Object.prototype.hasOwnProperty.call(evaluationCache, conditionName)) {
                   console.log('[DEBUG CACHE] cache hit:', conditionName);
-                  return context.dialogConditionCache[conditionName];
+                  return evaluationCache[conditionName];
                 }
 
-                console.log('[DEBUG CACHE] evaluating and caching:', conditionName);
-                const result = condition.evaluate.call(context);
-                context.dialogConditionCache[conditionName] = result;
-                if (!context.dialogConditionCacheResetQueued) {
-                  context.dialogConditionCacheResetQueued = true;
+                if (!cacheResetQueued) {
+                  cacheResetQueued = true;
                   const resetCache = () => {
                     console.log('[DEBUG CACHE] clearing condition cache');
-                    context.dialogConditionCache = {};
-                    context.dialogConditionCacheResetQueued = false;
+                    evaluationCache = {};
+                    cacheResetQueued = false;
                   };
 
-                  if (context.$nextTick) {
+                  if (context && typeof context.$nextTick === 'function') {
                     context.$nextTick(resetCache);
                   } else {
                     setTimeout(resetCache, 0);
                   }
                 }
+
+                console.log('[DEBUG CACHE] evaluating and caching:', conditionName);
+                const result = condition.evaluate.call(context);
+                evaluationCache[conditionName] = result;
                 return result;
               }
               const modelConditions = data.model.conditions || data.model.checks || dialogConditions;
