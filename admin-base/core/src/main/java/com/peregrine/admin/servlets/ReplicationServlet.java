@@ -285,7 +285,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         // Trigger the Post-publish Webhook
         if (callback) {
             String postPublishWebhook = postPublishWebhookMap.get(tenant);
-            callWebhook(postPublishWebhook, allReplicatedPaths.toArray(new String[0]), "post-publish", false);
+            callWebhook(postPublishWebhook, allReplicatedPaths.toArray(new String[0]), "post-publish", true);
         }
 
         return prepareResponse(resource, replicateResponse);
@@ -306,7 +306,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
         if (callback) {
             String postPublishWebhook = postPublishWebhookMap.get(tenant);
-            callWebhook(postPublishWebhook, new String[]{resource.getPath()}, "post-publish", false);
+            callWebhook(postPublishWebhook, new String[]{resource.getPath()}, "post-publish", true);
         }
 
         return prepareResponse(resource, replicatedStuff);
