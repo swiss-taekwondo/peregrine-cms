@@ -850,6 +850,7 @@ class PerAdminImpl {
   }
 
   populateI18N(language) {
+  console.log('populateI18N(language) 2', language)
     return new Promise((resolve, reject) => {
       axios.get('/i18n/admin/' + language + '.infinity.json')
           .then((response) => {

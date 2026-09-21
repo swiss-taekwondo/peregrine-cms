@@ -24,7 +24,7 @@
   #L%
   -->
 <workspaceFilter version="1.0">
-  <!--  <filter root="/i18n/admin"/>-->
+   <filter root="/i18n/admin"/>
   <!--  <filter root="/perapi/admin"/>-->
   <!--  <filter root="/perapi/swaggereditor"/>-->
   <!--  <filter root="/perapi/definitions"/>-->

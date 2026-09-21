@@ -370,6 +370,7 @@ export default {
         const tenantConfig = await tenantRes.json();
         const sourceSite = tenantConfig.sourceSite ?? tenantName;
         const modelRes = await fetch(`/apps/${sourceSite}/i18n/model.json`);
+        console.log('modelRes', modelRes)
         if (!modelRes.ok) throw new Error(`Failed to fetch translation model from /apps/${sourceSite}/i18n/model.json`);
         this.translationModel = await modelRes.json();
       } catch (err) {

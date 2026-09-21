@@ -323,6 +323,7 @@ export default {
       }
     },
     onSelectLang({name}) {
+    console.log('onSelectLang', name)
       this.$i18nSetLanguage(name)
       window.localStorage.setItem('adminLanguage', name)
       $perAdminApp.forceFullRedraw()

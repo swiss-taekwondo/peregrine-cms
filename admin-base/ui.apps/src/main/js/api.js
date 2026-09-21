@@ -128,6 +128,7 @@ class PerApi {
     }
 
     populateI18N(language) {
+    console.log('populateI18N(language)', language)
         return impl.populateI18N(language)
     }
 

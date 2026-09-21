@@ -327,7 +327,9 @@ function initPeregrineApp() {
     Vue.use(i18n)
     Vue.use(experiences)
     const lang = view.state.language
+    console.log('lang', lang)
     const i18nData = view.admin.i18n
+    console.log('i18nData', i18nData)
     const tenant = view ? (view.state ? view.state.tenant : undefined) : undefined
 
     app = new Vue({
@@ -1035,7 +1037,9 @@ function loadi18nImpl() {
   if (!view.state.language) {
     const name = window.localStorage.getItem('adminLanguage')
     console.log('loadi18nImpl:', name)
-    Vue.set(view.state, 'language', 'en');
+    // Vue.set(view.state, 'language', 'fr');
+    Vue.set(view.state, 'language', name);
+    // Vue.set(view.state, 'language', 'en');
   }
   api.populateI18N(view.state.language);
 }
