@@ -17,7 +17,7 @@ function experience(model, name, defaultValue) {
         if (log.level === LogLevel.FINE) {
             return `T[${(model[name] ? model[name] : defaultValue)}]`
         } else {
-            log.warn(`missing translation for: ${(model[name] ? model[name] : defaultValue)}`)
+            log.warn(`missing translation for: ${(model[name] ? model[name] : defaultValue)}`, model, model[name], name, defaultValue)
             return (model[name] ? model[name] : defaultValue)
         }
     }

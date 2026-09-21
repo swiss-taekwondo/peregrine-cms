@@ -51,6 +51,9 @@
           <text1 jcr:primaryType="nt:unstructured"
             sling:resourceType="pagerendervue/components/base"
             text="&lt;h2&gt;your websites&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;">
+            <experiences jcr:primaryType="nt:unstructured">
+              <de jcr:primaryType="nt:unstructured" experiences="[lang:de]" text="&lt;h2&gt;deine websites&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;"/>
+            </experiences>
           </text1>
 
           <!-- <addSite jcr:primaryType="nt:unstructured"
@@ -73,6 +76,9 @@
           <text1 jcr:primaryType="nt:unstructured"
             sling:resourceType="pagerendervue/components/base"
             text="&lt;h2&gt;about peregrine&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;">
+            <experiences jcr:primaryType="nt:unstructured">
+              <de jcr:primaryType="nt:unstructured" experiences="[lang:de]" text="&lt;h2&gt;über Peregrine&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;"/>
+            </experiences>
           </text1>
 
           <text2 jcr:primaryType="nt:unstructured"
@@ -97,6 +103,28 @@
                     &lt;a href=&quot;https://github.com/headwirecom/peregrine-cms/issues&quot; target=&quot;_blank&quot;&gt;issue tracker&lt;/a&gt;&lt;br&gt;
                     &lt;a href=&quot;mailto:info@headwire.com?subject=invite me to peregrine-cms.slack.com&quot;&gt;peregrine-cms.slack.com&lt;/a&gt;
                 &lt;/p&gt;">
+                <experiences jcr:primaryType="nt:unstructured">
+                  <de jcr:primaryType="nt:unstructured" experiences="[lang:de]" text="&lt;p class=&quot;left-align&quot;&gt;
+                          &lt;img style=&quot;margin: 10px; width: 100px; max-width: 100px;&quot; src=&quot;/etc/felibs/admin/peregrine-logo.svg&quot; align=&quot;right&quot;/&gt;
+                          &lt;img style=&quot;width: 0px; height: 0px;&quot; src=&quot;https://www.headwire.com/t/peregrine.png&quot; align=&quot;right&quot;/&gt;
+                          Peregrine CMS – ein headless Content-Management-System basierend auf Apache Sling
+                          und Vue.JS.
+                      &lt;/p&gt;
+                      &lt;p class=&quot;left-align browser-default&quot;&gt;
+                          Für die Dokumentation zu Peregrine CMS besuchen Sie bitte unsere &lt;a target=&quot;_blank&quot; href=&quot;http://www.peregrine-cms.com&quot;&gt;Website&lt;/a&gt;.
+                      &lt;/p&gt;
+                      &lt;p class=&quot;left-align browser-default&quot;&gt;
+                          Peregrine CMS ist ein Open-Source-Projekt, das von
+                          &lt;a href=&quot;https://www.headwire.com&quot; target=&quot;_blank&quot;&gt;headwire.com, Inc&lt;/a&gt; gesponsert wird.
+                          Kommerzieller Support ist auf Anfrage verfügbar. Wir freuen uns über Beiträge
+                          zum Projekt. Teilen Sie uns bitte Ihre Meinung zu diesem Produkt mit.
+                      &lt;/p&gt;
+                      &lt;p class=&quot;left-align browser-default&quot;&gt;
+                          &lt;a href=&quot;https://github.com/headwirecom/peregrine-cms&quot; target=&quot;_blank&quot;&gt;GitHub&lt;/a&gt;&lt;br&gt;
+                          &lt;a href=&quot;https://github.com/headwirecom/peregrine-cms/issues&quot; target=&quot;_blank&quot;&gt;Issue-Tracker&lt;/a&gt;&lt;br&gt;
+                          &lt;a href=&quot;mailto:info@headwire.com?subject=invite me to peregrine-cms.slack.com&quot;&gt;peregrine-cms.slack.com&lt;/a&gt;
+                      &lt;/p&gt;"/>
+                  </experiences>
           </text2>
 
           <text3 jcr:primaryType="nt:unstructured"
@@ -118,6 +146,25 @@
                     See the java documentation for all server side code of Peregrine CMS&lt;/li&gt;
                 &lt;/ul&gt;
             ">
+            <experiences jcr:primaryType="nt:unstructured">
+              <de jcr:primaryType="nt:unstructured" experiences="[lang:de]" text="
+              &lt;style&gt;
+              .browser-default a {
+                  color: #b66f35;
+              }
+              &lt;/style&gt;
+               &lt;h3&gt;Tools&lt;/h3&gt;
+                  Verwenden Sie die Tools, um Peregrine CMS zu verstehen und zu verwalten.
+                  &lt;ul class=&quot;browser-default&quot;&gt;
+                      &lt;li&gt;&lt;a target=&quot;_blank&quot; href=&quot;/bin/browser.html&quot;&gt;Composum&lt;/a&gt;&lt;br&gt;
+                      Direkter Zugriff auf das Content-Repository und den Paketmanager von Apache Sling.&lt;/li&gt;
+                      &lt;li&gt;&lt;a target=&quot;_blank&quot; href=&quot;/perapi/swaggereditor/&quot;&gt;Peregrine API&lt;/a&gt;&lt;br&gt;
+                      Erkunden Sie die Headless-API, die Peregrine CMS für die gesamte Client-/Server-Kommunikation verwendet.&lt;/li&gt;
+                      &lt;li&gt;&lt;a target=&quot;_blank&quot; href=&quot;/content/apidocs/cms/index.html&quot;&gt;JavaDocs&lt;/a&gt;&lt;br&gt;
+                      Sehen Sie sich die Java-Dokumentation für den gesamten serverseitigen Code von Peregrine CMS an.&lt;/li&gt;
+                  &lt;/ul&gt;
+              "/>
+            </experiences>
           </text3>
 
         </col3>

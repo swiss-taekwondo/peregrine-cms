@@ -74,7 +74,6 @@
       </div>
       <ul class="nav-right nav-mobile">
         <admin-components-materializemodal ref="languageModal">
-          <span>testing</span>
           <template>
             <vue-multiselect
                 :value="language"
@@ -164,11 +163,11 @@ export default {
       state: $perAdminApp.getView().state,
       tenants: $perAdminApp.getView().admin.tenants || [],
       sections: [
-        {name: 'welcome', title: 'Dashboard'},
-        {name: 'pages', title: 'Pages'},
-        {name: 'assets', title: 'Assets'},
-        {name: 'objects', title: 'Objects'},
-        {name: 'templates', title: 'Templates'},
+        {name: 'welcome', title: this.$i18n('Dashboard')},
+        {name: 'pages', title: this.$i18n('Pages')},
+        {name: 'assets', title: this.$i18n('Assets')},
+        {name: 'objects', title: this.$i18n('Objects')},
+        {name: 'templates', title: this.$i18n('Templates')},
       ],
       helpSelection: 'Help',
       responsive: false,

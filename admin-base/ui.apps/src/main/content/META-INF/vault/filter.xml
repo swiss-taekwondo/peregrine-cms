@@ -28,9 +28,9 @@
   <!--  <filter root="/perapi/admin"/>-->
   <!--  <filter root="/perapi/swaggereditor"/>-->
   <!--  <filter root="/perapi/definitions"/>-->
-  <!--  <filter root="/content/admin">-->
-  <!--    <exclude pattern="/content/admin/objects/tags/.*"/>-->
-  <!--  </filter>-->
+   <filter root="/content/admin">
+     <exclude pattern="/content/admin/objects/tags/.*"/>
+   </filter>
   <!--  <filter root="/content/docs">-->
   <!--    <exclude pattern="/content/docs/objects/tags/.*"/>-->
   <!--  </filter>-->
