@@ -301,9 +301,12 @@ export default {
       let target = `/content/admin/pages/${section.name}.html`
       if (this.state.tenant) {
         if (section.name !== 'welcome' && section.name !== 'object-definitions') {
-          const path = this.state.tools[section.name]
-          target += path && path.length > 0 ? `/path:${path}`
-              : `/path:${this.state.tenant.roots[section.name]}`
+          const tools = this.state.tools || {}
+          const roots = this.state.tenant.roots || {}
+          const path = tools[section.name] || roots[section.name]
+          if (path && path.length > 0) {
+            target += `/path:${path}`
+          }
         } else if (section.name === 'object-definitions') {
           target += `/path:/content/${this.state.tenant.name}/${section.name}`
         } 
@@ -356,9 +359,21 @@ export default {
       this.state = $perAdminApp.getView().state
     },
     getActiveSection() {
-      const breadcrumbs = $perAdminApp.getView().adminPage.breadcrumbs
-      if (breadcrumbs) {
-        return breadcrumbs[0].path.split('/')[4]
+      const state = $perAdminApp.getView().state
+      if (state && state.tools && state.tools.file) {
+        const path = state.tools.file
+        const sectionNames = ['assets', 'pages', 'objects', 'templates']
+        for (const name of sectionNames) {
+          if (path.includes('/' + name + '/')) {
+            return name
+          }
+        }
+      }
+      if ($perAdminApp.getView().adminPage) {
+        const breadcrumbs = $perAdminApp.getView().adminPage.breadcrumbs;
+        if (breadcrumbs) {
+          return breadcrumbs[0].path.split('/')[4]
+        }
       }
       return 'welcome'
     },

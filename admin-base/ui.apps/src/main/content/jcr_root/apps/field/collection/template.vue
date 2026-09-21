@@ -87,6 +87,8 @@
 </template>
 
 <script>
+import {dataFields} from '../../../../../js/utils/dialogFields'
+
 export default {
   mixins: [VueFormGenerator.abstractField],
   beforeMount() {
@@ -100,7 +102,7 @@ export default {
   computed: {
     itemModel() {
       const model = {}
-      this.schema.fields.forEach((item, index) => {
+      dataFields(this.schema.fields).forEach((item, index) => {
         model[item.model] = ''
       })
       model.name = 'n' + Date.now()
@@ -137,14 +139,15 @@ export default {
       return parseInt(index) + 1
     },
     prepModel(model, schema) {
-      for (let i = 0; i < schema.fields.length; i++) {
-        const field = schema.fields[i].model;
-        const isCollection = schema.fields[i].multifield || schema.fields[i].type === 'collection';
+      const fields = dataFields(schema.fields);
+      for (let i = 0; i < fields.length; i++) {
+        const field = fields[i].model;
+        const isCollection = fields[i].multifield || fields[i].type === 'collection';
 
         if (!model[field]) {
           // 1. Initialize missing fields. Collections become arrays to trigger Vue reactivity.
           const fallbackDefault = isCollection ? [] : '';
-          Vue.set(model, field, schema.fields[i].default ?? fallbackDefault);
+          Vue.set(model, field, fields[i].default ?? fallbackDefault);
 
         } else if (isCollection && !Array.isArray(model[field])) {
           // 2. If Sling returns an empty JCR node {}, convert it back into an array for Vue
@@ -170,7 +173,6 @@ export default {
         this.value = []
       }
       this.value.push(newChild)
-      // Vue.set(this.value, this.value.length -1, newChild)
       this.onSetActiveItem(this.value.length - 1)
       this.$forceUpdate()
     },

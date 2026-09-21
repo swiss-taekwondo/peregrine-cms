@@ -154,9 +154,25 @@
                 return this.formmodel.objectPath === target
             },
             onComplete: function() {
+                if(!this.validateValues()) {
+                    $perAdminApp.notifyUser('error', 'Please fix validation errors before creating the object')
+                    return
+                }
+
                 let objectPath = this.formmodel.objectPath
                 objectPath = objectPath.split('/').slice(2).join('/')
                 $perAdminApp.stateAction('createObject', { parent: this.formmodel.path, name: this.formmodel.name, template: objectPath, data: this.formmodel, returnTo: this.model.returnTo })
+            },
+            validateValues: function() {
+                const telInputs = this.$el.querySelectorAll('.iti__tel-input');
+                for(let i = 0; i < telInputs.length; i++) {
+                    const input = telInputs[i]
+                    if(input.iti && input.value.trim() && !input.iti.isValidNumber()) {
+                        return false
+                    }
+                }
+
+                return !this.$refs.verifyTab || this.$refs.verifyTab.validate()
             },
             nameAvailable(value) {
                 if(!value || value.length === 0) {

@@ -9,7 +9,6 @@ module.exports = {
             'justify-content-center': model.aligncontent === 'center',
             'justify-content-end': model.aligncontent === 'right'
         }`
-        // f.bindAttribute( $, 'class', containerClasses ,false)
 
         //Text
         let textClasses = `{

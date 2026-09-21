@@ -81,6 +81,7 @@
         </div>
         <vue-form-generator
             v-if="node && getSchemaByActiveTab()"
+            ref="vfg"
             :class="{'vfg-preview': !edit}"
             :schema="getSchemaByActiveTab()"
             :model="node"
@@ -852,7 +853,6 @@ export default {
 
     openPublishingModal(){
       console.log("Open Publishing Modal")
-      // this.$refs.publishingModal.open()
       this.isPublishDialogOpen = true;
     },
     unPublishResource(me, path) {
@@ -1034,7 +1034,39 @@ export default {
       $perAdminApp.stateAction(`unselect${this.uNodeType}`, {});
       this.isOpen = false;
     },
-    save() {
+    async save() {
+      // Validate telephone inputs using intlTelInput
+      const telInputs = document.querySelectorAll('.iti__tel-input');
+      for (const input of telInputs) {
+        if (input.iti && !input.value.trim() && input.dataset.model) {
+          const deleteProps = this.node._opDeleteProps || [];
+          if (deleteProps.indexOf(input.dataset.model) === -1) {
+            deleteProps.push(input.dataset.model);
+          }
+          this.node._opDeleteProps = deleteProps;
+          set(this.node, input.dataset.model, '');
+        }
+
+        if (input.iti && input.value.trim() && !input.iti.isValidNumber()) {
+          // Set error on VFG's fieldErrors to trigger UI feedback
+          if (this.$refs.vfg && this.$refs.vfg.fieldErrors) {
+            const telField = this.$refs.vfg.schema.fields.find(f => f.inputType === 'tel');
+            if (telField) {
+              this.$refs.vfg.fieldErrors[telField.model] = ['Invalid phone number'];
+            }
+          }
+          $perAdminApp.notifyUser('error', 'Please fix validation errors before saving')
+          return
+        }
+      }
+
+      if (this.$refs.vfg && this.$refs.vfg.validate) {
+        const isValid = await this.$refs.vfg.validate()
+        if (!isValid) {
+          $perAdminApp.notifyUser('error', 'Please fix validation errors before saving')
+          return
+        }
+      }
       let promise
       if (this.nodeType === NodeType.OBJECT) {
         promise = this.saveObject();

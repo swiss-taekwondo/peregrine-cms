@@ -62,7 +62,6 @@
         <commons-collections.version>3.2.2</commons-collections.version>
         <com.fasterxml.jackson.version>2.13.0</com.fasterxml.jackson.version>
         <guava.version>18.0</guava.version>
-        <!-- <aws-java-sdk-osgi.version>1.11.181</aws-java-sdk-osgi.version> -->
         <metadata-extractor.version>2.16.0</metadata-extractor.version>
         <xmpcore.version>6.1.11</xmpcore.version>
         <tika.version>1.27</tika.version>
@@ -152,7 +151,6 @@
                     </execution>
                 </executions>
                 <configuration>
-<!--                    <reportOutputDirectory>${project.build.outputDirectory}/content/apidocs</reportOutputDirectory>-->
                     <failOnError>false</failOnError>
                     <debug>true</debug>
                     <destDir>cms</destDir>
@@ -763,9 +761,6 @@
         </profile>
         <profile>
             <id>sign</id>
-            <!--<activation>-->
-                <!--<activeByDefault>true</activeByDefault>-->
-            <!--</activation>-->
             <build>
                 <plugins>
                     <plugin>
@@ -854,13 +849,6 @@
                          the official subject of any release vote. -->
                     <plugin>
                         <artifactId>maven-assembly-plugin</artifactId>
-                        <!--<dependencies>-->
-                            <!--<dependency>-->
-                                <!--<groupId>com.peregrine-cms.resources</groupId>-->
-                                <!--<artifactId>apache-source-release-assembly-descriptor</artifactId>-->
-                                <!--<version>1.0.3</version>-->
-                            <!--</dependency>-->
-                        <!--</dependencies>-->
                         <executions>
                             <execution>
                                 <id>source-release-assembly</id>
@@ -873,10 +861,6 @@
                                     <descriptors>
                                         <descriptor>src/main/resources/assemblies/${sourceReleaseAssemblyDescriptor}.xml</descriptor>
                                     </descriptors>
-                                    <!--<descriptorRefs>-->
-                                        <!--<descriptorRef>${sourceReleaseAssemblyDescriptor}</descriptorRef>-->
-                                    <!--</descriptorRefs>-->
-                                    <!--<tarLongFileFormat>gnu</tarLongFileFormat>-->
                                 </configuration>
                             </execution>
                         </executions>
