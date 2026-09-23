@@ -22,12 +22,12 @@
  * under the License.
  * #L%
  */
-// var axios = require('axios')
 
 import {LoggerFactory} from './logger'
 import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
 import {Field, Toast} from './constants'
 import Notifier from './utils/notifier'
+import {dataFields} from './utils/dialogFields'
 
 let logger = LoggerFactory.logger('apiImpl').setLevelDebug()
 
@@ -291,7 +291,7 @@ function fetch(path) {
           '<!DOCTYPE')) || (response.request && response.request.responseURL
           && response.request.responseURL.indexOf('/system/sling/form/login')
           >= 0)) {
-        window.location = '/system/sling/form/login'
+        window.location = '/system/sling/form/login?resource=' + encodeURIComponent(window.location.pathname + window.location.search)
         reject('need to authenticate')
       }
       resolve(response.data)
@@ -299,24 +299,11 @@ function fetch(path) {
   }).catch((error) => {
     logger.error('Fetch request to', path, 'failed')
     if (path.startsWith('/admin/access.json?')) {
-      window.location = '/system/sling/form/login'
+      window.location = '/system/sling/form/login?resource=' + encodeURIComponent(window.location.pathname + window.location.search)
     }
     throw error
   })
 
-}
-
-function update(path) {
-  logger.fine('Update, path: ', path)
-  return axios.post(API_BASE + path, null, postConfig)
-      .then((response) => {
-        logger.fine('Update, response data: ' + response.data)
-        return response.data
-      })
-      .catch((error) => {
-        logger.error('Update request to', path, 'failed')
-        throw error
-      })
 }
 
 function updateWithForm(path, data) {
@@ -411,18 +398,6 @@ function populateView(path, name, data) {
 
 }
 
-// function updateExplorerDialog() {
-//   const view = callbacks.getView()
-//   const page = get(view, '/state/tools/page', '')
-//   const template = get(view, '/state/tools/template', '')
-//   if (page) {
-//     $perAdminApp.stateAction('showPageInfo', {selected: page})
-//   }
-//   if (template) {
-//     $perAdminApp.stateAction('showPageInfo', {selected: template})
-//   }
-// }
-
 function translateFields(fields) {
   const $i18n = Vue.prototype.$i18n
   if (!$i18n) return fields
@@ -432,6 +407,7 @@ function translateFields(fields) {
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]
     if (field) {
+      if (field.type === 'uigroup' || field.type === 'uigroupswitch') translateFields(field.fields)
       if (field.label) {
         const label = field.label.split(':').join('..')
         fields[i].label = $i18n(label)
@@ -620,12 +596,6 @@ class PerAdminImpl {
     const skeletonPagePath = path.split('/').slice(0, 4).join('/')
         + '/skeleton-pages'
 
-    // try {
-    //   if (get(skeletonPagePath, null)) {
-    //     this.populateContent(skeletonPagePath)
-    //   }
-    // } catch(err) {}
-
     return this.populateNodesForBrowser(skeletonPagePath, target,
         includeParents)
   }
@@ -647,7 +617,8 @@ class PerAdminImpl {
       fetch('/admin/componentDefinition.json' + path)
           .then((data) => {
             name = data.name
-            let component = callbacks.getComponentByName(name)
+            let component = name ? callbacks.getComponentByName(name) : null
+            const dialogConditions = data.model && (data.model.conditions || data.model.checks)
             if (component && component.methods
                 && component.methods.augmentEditorSchema) {
               data.model = component.methods.augmentEditorSchema(data.model)
@@ -656,6 +627,64 @@ class PerAdminImpl {
 
             let promises = []
             if (data && data.model) {
+              const conditions = {};
+              let evaluationCache = {};
+              let cacheResetQueued = false;
+
+              const runCondition = (context, conditionName) => {
+                const condition = conditions[conditionName];
+                if (!condition.cached) {
+                  console.log('[DEBUG CACHE] evaluating uncached condition:', conditionName);
+                  return condition.evaluate.call(context);
+                }
+
+                if (Object.prototype.hasOwnProperty.call(evaluationCache, conditionName)) {
+                  console.log('[DEBUG CACHE] cache hit:', conditionName);
+                  return evaluationCache[conditionName];
+                }
+
+                if (!cacheResetQueued) {
+                  cacheResetQueued = true;
+                  const resetCache = () => {
+                    console.log('[DEBUG CACHE] clearing condition cache');
+                    evaluationCache = {};
+                    cacheResetQueued = false;
+                  };
+
+                  if (context && typeof context.$nextTick === 'function') {
+                    context.$nextTick(resetCache);
+                  } else {
+                    setTimeout(resetCache, 0);
+                  }
+                }
+
+                console.log('[DEBUG CACHE] evaluating and caching:', conditionName);
+                const result = condition.evaluate.call(context);
+                evaluationCache[conditionName] = result;
+                return result;
+              }
+              const modelConditions = data.model.conditions || data.model.checks || dialogConditions;
+              if (Array.isArray(modelConditions)) {
+                modelConditions.forEach((condition) => {
+                  if (!condition.name) return;
+                  if (condition.jsEvalVisible) {
+                    conditions[condition.name] = {
+                      cached: condition.cached === true,
+                      evaluate: function () {
+                        return eval(condition.jsEvalVisible);
+                      }
+                    }
+                  } else if (condition.visible) {
+                    conditions[condition.name] = {
+                      cached: condition.cached === true,
+                      evaluate: function () {
+                        return exprEval.Parser.evaluate(condition.visible, this);
+                      }
+                    }
+                  }
+                })
+              }
+
               const processField = (field) => {
                 let from = field.valuesFrom
                 if (from) {
@@ -682,14 +711,23 @@ class PerAdminImpl {
                   promises.push(promise)
                 }
                 let visible = field.visible
-                if (visible) {
+                if (visible && conditions[visible]) {
+                  field.visible = function () {
+                    const result = runCondition(this, visible)
+                    if (!result && field.valueWhenInvisible) {
+                      console.log('visible setting override to:', field.valueWhenInvisible)
+                      this.model[field.model] = field.valueWhenInvisible
+                    }
+                    return result
+                  }
+                } else if (visible) {
                   field.visible = function () {
                     const result = exprEval.Parser.evaluate(visible, this)
                     if (!result && field.valueWhenInvisible) {
                       console.log('visible setting override to:', field.valueWhenInvisible)
                       this.model[field.model] = field.valueWhenInvisible
                     }
-                    return result;
+                    return result
                   }
                 }
                 // visibility eval
@@ -721,6 +759,13 @@ class PerAdminImpl {
                     }
                 }
 
+                if (field.type === 'uigroup') {
+                  (field.fields || []).forEach(processField)
+                  return
+                }
+                if (field.type === 'uigroupswitch') {
+                  (field.fields || []).forEach(processField)
+                }
                 if (field.type === 'collection') {
                   if (Array.isArray(field.fields)) {
                     for (let i = 0; i < field.fields.length; i++) {
@@ -778,16 +823,8 @@ class PerAdminImpl {
     return new Promise((resolve, reject) => {
       fetch('/admin/listTenants.json')
           .then((data) => {
-            // const state = callbacks.getView().state
-            // if (!state.tenant && data.tenants.length > 0) {
-            //   $perAdminApp.stateAction('setTenant',
-            //       data.tenants[data.tenants.length - 1])
-            //       .then(() => populateView('/admin', 'tenants', data.tenants))
-            //       .then(() => resolve())
-            // } else {
             populateView('/admin', 'tenants', data.tenants)
                 .then(() => resolve())
-            // }
           })
     })
   }
@@ -822,7 +859,7 @@ class PerAdminImpl {
             }
             const applyDefaults = (fields) => {
               if (!fields) return
-              fields.forEach((field) => {
+              dataFields(fields).forEach((field) => {
                 if (data[field.model] && field.multifield && field.serialized) {
                   try {
                     data[field.model] = JSON.parse(data[field.model])
@@ -1623,7 +1660,8 @@ class PerAdminImpl {
       delete nodeData['jcr:lastModified']
       delete nodeData['jcr:lastModifiedBy']
 
-      if (schema && schema.fields && schema.fields.forEach) schema.fields.forEach((field) => {
+      const fields = schema ? (schema.fields || []).concat(...(schema.groups || []).map(group => group.fields || [])) : []
+      dataFields(fields).forEach((field) => {
         if (nodeData[field.model] && field.multifield && field.serialized) {
           const list = [];
           Object.values(nodeData[field.model]).forEach((item) => {
@@ -1955,7 +1993,6 @@ class PerAdminImpl {
           config)
           .then(() => this.populateNodesForBrowser(path))
           .catch(error => {
-//            logger.error('Failed to upload: ' + error)
             reject('Unable to upload due to an error. ' + error)
           })
     }

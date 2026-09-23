@@ -113,9 +113,6 @@
             <component v-bind:is="adminPage.component" v-bind:model="adminPage"></component>
         </span>
     </div>
-    <!-- <div class="peregrine-tutorial">
-        <iframe src="/content/admin/pages/tutorials.html" style="height: 100%; width: 100%; background: white;" data-per-mode="tutorial"></iframe>
-    </div> -->
 </div>
 
 <sly data-sly-list="${helper.model.siteJS}">
@@ -176,6 +173,9 @@
         $perAdminApp.loadComponent('field-texteditor')
         $perAdminApp.loadComponent('field-list')
         $perAdminApp.loadComponent('field-collection')
+        $perAdminApp.loadComponent('field-uigroup')
+        $perAdminApp.loadComponent('field-uigroupswitch')
+        $perAdminApp.loadComponent('field-divider')
         $perAdminApp.loadComponent('field-materialswitch')
         $perAdminApp.loadComponent('field-material-checkbox')
         $perAdminApp.loadComponent('field-material-radios')

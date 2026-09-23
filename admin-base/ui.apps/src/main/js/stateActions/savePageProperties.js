@@ -23,6 +23,7 @@
  * #L%
  */
 import { LoggerFactory } from '../logger'
+import { dataFields } from '../utils/dialogFields'
 let log = LoggerFactory.logger('savePageProperties').setLevelDebug()
 
 export default function(me, target) {
@@ -39,20 +40,18 @@ export default function(me, target) {
     const schema = view.admin.componentDefinitions[component].model
     const ogTagSchema = view.admin.componentDefinitions[component].ogTags
 
-    for(let i = 0; i < schema.fields.length; i++) {
-        if(!schema.fields[i].readonly) {
-            const srcName = schema.fields[i].model
-            const dstName = schema.fields[i]['x-model'] ? schema.fields[i]['x-model'] : srcName
-            nodeData[dstName] = target[srcName]
-        }
-    }
-    for(let i = 0; i < ogTagSchema.fields.length; i++) {
-        if(!ogTagSchema.fields[i].readonly) {
-            const srcName = ogTagSchema.fields[i].model
-            const dstName = ogTagSchema.fields[i]['x-model'] ? ogTagSchema.fields[i]['x-model'] : srcName
-            nodeData[dstName] = target[srcName]
-        }
-    }
+    const dialogs = [schema, ogTagSchema].filter(Boolean)
+    dialogs.forEach(dialog => {
+        const groupedFields = (dialog.groups || []).reduce((fields, group) => {
+            return fields.concat(group.fields || [])
+        }, [])
+        const fields = (dialog.fields || []).concat(groupedFields)
+        dataFields(fields).forEach(field => {
+            if (!field.readonly && field.model) {
+                nodeData[field['x-model'] || field.model] = target[field.model]
+            }
+        })
+    })
 
     log.fine(nodeData)
     return new Promise( (resolve, reject) => {

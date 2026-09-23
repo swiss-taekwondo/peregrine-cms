@@ -131,36 +131,26 @@ function updateIndexFiles() {
 
             process.chdir('target/classes')
             slang.up('etc/felibs/' + appName + '/js.txt').then(function (status) {
-//                console.log('success', status)
             }).catch(function (status, err) {
                 console.error('error', status, err)
             });
             slang.up('etc/felibs/' + appName + '/css.txt').then(function (status) {
-//                console.log('success', status)
             }).catch(function (status, err) {
                 console.error('error', status, err)
             });
 
             jsFiles.slice(1).forEach( function(file) {
                 slang.up('etc/felibs/' + appName + '/'+file).then(function (status) {
-//                    console.log('success', status)
                 }).catch(function (status, err) {
                     console.error('error', status, err)
                 });
             })
             cssFiles.slice(1).forEach( function(file) {
                 slang.up('etc/felibs/' + appName + '/'+file).then(function (status) {
-//                    console.log('success', status)
                 }).catch(function (status, err) {
                     console.error('error', status, err)
                 });
             })
-            //     slang.up('etc/felibs/'+appName+'/js/'+appName+'Components'+componentName.charAt(0).toUpperCase()+componentName.substring(1)+'.js').then(function(status) {
-            //         console.log('success',status)
-            //     }).catch(function(status, err) {
-            //         console.error('error', status, err)
-            //     });
-            // }
         }
     }
 }
@@ -195,10 +185,9 @@ function readDirs(basePath, path, extFilter, mTimeMin = 0) {
 
 // find all the vue files in this project
 var vueFiles = readDirs(basePath, basePath, '.vue', timestamp)
-//var allFiles = readDirs(basePath, basePath, '.vue')
 var compiling = []
 // for each of the files compile it
-for(let i = 0; i < vueFiles.length; i++) {
+for (let i = 0; i < vueFiles.length; i++) {
     compileComponent(vueFiles[i])
 }
 

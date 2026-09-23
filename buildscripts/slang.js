@@ -26,10 +26,6 @@ function setOptions({host = 'localhost', port = 4502, username = 'admin', passwo
     return true;
 }
 
-function init(options = {}) {
-    return setOptions(options);
-}
-
 function up(file) {
     if (!HOST) {
         setOptions();
@@ -52,7 +48,6 @@ function up(file) {
     // create full URL for curl path
     const URL = 'http://' + USER + ':' + PASS + '@' + HOST + ':' + PORT + '/' +
         path.dirname(destPath) + '.json';
-//    logger.log(URL);
     const requestOptions = {
         url: URL,
         method: 'POST',
@@ -78,8 +73,6 @@ function up(file) {
                 status = parseInt(status)
 
                 if (status === 200 || status === 201) {
-                    // logger.log(allgoodbold('File Upload Successful on port ') + cyan(PORT + ' : ' + status + ' - ' + message));
-                    // logger.log(allgoodbold('Uploaded to: ') + cyan(location));
                     resolve(status, message, location);
                 } else {
                     logger.error(errorbold('File Upload Failed: ') + error(status + ' - ' + message));

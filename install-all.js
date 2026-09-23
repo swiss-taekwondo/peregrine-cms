@@ -1,4 +1,3 @@
-// const { glob, globSync } = require("glob");
 const fs = require("fs");
 const { execSync } = require("child_process");
 
@@ -15,7 +14,6 @@ async function npmInstall(path) {
     try {
       execSync("npm i", {
         cwd: path,
-        // stdio: "inherit",
         stdio: ["pipe", "pipe", "pipe"],
         encoding: "utf-8",
       });
@@ -27,14 +25,6 @@ async function npmInstall(path) {
 }
 
 async function main() {
-  // const packageJsons = await glob("./**/package.json", {
-  //   ignore: ["**/node_modules/**"],
-  //   platform: "linux",
-  //   dot: true,
-  //   dotRelative: true
-  // });
-  // console.log(packageJsons);
-
   const packageJsons = [
     "./package.json",
     "./buildscripts/package.json",

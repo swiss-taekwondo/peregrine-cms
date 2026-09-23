@@ -946,7 +946,6 @@ export default {
         this.target = ev.target
       }
       if (this.target !== ev.target) {
-        //this.
       }
     },
 
@@ -1694,8 +1693,6 @@ export default {
                                 <div>
                                     ${this.componentDisplayName(component)}
                                     <div style="margin-block: 16px;display: flex;gap: 16px; flex-wrap: wrap;">
-                                        ${this.dropTarget ? `<!--<button data-drop="into-before" class="btn">Add into first</button><button data-drop="into-last" class="btn">Add into last</button>-->` : ''}
-  <!--                                                <button data-drop="before" class="btn">Add before</button>-->
                                         <button data-drop="after" class="btn">Add</button>
                                     </div>
                                 </div>

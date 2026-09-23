@@ -20,7 +20,6 @@ module.exports = {
 
         //Accordion Container
         let accordionContainer = $.find('div.col-12').eq(1)
-        // f.bindAttribute( accordionContainer, 'id', "model.toggletype === 'accordion' ? `accordion${_uid}` : ''")
         f.bindAttribute( accordionContainer, 'id', "`accordion${_uid}`")
 
         //Accordion Item Title Bar

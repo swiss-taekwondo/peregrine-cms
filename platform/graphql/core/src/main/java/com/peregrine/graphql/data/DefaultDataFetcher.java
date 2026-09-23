@@ -43,16 +43,6 @@ public class DefaultDataFetcher
     @Reference
     private List<TypeDataFetcher> typeDataFetcherList;
 
-//    private QueryField getFetcherField(TypeElement type, String fieldName) {
-//        Iterable<Field> fields = type.getFields();
-//        for (Field field : fields) {
-//            if ((field instanceof QueryField) && field.getUniqueName().equals(fieldName)) {
-//                return (QueryField) field;
-//            }
-//        }
-//        throw new IllegalArgumentException("Invalid QueryType field: " + fieldName);
-//    }
-
     @Override
     public Object get(SlingDataFetcherEnvironment env) throws Exception {
         Map<String, Object> answer = new HashMap<>();
@@ -150,12 +140,5 @@ public class DefaultDataFetcher
             }
         }
         return answer;
-    }
-
-    private QueryTypeEnum getQueryType(String queryTypeName) {
-        return Arrays.stream(QueryTypeEnum.values())
-            .filter(e -> queryTypeName.endsWith(e.toString()))
-            .findFirst()
-            .orElse(QueryTypeEnum.Unknown);
     }
 }
