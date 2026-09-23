@@ -2,9 +2,12 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+const isMain = process.argv[2] === "--main";
+const cachedOrMain = isMain ? "main...HEAD" : "--cached";
+
 const diff = execFileSync(
   "git",
-  ["diff", "--cached", "--diff-filter=ACMR"],
+  ["diff", cachedOrMain, "--diff-filter=ACMR"],
   { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
 );
 
@@ -13,10 +16,7 @@ if (!diff.trim()) {
   process.exit(0);
 }
 
-const diffPath = resolve(".gemini-review.diff");
-const diffPathWithPrompt = resolve(".gemini-review-with-prompt.diff");
-
-writeFileSync(diffPath, diff, "utf8");
+const diffPathWithPrompt = resolve(".gemini-review.diff");
 
 const prompt = `
 Review the attached staged git diff as a senior Peregrine CMS engineer.
@@ -61,29 +61,20 @@ Do not assume that unchanged code shown as context in the diff was modified.
 `.trim();
 writeFileSync(diffPathWithPrompt, prompt + diff, "utf8");
 
-console.log(`
-============================================================
-GEMINI CODE REVIEW
-============================================================
+const blueText = (text) => `\x1b[94m${text}\x1b[0m`;
+const greenText = (text) => `\x1b[92m${text}\x1b[0m`;
 
-1. Open Gemini Chat: \x1b[92mhttps://gemini.google.com/\x1b[0m
+console.log(`${blueText(`============================================================
+                  GEMINI CODE REVIEW
+============================================================`)}
 
-OPTIONAL: Under "More uploads" > "Import code", attach the whole repository.
+${blueText("1.")} Open Gemini Chat: ${greenText(`https://gemini.google.com/`)}
 
-A1. Attach this file:
+${blueText("OPTIONAL:")} Under "More uploads" > "Import code", attach the whole repository.
 
-   \x1b[92m${diffPathWithPrompt}\x1b[0m
+${blueText("2.")} Attach this file:
 
-\x1b[93m--------------------------OR--------------------------------\x1b[0m
+   ${greenText(`${diffPathWithPrompt}`)}
 
-B1. Attach this file:
-
-   \x1b[92m${diffPath}\x1b[0m
-
-B2. Copy and paste the following prompt:
-
-\x1b[7m------------------------------------------------------------\x1b[0m
-${prompt}
-\x1b[7m------------------------------------------------------------\x1b[0m
-Run "npm run review:cleanup" when you're done.
+${blueText("3.")} Run "${greenText(`npm run review:cleanup`)}" when you're done.
 `);
