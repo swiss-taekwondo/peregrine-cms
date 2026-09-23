@@ -12,7 +12,11 @@ const diff = execFileSync(
 );
 
 if (!diff.trim()) {
-  console.log(isMain ? "No changes against main to review." : "No staged changes to review.");
+  console.log(
+    isMain
+      ? "No committed changes against main to review. Commit your changes first to include them."
+      : "No staged changes to review.",
+  );
   process.exit(0);
 }
 
