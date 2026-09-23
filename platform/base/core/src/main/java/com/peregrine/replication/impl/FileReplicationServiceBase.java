@@ -338,7 +338,14 @@ public abstract class FileReplicationServiceBase extends ReplicationServiceBase 
 
                 result = StringUtils.defaultIfBlank(result, path);
             } catch (RenderException e) {
-                log.warn("Rendering of '{}' failed -> ignore it", resource.getPath());
+                log.warn(
+                        "Rendering failed for '{}' with extension '{}' and resource type '{}'",
+                        resource.getPath(),
+                        extension,
+                        resource.getResourceType(),
+                        e
+                );
+                throw new ReplicationException("Rendering of '" + resource.getPath() + "' failed for extension '" + extension + "'", e);
             }
         }
 

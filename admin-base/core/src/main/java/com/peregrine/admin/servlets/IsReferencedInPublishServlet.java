@@ -62,25 +62,28 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
 @SuppressWarnings("serial")
 public final class IsReferencedInPublishServlet extends AbstractBaseServlet {
 
-    public static final String NO_PATH_PROVIDED = "No Path provided";
-
     @Reference
     private ReferenceLister referenceLister;
 
     @Override
     protected Response handleRequest(final Request request) throws IOException {
         final String path = request.getParameter(PATH);
+        if (isBlank(path)) {
+            return new ErrorResponse()
+                .setHttpErrorCode(SC_BAD_REQUEST)
+                .setErrorMessage("No path provided")
+                .setRequestPath(null);
+        }
         final var versionsResolver = new VersioningResourceResolver(request.getResourceResolver(), PUBLISHED_LABEL);
         final Resource resource = versionsResolver.getResource(path);
         if (isNull(resource)) {
             return new ErrorResponse()
                 .setHttpErrorCode(SC_BAD_REQUEST)
-                .setErrorMessage(NO_PATH_PROVIDED)
+                .setErrorMessage("Resource not found in published storage")
                 .setRequestPath(path);
         }
 
         return new JsonResponse().writeAttribute("result", referenceLister.isReferenced(resource));
     }
-
 }
 

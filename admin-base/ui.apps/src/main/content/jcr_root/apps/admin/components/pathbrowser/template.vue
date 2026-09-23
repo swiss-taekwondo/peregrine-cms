@@ -542,26 +542,30 @@ export default {
   },
   computed: {
     isRoot() {
-      return this.currentPath === this.browserRoot
+      return !!this.currentPath && !!this.browserRoot && this.currentPath === this.browserRoot
     },
     preview() {
+      const view = $perAdminApp.getView() || {}
+      const tree = view.admin && view.admin.pathBrowser
+      if (!tree) {
+        return {}
+      }
       if (this.previewType === 'selected') {
-        const view = $perAdminApp.getView()
-        return $perAdminApp.findNodeFromPath(view.admin.pathBrowser, this.selectedPath)
+        return $perAdminApp.findNodeFromPath(tree, this.selectedPath) || {}
       } else {
-        return this.nodes
+        return this.nodes || {}
       }
     },
     nodes() {
-      let view = $perAdminApp.getView()
-      let nodes = view.admin.pathBrowser
+      let view = $perAdminApp.getView() || {}
+      let nodes = view.admin && view.admin.pathBrowser
       if (nodes && this.currentPath) {
-        return $perAdminApp.findNodeFromPath(nodes, this.currentPath)
+        return $perAdminApp.findNodeFromPath(nodes, this.currentPath) || {}
       }
       return {}
     },
     list() {
-      if (this?.nodes?.children) {
+      if (this && this.nodes && this.nodes.children) {
         return this.nodes.children
       }
       return []
@@ -627,6 +631,7 @@ export default {
     },
     isImagePath,
     getFileExt(item) {
+      if (!item || !item.name) return ''
       return item.name.split('.').pop()
     },
     getFileIcon(item) {
@@ -733,9 +738,6 @@ export default {
     isSelected(path) {
       return this.selectedPath === path
     },
-    hasPreview(item) {
-
-    },
     navigateFolder(item) {
       $perAdminApp.getApi()
             .populateNodesForBrowser(item.path, 'pathBrowser')
@@ -761,7 +763,7 @@ export default {
       this.setSelectedPath(ev.target.value)
     },
     isType(browserType) {
-      return this.browserType?.toLowerCase() === browserType?.toLowerCase()
+      return this.browserType && browserType && this.browserType.toLowerCase() === browserType.toLowerCase()
     },
     isSelectable(item) {
       if (!this.isBrowserTypeImage) {
@@ -827,5 +829,12 @@ export default {
   font-size: 4rem;
   padding: .5rem;
   height: 6rem;
+}
+.pathbrowser-modal-mask {
+  z-index: 2005;
+}
+.pathbrowser-modal-mask .modal-wrapper,
+.pathbrowser-modal-mask .pathbrowser.modal-container {
+  z-index: 2006;
 }
 </style>

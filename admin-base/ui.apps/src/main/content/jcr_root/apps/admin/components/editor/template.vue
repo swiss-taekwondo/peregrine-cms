@@ -25,7 +25,7 @@
 <template>
   <div class="editor-panel" ref="editorPanel" v-if="path">
     <div class="editor-panel-content">
-      <template v-if="schema !== undefined && dataModel !== undefined">
+      <template v-if="schema && dataModel">
         <span v-if="title" class="panel-title">{{ title }}</span>
         <div v-if="!hasSchema">this component does not have a dialog defined</div>
         <vue-form-generator
@@ -99,8 +99,7 @@ export default {
       return schema;
     },
     dataModel: function () {
-      const model = $perAdminApp.findNodeFromPath($perAdminApp.getNodeFromView('/pageView/page'), this.path)
-      return model
+      return this.findPageNodeFromPath(this.path)
     },
     hasSchema: function () {
       if (this.schema) return true
@@ -147,6 +146,41 @@ export default {
     }, 100)
   },
   methods: {
+    findPageNodeFromPath(path) {
+      const pageView = $perAdminApp.getNodeFromViewOrNull('/pageView') || {}
+      const pageRoot = pageView.page
+      const pagePath = pageView.path
+      if (!pageRoot || !path) return null
+      const candidates = []
+      function addCandidate(value) {
+        if (value && candidates.indexOf(value) === -1) {
+          candidates.push(value)
+        }
+      }
+      addCandidate(path)
+      if (pagePath && path.indexOf('/jcr:content') === 0) {
+        addCandidate((pagePath + path).replace(/\/\//g, '/'))
+      }
+      if (pagePath && path.indexOf(pagePath + '/jcr:content') === 0) {
+        addCandidate(path.substring(pagePath.length))
+      }
+      for (let i = 0; i < candidates.length; i++) {
+        const node = $perAdminApp.findNodeFromPath(pageRoot, candidates[i])
+        if (node) return node
+      }
+      function scan(node) {
+        if (!node || typeof node !== 'object') return null
+        if (candidates.indexOf(node.path) !== -1) return node
+        if (Array.isArray(node.children)) {
+          for (let i = 0; i < node.children.length; i++) {
+            const childResult = scan(node.children[i])
+            if (childResult) return childResult
+          }
+        }
+        return null
+      }
+      return scan(pageRoot)
+    },
     onOk(e) {
       if (this.$refs.vfg && this.$refs.vfg.validate) {
         const isValid = this.$refs.vfg.validate()
@@ -225,18 +259,19 @@ export default {
       })
     },
 
-    async onDelete(e) {
+    onDelete(e) {
       const vm = this
       const view = $perAdminApp.getView()
       const pagePath = view.pageView.path
       const componentPath = view.state.editor.path
 
       let undoEntry = null
-      if (componentPath !== '/jcr:content') {
-        try {
+      const captureUndoData = componentPath !== '/jcr:content'
+        ? new Promise((resolve) => {
           const jcrPath = pagePath + componentPath
-          const response = await fetch(jcrPath + '.infinity.json')
-          const jcrData = await response.json()
+          fetch(jcrPath + '.infinity.json')
+            .then(response => response.json())
+            .then(jcrData => {
           const nodeData = vm.jcrToInsertData(jcrData, componentPath)
 
           const DROPTARGET = 'data-per-droptarget'
@@ -282,22 +317,27 @@ export default {
             drop = 'into'
           }
           undoEntry = { pagePath, dropPath, drop, data: nodeData }
-        } catch (err) {
+              resolve()
+            })
+            .catch(err => {
           console.warn('Failed to capture undo data for deletion', err)
-        }
-      }
+              resolve()
+            })
+        })
+        : Promise.resolve()
 
       let blockDelete = false
       let deleteMessage = 'Are you sure you want to delete the component?'
-      const isTemplateOrSkeleton = pagePath.includes('/skeleton-pages/') || pagePath.includes('/templates/')
-      if (isTemplateOrSkeleton && componentPath !== '/jcr:content') {
-        try {
+      captureUndoData.then(() => {
+        const isTemplateOrSkeleton = pagePath.includes('/skeleton-pages/') || pagePath.includes('/templates/')
+        if (isTemplateOrSkeleton && componentPath !== '/jcr:content') {
           const fullJcrPath = pagePath + componentPath
-          const skeletonResponse = await fetch(
+          return fetch(
             '/perapi/admin/isComponentUsedInSkeleton.json?path='
             + encodeURIComponent(fullJcrPath)
           )
-          const skeletonData = await skeletonResponse.json()
+            .then(skeletonResponse => skeletonResponse.json())
+            .then(skeletonData => {
           if (skeletonData && skeletonData.isTopLevelInSkeleton) {
             blockDelete = true
             const pageList = (skeletonData.skeletonPages || []).map(p => p.title || p.path).join(', ')
@@ -305,10 +345,13 @@ export default {
               + (pageList ? ': ' + pageList : '')
               + '. Removing it could break every page created from that skeleton.'
           }
-        } catch (err) {
+            })
+            .catch(err => {
           console.warn('Failed to check skeleton usage', err)
+            })
         }
-      }
+        return Promise.resolve()
+      }).then(() => {
 
       $perAdminApp.askUser(
         blockDelete ? 'Cannot Delete Component' : 'Delete Component?',
@@ -333,6 +376,7 @@ export default {
         },
         no() {}
       })
+      })
     },
 
     jcrToInsertData(jcrNode, path) {
@@ -344,7 +388,10 @@ export default {
       ])
       const result = { path }
       const children = []
-      for (const [key, value] of Object.entries(jcrNode)) {
+      const entries = Object.entries(jcrNode)
+      for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+        const key = entries[entryIndex][0]
+        const value = entries[entryIndex][1]
         if (IGNORED_KEYS.has(key)) continue
         if (key === 'sling:resourceType') {
           result.component = value
@@ -408,7 +455,8 @@ export default {
     },
 
     getFieldComponent($vfg, model) {
-      return $vfg.$children.find(($c) => $c.field.model === model)
+      if (!$vfg || !$vfg.$children) return null
+      return $vfg.$children.find(($c) => $c.field && $c.field.model === model)
     },
 
     focusFieldByModel(model) {
@@ -433,7 +481,11 @@ export default {
             } else if (fieldType === 'collection') {
               this.focusCollectionField(model, $field)
             } else {
+<<<<<<< HEAD
+              console.warn('Unsupported field type: ', fieldType)
+=======
               console.warn('Unsupported field type: ', $field.field.type)
+>>>>>>> d4b83753ff08324a21699f76a51a0447871becd9
             }
           })
 
@@ -445,6 +497,7 @@ export default {
     focusCollectionField(model, $field) {
       this.$nextTick(() => {
         const $collection = $field.$children[0]
+        if (!$collection) return
         const activeItemIndex = parseInt(model.pop())
         if ($collection.activeItem !== activeItemIndex) {
           $collection.activeItem = activeItemIndex
@@ -452,7 +505,7 @@ export default {
         setTimeout(() => {
           const $collectionVfg = $collection.$children[0]
           const $collectionField = this.getFieldComponent($collectionVfg, model.pop())
-          if (!$collectionField) return;
+          if (!$collectionField || !$collectionField.field) return
           if ($collectionField.field.type === 'collection') {
             this.focusCollectionField(model, $collectionField);
             return;

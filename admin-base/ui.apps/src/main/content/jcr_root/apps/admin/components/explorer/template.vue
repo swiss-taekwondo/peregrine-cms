@@ -485,7 +485,10 @@ export default {
             },
 
             replicate(me, path) {
-                me.publishDialogPath = path
+                if (!path) {
+                    return;
+                }
+                me.publishDialogPath = path;
             },
 
             closePublishing() {

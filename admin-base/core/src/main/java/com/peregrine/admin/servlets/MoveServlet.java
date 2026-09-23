@@ -104,6 +104,7 @@ public class MoveServlet extends AbstractBaseServlet {
         final String toPath = request.getParameter(TO);
         Resource from = PerUtil.getResource(resourceResolver, fromPath);
         Resource newResource;
+        final String oldPath = from != null ? from.getPath() : fromPath;
         final String name = request.getResource().getName();
         if (name.equals(MOVE)) {
             String type = request.getParameter(TYPE);
@@ -142,6 +143,7 @@ public class MoveServlet extends AbstractBaseServlet {
                 .setErrorMessage("Unknown request: " + name);
         }
 
+        CheckLinkServlet.movePageCache(resourceResolver, oldPath, newResource.getPath());
         resourceResolver.commit();
         JsonResponse answer = new JsonResponse();
         answer.writeAttribute(SOURCE_NAME, from.getName());

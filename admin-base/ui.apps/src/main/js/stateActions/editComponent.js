@@ -27,16 +27,64 @@ import {set} from '../utils'
 
 let log = LoggerFactory.logger('editComponent').setLevelDebug()
 
+function relativeComponentPath(view, target) {
+    const pagePath = view && view.pageView && view.pageView.path
+    const path = String(target || '')
+    if (pagePath && path.indexOf(pagePath + '/jcr:content') === 0) {
+        return path.substring(pagePath.length)
+    }
+    const jcrIndex = path.indexOf('/jcr:content')
+    if (jcrIndex > -1) {
+        return path.substring(jcrIndex)
+    }
+    return path
+}
+
+function findPageNodeFromPath(me, view, path) {
+    const pageRoot = view && view.pageView && view.pageView.page
+    if (!pageRoot || !path) return null
+    const pagePath = view && view.pageView && view.pageView.path
+    const candidates = []
+    function addCandidate(value) {
+        if (value && candidates.indexOf(value) === -1) {
+            candidates.push(value)
+        }
+    }
+    addCandidate(path)
+    if (pagePath && path.indexOf('/jcr:content') === 0) {
+        addCandidate((pagePath + path).replace(/\/\//g, '/'))
+    }
+    if (pagePath && path.indexOf(pagePath + '/jcr:content') === 0) {
+        addCandidate(path.substring(pagePath.length))
+    }
+    for (let i = 0; i < candidates.length; i++) {
+        const node = me.findNodeFromPath(pageRoot, candidates[i])
+        if (node) return node
+    }
+    function scan(node) {
+        if (!node || typeof node !== 'object') return null
+        if (candidates.indexOf(node.path) !== -1) return node
+        if (Array.isArray(node.children)) {
+            for (let i = 0; i < node.children.length; i++) {
+                const childResult = scan(node.children[i])
+                if (childResult) return childResult
+            }
+        }
+        return null
+    }
+    return scan(pageRoot)
+}
+
 function bringUpEditor(me, view, target) {
     log.fine('Bring Up Editor, ')
 
-    const componentNode = me.findNodeFromPath(view.pageView.page, target)
+    const componentNode = findPageNodeFromPath(me, view, target)
     const originalData = componentNode ? JSON.parse(JSON.stringify(componentNode)) : null
 
     const beforeUnloadHandler = function(e) {
         if (!view.pageView || !view.pageView.page) return;
         if (!view.state.editor || !view.state.editor.originalData) return;
-        const currentNode = me.findNodeFromPath(view.pageView.page, view.state.editor.path)
+        const currentNode = findPageNodeFromPath(me, view, view.state.editor.path)
         if (!currentNode) return;
         const replacer = (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v
         const originalStr = JSON.stringify(view.state.editor.originalData, replacer)
@@ -56,7 +104,7 @@ function bringUpEditor(me, view, target) {
         if (!view.state.editor || !view.state.editor.originalData) {
             return true;
         }
-        const currentNode = me.findNodeFromPath(view.pageView.page, view.state.editor.path)
+        const currentNode = findPageNodeFromPath(me, view, view.state.editor.path)
         if (!currentNode) {
             return true;
         }
@@ -72,9 +120,8 @@ function bringUpEditor(me, view, target) {
                 noText: 'Discard Changes',
                 keepEditingText: 'Keep Editing',
                 yes() {
-                    const page = view.pageView.page;
                     const path = view.state.editor.path;
-                    const data = me.findNodeFromPath(page, path);
+                    const data = findPageNodeFromPath(me, view, path);
                     me.stateAction('savePageEdit', { pagePath: view.pageView.path, path, data}).then(() => {
                         $perAdminApp.clearBeforeStateActions();
                         $perAdminApp.clearBeforeUnloadHandler();
@@ -94,7 +141,10 @@ function bringUpEditor(me, view, target) {
     });
 
     return new Promise((resolve, reject) => {
-        return me.getApi().populateComponentDefinitionFromNode(view.pageView.path+target).then((name) => {
+        const componentDefinitionPath = target.indexOf('/content/') === 0
+            ? target
+            : view.pageView.path + target
+        return me.getApi().populateComponentDefinitionFromNode(componentDefinitionPath).then((name) => {
                 log.fine('component name is', name)
                 set(view, '/state/editor/component', name)
                 set(view, '/state/editor/path', target)
@@ -115,11 +165,16 @@ export default function(me, target) {
     log.fine(target)
     let view = me.getView()
 
-    if (view.state.editor && view.state.editor.path === target) {
+    const path = typeof target === 'object' ? target.path : target
+    const relativePath = relativeComponentPath(view, path)
+
+    if (view.state.editor && view.state.editor.path === relativePath && view.state.editorVisible && view.state.editor.component) {
         return Promise.resolve()
     }
 
     return new Promise((resolve, reject) => {
-        bringUpEditor(me, view, target).then(() => { resolve() }).catch(() => reject())
+        bringUpEditor(me, view, relativePath).then(() => {
+            resolve()
+        }).catch(() => reject())
     })
 }

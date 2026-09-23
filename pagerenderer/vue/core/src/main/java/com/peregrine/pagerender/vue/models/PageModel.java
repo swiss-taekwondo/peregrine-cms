@@ -155,6 +155,10 @@ public class PageModel extends Container {
     @Optional
     private String ogImage;
 
+    @Inject
+    @Optional
+    private String canonicalUrl;
+
     private String absOgImage;
 
     @Inject
@@ -519,6 +523,9 @@ public class PageModel extends Container {
     }
 
     public String getCanonicalUrl() {
+        if (StringUtils.isNotBlank(canonicalUrl)) {
+            return canonicalUrl;
+        }
         final String primaryDomain = getPrimaryDomain();
 
         return StringUtils.isNotBlank(primaryDomain)

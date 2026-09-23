@@ -1,5 +1,7 @@
 package com.peregrine.admin.servlets;
 
+import com.peregrine.intra.IntraSlingCaller;
+import com.peregrine.render.RenderService;
 import com.peregrine.replication.Replication;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.After;
@@ -8,8 +10,14 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.Map;
 
 import static com.peregrine.admin.servlets.ReplicationServlet.DEACTIVATE;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -59,24 +67,34 @@ public final class ReplicationServletTest extends ReplicationServletTestBase {
     }
 
     @Test
+    public void publishContinuesWhenValidationDependenciesThrow() throws Exception {
+        when(getModelFactory().exportModelForResource(jcrContent, "jackson", Map.class, Collections.emptyMap()))
+                .thenThrow(new RuntimeException("model error"));
+        when(getIntraSlingCaller().call(any(IntraSlingCaller.CallerContext.class)))
+                .thenThrow(new IntraSlingCaller.CallException("Failed to render resource", new RuntimeException("OOPS")));
+        when(getRenderService().renderInternally(any(), anyString()))
+                .thenThrow(new RenderService.RenderException("Failed to render resource", new RuntimeException("OOPS")));
+
+        final String response = performReplicationResponse();
+
+        assertTrue(response.contains(jcrContent.getPath()));
+        assertFalse(response.contains("Replication Failed"));
+    }
+
+    @Test
     public void testReplicationWithWebhook() throws Exception {
         ReplicationServlet replServlet = (ReplicationServlet) servlet;
 
-        // Mock the OSGi Configuration interface
         ReplicationServlet.Configuration config = mock(ReplicationServlet.Configuration.class);
 
-        // Map the webhook to hit our local mock server.
-        // We include "test" and "themeclean" to cover standard SlingServletTest mock paths.
         String webhook1 = "themeclean=http://localhost:" + dynamicPort + "/api/webhook";
         String webhook2 = "test=http://localhost:" + dynamicPort + "/api/webhook";
 
         when(config.pre_publish_webhook_map()).thenReturn(new String[]{ webhook1, webhook2 });
         when(config.post_publish_webhook_map()).thenReturn(new String[0]);
 
-        // Manually trigger the OSGi lifecycle to parse the config and populate the maps
         replServlet.activate(config);
 
-        // Execute the standard replication. The internal HttpClient will hit mock port and succeed.
         performReplicationResponseContains(jcrContent);
     }
 

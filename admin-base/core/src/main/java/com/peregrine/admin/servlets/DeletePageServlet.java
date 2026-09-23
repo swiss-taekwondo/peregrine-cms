@@ -95,6 +95,7 @@ public class DeletePageServlet extends AbstractBaseServlet {
 
         try {
             DeletionResponse response = resourceManagement.deleteResource(resourceResolver, path, PAGE_PRIMARY_TYPE);
+            CheckLinkServlet.cleanupPageCache(resourceResolver, response.getPath());
             resourceResolver.commit();
             return new JsonResponse()
                 .writeAttribute(TYPE, PAGE)
@@ -115,4 +116,3 @@ public class DeletePageServlet extends AbstractBaseServlet {
     }
 
 }
-
