@@ -12,16 +12,16 @@ const diff = execFileSync(
 );
 
 if (!diff.trim()) {
-  console.log("No staged changes to review.");
+  console.log(isMain ? "No changes against main to review." : "No staged changes to review.");
   process.exit(0);
 }
 
 const diffPathWithPrompt = resolve(".gemini-review.diff");
 
 const prompt = `
-Review the attached staged git diff as a senior Peregrine CMS engineer.
+Review the attached ${isMain ? "main branch" : "staged"} git diff as a senior Peregrine CMS engineer.
 
-The attached .diff file contains all staged changes for this review.
+The attached .diff file contains all ${isMain ? "changes against main" : "staged changes"} for this review.
 
 The CMS contains Java OSGi services, Vue 2 admin components, browser-side JavaScript,
 AEM/JCR content definitions, and Maven/Rollup build integration. Review each changed
