@@ -19,3 +19,6 @@ npm-debug.log
 nohup.out
 launcher
 icon?
+
+# Gemini review
+.gemini-review.diff
