@@ -7,7 +7,7 @@ const cachedOrMain = isMain ? "main...HEAD" : "--cached";
 
 const diff = execFileSync(
   "git",
-  ["diff", cachedOrMain, "--diff-filter=ACMR"],
+  ["diff", cachedOrMain, "--diff-filter=ACMR", "--", ":(exclude)**/package-lock.json"],
   { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
 );
 
@@ -62,8 +62,10 @@ Looks Good To Me
 Important:
 Use the attached diff as the source of truth for the changes being reviewed.
 Do not assume that unchanged code shown as context in the diff was modified.
+
+============================================================
 `.trim();
-writeFileSync(diffPathWithPrompt, prompt + diff, "utf8");
+writeFileSync(diffPathWithPrompt, `${prompt}\n\n${diff}`, "utf8");
 
 const blueText = (text) => `\x1b[94m${text}\x1b[0m`;
 const greenText = (text) => `\x1b[92m${text}\x1b[0m`;
