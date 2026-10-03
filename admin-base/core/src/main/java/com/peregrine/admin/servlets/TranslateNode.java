@@ -135,7 +135,7 @@ public class TranslateNode extends AbstractBaseServlet {
     private static final String GEMINI_API_KEY_MISSING = "Gemini API Key missing";
     private static final String GEMINI_MODEL_MISSING = "Gemini Model missing";
 
-    private static final Pattern PATH_PATTERN = Pattern.compile("^/content/([a-z0-9_]+)/(pages|templates|objects)(/.*)?$");
+    private static final Pattern PATH_PATTERN = Pattern.compile("^/content/([a-z0-9_]+)/(pages|templates|objects|assets)(/.*)?$");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -149,11 +149,17 @@ public class TranslateNode extends AbstractBaseServlet {
         // Handle GET request to expose the language map
         if ("GET".equalsIgnoreCase(request.getRequest().getMethod())) {
             JsonResponse jsonResponse = new JsonResponse();
+            jsonResponse.writeAttribute("translationConfigured", languageMap != null && !languageMap.isEmpty()
+                    && geminiAPIKey != null && !geminiAPIKey.trim().isEmpty()
+                    && geminiModel != null && !geminiModel.trim().isEmpty()
+                    && geminiPrompt != null && !geminiPrompt.trim().isEmpty());
             jsonResponse.writeObject("languageMap");
 
             // Iterate over the private memory map and write it to the JSON response
-            for (Map.Entry<String, String> entry : languageMap.entrySet()) {
-                jsonResponse.writeAttribute(entry.getKey(), entry.getValue());
+            if (languageMap != null) {
+                for (Map.Entry<String, String> entry : languageMap.entrySet()) {
+                    jsonResponse.writeAttribute(entry.getKey(), entry.getValue());
+                }
             }
 
             jsonResponse.writeClose();
@@ -458,4 +464,3 @@ public class TranslateNode extends AbstractBaseServlet {
         }
     }
 }
-

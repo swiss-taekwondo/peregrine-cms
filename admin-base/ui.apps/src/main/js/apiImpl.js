@@ -1717,6 +1717,19 @@ class PerAdminImpl {
       updateWithForm('/admin/updateResource.json' + node.path + '/jcr:content',
           formData)
           .then(() => resolve())
+          .catch(reject)
+    })
+  }
+
+  generateAltText(path) {
+    if (typeof path !== 'string' || !path.trim()) {
+      return Promise.reject(new Error('An image asset path is required'))
+    }
+    const formData = new FormData()
+    formData.append('path', path)
+    return axios.post('/perapi/admin/generateAltText.json', formData, {
+      ...postConfig,
+      timeout: 75000
     })
   }
 
