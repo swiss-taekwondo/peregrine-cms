@@ -826,7 +826,10 @@ textarea.value {
   border: 1px solid var(--border-color);
   font-size: 1rem;
   padding: 0.5rem;
-  transition: all 0.3s;
+  transition:
+    box-shadow 0.3s,
+    border 0.3s
+  ;
   line-height: 1.4;
   color: var(--text-color);
   box-sizing: border-box;
