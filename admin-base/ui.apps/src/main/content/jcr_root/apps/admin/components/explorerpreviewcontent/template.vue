@@ -295,14 +295,14 @@
           modalTitle="Review Generated Alt Text"
           v-on:complete="pendingAltText = null">
         <div class="alt-text-comparison">
-          <label>
-            Current alt text
-            <textarea readonly rows="4" :value="pendingAltText && pendingAltText.current"></textarea>
-          </label>
-          <label>
-            Generated alt text
-            <textarea readonly rows="4" :value="pendingAltText && pendingAltText.generated"></textarea>
-          </label>
+          <div>
+            <div>Current alt text</div>
+            <div class="alt-text-value">{{ pendingAltText && pendingAltText.current }}</div>
+          </div>
+          <div>
+            <div>Generated alt text</div>
+            <div class="alt-text-value">{{ pendingAltText && pendingAltText.generated }}</div>
+          </div>
         </div>
         <template slot="footer">
           <button class="modal-action waves-effect waves-light btn-flat" type="button" @click="keepCurrentAltText">
@@ -728,16 +728,11 @@ export default {
           return;
         }
         const data = await response.json();
-        if (typeof data.translationConfigured !== 'boolean') {
-          // Older core bundles expose languageMap but not translationConfigured.
-          // Keep translation usable on those versions. The servlet validates Gemini settings when used.
+        if (typeof data.translationConfigured === 'boolean') {
+          this.translationConfigured = data.translationConfigured;
+        } else {
           this.translationConfigured = !!data.languageMap && Object.keys(data.languageMap).length > 0;
-          this.translationConfigurationMessage = this.translationConfigured
-              ? ''
-              : 'No translation languages are configured. Check the Translate Node configuration.';
-          return;
         }
-        this.translationConfigured = data.translationConfigured;
         this.translationConfigurationMessage = this.translationConfigured
             ? ''
             : 'Translation requires a Language Map, Gemini Prompt, Gemini Model, and Gemini API Key in the Translate Node configuration.';
@@ -807,7 +802,8 @@ export default {
         await $perAdminApp.getApi().saveAssetProperties({ ...asset, alt: altText });
         if (isCurrentRequest() && this.node === asset) {
           this.$set(asset, 'alt', altText);
-          $perAdminApp.notifyUser('info', 'Alt text saved successfully.');
+          const preview = altText.length > 500 ? `${altText.substring(0, 500)}...` : altText;
+          $perAdminApp.notifyUser('info', `Alt text saved: ${preview}`);
         }
         return isCurrentRequest();
       } catch (error) {
@@ -1426,16 +1422,15 @@ export default {
     gap: 16px;
 }
 
-.alt-text-comparison label {
-    display: block;
-}
-
-.alt-text-comparison textarea {
-    display: block;
+.alt-text-value {
     box-sizing: border-box;
     width: 100%;
     margin-top: 8px;
-    resize: vertical;
+    padding: 8px;
+    border: 1px solid #9e9e9e;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #333;
 }
 
 .generate-alt-text-action {
