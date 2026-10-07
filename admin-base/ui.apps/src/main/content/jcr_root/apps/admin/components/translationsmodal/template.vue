@@ -21,31 +21,39 @@
 
       <div :class="{ 'is-reloading': loading && nodes.length > 0 }">
 
-        <div class="bulk-actions" v-if="nodes.length > 0">
-          <div class="bulk-buttons">
-            <div
-                v-for="lang in languages"
-                :key="lang"
-                class="bulk-dropdown-wrapper">
+        <div class="lang-tabs" v-if="languages.length > 0">
+          <button
+            v-for="lang in languages"
+            :key="lang"
+            class="tab-btn"
+            :class="{ active: activeTab === lang }"
+            @click="activeTab = lang"
+          >
+            {{ lang.toUpperCase() }} <span v-if="hasMissingTranslations(lang)" class="notification-dot"></span>
+          </button>
+        </div>
 
+        <div class="bulk-actions" v-if="nodes.length > 0 && activeTab">
+          <div class="bulk-buttons">
+            <div class="bulk-dropdown-wrapper">
               <button
                   class="btn translate dropdown-trigger"
-                  @click.stop="toggleDropdown(lang)"
+                  @click.stop="toggleDropdown(activeTab)"
                   :disabled="isBulkProcessing">
-                Bulk Translate in {{ lang.toUpperCase() }}
+                Bulk Translate in {{ activeTab.toUpperCase() }}
                 <i class="material-icons right">more_vert</i>
               </button>
 
-              <ul v-if="openDropdown === lang" class="bulk-dropdown-menu">
-                <li @click="selectBulkAction(lang, 'keep')">
+              <ul v-if="openDropdown === activeTab" class="bulk-dropdown-menu">
+                <li @click="selectBulkAction(activeTab, 'keep')">
                   <span class="action-title">Keep Existing</span>
                   <span class="action-desc">Translate only missing texts</span>
                 </li>
-                <li @click="selectBulkAction(lang, 'outdated')">
+                <li @click="selectBulkAction(activeTab, 'outdated')">
                   <span class="action-title">Override Outdated</span>
                   <span class="action-desc">Update missing and outdated texts</span>
                 </li>
-                <li class="danger" @click="selectBulkAction(lang, 'override')">
+                <li class="danger" @click="selectBulkAction(activeTab, 'override')">
                   <span class="action-title">Override All</span>
                   <span class="action-desc">Re-translate everything</span>
                 </li>
@@ -74,10 +82,10 @@
                 </a>
               </div>
             </th>
-            <th v-for="lang in languages" :key="lang">
+            <th v-if="activeTab">
               <div class="action-buttons">
-                {{ lang.toUpperCase() }}
-                <a :href="getPreviewUrl(lang)" target="_blank" class="btn btn-flat btn-icon" :title="'View ' + lang.toUpperCase() + ' Page'">
+                {{ activeTab.toUpperCase() }}
+                <a :href="getPreviewUrl(activeTab)" target="_blank" class="btn btn-flat btn-icon" :title="'View ' + activeTab.toUpperCase() + ' Page'">
                   <i class="material-icons">visibility</i>
                 </a>
               </div>
@@ -89,7 +97,7 @@
             <tr v-for="(text, property) in getTranslatableProperties(node)" :key="node.path + ':' + property">
 
               <td class="col-original">
-                <textarea class="value" rows="3" readonly :value="text"></textarea>
+                <textarea class="value" readonly :value="text" v-autoresize></textarea>
                 <div v-if="pageLastModified" class="date">
                   <em>{{ pageLastModified }}</em>
                 </div>
@@ -100,30 +108,30 @@
                 </div>
               </td>
 
-              <td v-for="lang in languages" :key="lang" class="col-lang">
-                <div v-if="node.translations && node.translations[lang] && node.translations[lang][property] !== undefined" class="translation-edit">
+              <td v-if="activeTab" class="col-lang">
+                <div v-if="node.translations && node.translations[activeTab] && node.translations[activeTab][property] !== undefined" class="translation-edit">
                   <textarea
                       class="value"
-                      rows="3"
-                      v-model="node.translations[lang][property]">
+                      v-model="node.translations[activeTab][property]"
+                      v-autoresize>
                   </textarea>
-                  <div class="date" :class="{ 'outdated': isOutdated(node.translations[lang], property) }">
-                    <em>{{ formatDate(node.translations[lang], property) }}</em>
+                  <div class="date" :class="{ 'outdated': isOutdated(node.translations[activeTab], property) }">
+                    <em>{{ formatDate(node.translations[activeTab], property) }}</em>
                   </div>
 
                   <div class="action-buttons">
                     <button
                         class="btn save"
-                        @click="saveTranslation(node, lang, property)"
-                        :disabled="isDisabled(node.path, lang, property)">
-                      <span v-if="isSuccess(node.path, lang, property)">Saved</span>
-                      <span v-else>{{ isProcessing(node.path, lang, property) ? 'Saving...' : 'Save' }}</span>
+                        @click="saveTranslation(node, activeTab, property)"
+                        :disabled="isDisabled(node.path, activeTab, property)">
+                      <span v-if="isSuccess(node.path, activeTab, property)">Saved</span>
+                      <span v-else>{{ isProcessing(node.path, activeTab, property) ? 'Saving...' : 'Save' }}</span>
                     </button>
 
                     <button
                         class="btn btn-icon btn-flat delete"
-                        @click="deleteTranslation(node, lang, property)"
-                        :disabled="isDisabled(node.path, lang, property)"
+                        @click="deleteTranslation(node, activeTab, property)"
+                        :disabled="isDisabled(node.path, activeTab, property)"
                         title="Delete Translation">
                       <i class="icon material-icons">delete</i>
                     </button>
@@ -133,9 +141,9 @@
                 <div v-else class="translation-create">
                   <button
                       class="btn translate"
-                      @click="translateNode(node, lang, property, text)"
-                      :disabled="isDisabled(node.path, lang, property)">
-                    {{ isProcessing(node.path, lang, property) ? 'Translating...' : `Translate in ${lang.toUpperCase()}` }}
+                      @click="translateNode(node, activeTab, property, text)"
+                      :disabled="isDisabled(node.path, activeTab, property)">
+                    {{ isProcessing(node.path, activeTab, property) ? 'Translating...' : `Translate in ${activeTab.toUpperCase()}` }}
                   </button>
                 </div>
               </td>
@@ -164,6 +172,7 @@ export default {
       error: null,
       nodes: [],
       languages: [],
+      activeTab: null,
       translationModel: null,
       processingMap: {},
       saveSuccess: {},
@@ -178,6 +187,27 @@ export default {
         total: 0,
         completed: 0,
         currentLang: ''
+      }
+    }
+  },
+  directives: {
+    autoresize: {
+      inserted(el) {
+        el.style.maxHeight = '300px';
+        el.style.minHeight = '75px';
+        const resize = () => {
+          el.style.height = 'auto';
+          el.style.height = `${el.scrollHeight}px`;
+        };
+        el.addEventListener('input', resize);
+        setTimeout(resize, 0); 
+      },
+      update(el) {
+        const resize = () => {
+          el.style.height = 'auto';
+          el.style.height = `${el.scrollHeight}px`;
+        };
+        setTimeout(resize, 0);
       }
     }
   },
@@ -205,6 +235,9 @@ export default {
         const data = await response.json();
         if (data && data.languageMap) {
           this.languages = Object.keys(data.languageMap);
+          if (this.languages.length > 0 && !this.activeTab) {
+            this.activeTab = this.languages[0];
+          }
         } else {
           this.languages = [];
         }
@@ -225,6 +258,7 @@ export default {
       this.$refs.materializemodal.close();
       this.nodes = [];
       this.languages = [];
+      this.activeTab = null;
       this.error = null;
       this.pageLastModified = null;
       this.rawPageLastModified = null;
@@ -676,7 +710,16 @@ export default {
           this.resetBulkState();
         }, 1000);
       }
-    }
+    },
+
+    hasMissingTranslations(lang) {
+      return this.nodes.some(node => {
+        const translatableProps = this.getTranslatableProperties(node);
+        return Object.keys(translatableProps).some(property => {
+          return !(node.translations && node.translations[lang] && node.translations[lang][property] !== undefined);
+        });
+      });
+    },
   }
 }
 </script>
@@ -700,6 +743,49 @@ export default {
   opacity: 0.5;
   pointer-events: none;
   user-select: none;
+}
+
+/* Tabs Styling */
+.lang-tabs {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 5px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-color-light);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -7px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--text-color-error);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab-btn.active {
+  color: var(--pcms-blue-grey);
+  border-bottom: 3px solid var(--pcms-blue-grey);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--pcms-blue-grey);
+  border-bottom: 3px solid var(--border-color);
 }
 
 table {
@@ -740,11 +826,15 @@ textarea.value {
   border: 1px solid var(--border-color);
   font-size: 1rem;
   padding: 0.5rem;
-  transition: all 0.3s;
+  transition:
+    box-shadow 0.3s,
+    border 0.3s
+  ;
   line-height: 1.4;
   color: var(--text-color);
   box-sizing: border-box;
   resize: vertical;
+  overflow-y: auto;
 }
 
 textarea.value:focus {
