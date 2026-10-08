@@ -36,8 +36,7 @@
           :readonly="schema.readonly"
           :title="value"
           @input="onInputInput"
-          @focus="editing = true"
-          @blur="editing = false"/>
+          />
         <button v-if="!schema.readonly" :disabled="disabled" v-on:click.stop.prevent="browse" class="btn-flat picker-open">
           <icon v-bind="buttonIcon"/>
         </button>
@@ -91,7 +90,6 @@ export default {
                 rel: false,
                 selectedPath: null,
                 withLinkTab: true,
-                editing: false
             }
         },
         computed: {
@@ -187,9 +185,7 @@ export default {
              this.$set(this.model, targetField, text)
            },
            onInputInput(event) {
-             if (!this.editing) {
-               this.value = event.target.value
-             }
+            this.value = event.target.value
            },
             onCancel(){
                 this.isOpen = false
