@@ -359,8 +359,11 @@ export default {
       // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
       // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
       // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
-      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) this.value = '';
-      this.value = textCheckDiv.innerHTML
+      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) {
+        this.value = '';
+      } else {
+        this.value = textCheckDiv.innerHTML
+      }
     }
   }
 }
