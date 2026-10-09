@@ -175,7 +175,7 @@ function listTranslations(path, model) {
     })
 }
 
-function autoTranslate(path, translations, changedProperties = null) {
+function autoTranslate(path, translations, changedProperties = null, force = false) {
   if (!translations || !translations.nodes || translations.nodes.length === 0) {
     return Promise.resolve("No nodes found to translate.")
   }
@@ -190,8 +190,10 @@ function autoTranslate(path, translations, changedProperties = null) {
     }
   }
 
-  if (!hasAnyTranslation) {
-    return Promise.resolve("No existing translations found. Skipping auto-translation.")
+  if (!hasAnyTranslation && !force) {
+    return Promise.resolve(
+      "No existing translations found. Skipping auto-translation."
+    );
   }
 
   // Find the exact node matching the requested path
@@ -1610,11 +1612,8 @@ class PerAdminImpl {
           return {};
         })
         .then(currentData => {
-          // Check if the object has a valid translation reference in the data
-          const hasTranslateRef = currentData['per:TranslateRef']
-            && currentData['per:TranslateRef'].trim() !== ''
-            && nodeData['per:TranslateRef']
-            && nodeData['per:TranslateRef'].trim() !== '';
+          // Check if the object being saved has a valid translation reference
+          const hasTranslateRef = nodeData['per:TranslateRef'] && nodeData['per:TranslateRef'].trim() !== '';
 
           // Compare old and new object states
           const pathsToTranslateMap = getModifiedPaths({
@@ -1654,7 +1653,7 @@ class PerAdminImpl {
                   pathsToTranslate.forEach(translatePath => {
                     const changedProps = pathsToTranslateMap[translatePath];
 
-                    const task = autoTranslate(translatePath, translations, changedProps)
+                    const task = autoTranslate(translatePath, translations, changedProps, hasTranslateRef)
                       .then(results => {
                         if (typeof results === 'string') {
                           console.log(results);
