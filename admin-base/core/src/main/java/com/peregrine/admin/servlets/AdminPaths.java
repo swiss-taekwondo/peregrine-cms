@@ -20,6 +20,7 @@ public interface AdminPaths {
     String RESOURCE_TYPE_LIST_REPLICATION_STATUS = API_PREFIX + "listReplicationStatus";
     String RESOURCE_TYPE_INSERT_NODE = API_PREFIX + "insertNodeAt";
     String RESOURCE_TYPE_TRANSLATE = API_PREFIX + "translateNode";
+    String RESOURCE_TYPE_GENERATE_ALT_TEXT = API_PREFIX + "generateAltText";
     String RESOURCE_TYPE_LIST = API_PREFIX + "list";
     String RESOURCE_TYPE_MOVE_NODE = API_PREFIX + "moveNodeTo";
     String RESOURCE_TYPE_MOVE = API_PREFIX + "move";

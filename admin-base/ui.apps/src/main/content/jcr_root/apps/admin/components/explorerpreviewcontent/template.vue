@@ -244,7 +244,23 @@
             <icon icon="external-link" :lib="IconLib.FONT_AWESOME"/>
             Open live version
           </div>
-          <div v-if="allowTranslate" class="action" :title="`translate ${nodeType}`" @click="openTranslationsModal()">
+          <button v-if="nodeType === NodeType.ASSET"
+                  :class="['action', 'generate-alt-text-action', { operationDisabledOnActivatedItem: !canGenerateAltText || !altTextConfigured }]" type="button"
+                  :disabled="!canGenerateAltText || !altTextConfigured || generatingAltText || savingAltText"
+                  :title="!canGenerateAltText ? 'AI alt text supports PNG, JPEG, WebP, and GIF images' : (!altTextConfigured ? 'Alt text requires its Gemini API Key, Model, and Prompt' : 'Generate Alt Text')"
+                  @click.stop.prevent="generateAltText">
+            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"
+                 viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M0 0h48v48H0z" fill="none"/>
+              <path fill="currentColor"
+                    d="M34 6c-1.368 4.944-3.13 6.633-8 8c4.87 1.367 6.632 3.056 8 8c1.368-4.944 3.13-6.633 8-8c-4.87-1.367-6.632-3.056-8-8m-14 8c-2.395 8.651-5.476 11.608-14 14c8.524 2.392 11.605 5.349 14 14c2.395-8.651 5.476-11.608 14-14c-8.524-2.392-11.605-5.349-14-14"/>
+            </svg>
+            <span>{{ savingAltText ? 'Saving...' : (generatingAltText ? 'Generating...' : 'Generate Alt Text') }}</span>
+          </button>
+          <div v-if="allowTranslate"
+               :class="translationConfigured ? 'action' : 'action operationDisabledOnActivatedItem'"
+               :title="translationConfigured ? `translate ${nodeType}` : translationConfigurationMessage"
+               @click="openTranslationsModal()">
             <icon icon="translate" />
             <span>Translate {{ nodeType }}</span>
           </div>
@@ -273,6 +289,30 @@
         v-bind:path="node && node.path"
         v-bind:modalTitle="`Translations: ${nodeName}`">
       </admin-components-translationsmodal>
+
+      <materialize-modal
+          ref="altTextCompareModal"
+          modalTitle="Review Generated Alt Text"
+          v-on:complete="pendingAltText = null">
+        <div class="alt-text-comparison">
+          <div>
+            <div>Current alt text</div>
+            <div class="alt-text-value">{{ pendingAltText && pendingAltText.current }}</div>
+          </div>
+          <div>
+            <div>Generated alt text</div>
+            <div class="alt-text-value">{{ pendingAltText && pendingAltText.generated }}</div>
+          </div>
+        </div>
+        <template slot="footer">
+          <button class="modal-action waves-effect waves-light btn-flat" type="button" @click="keepCurrentAltText">
+            Keep Current
+          </button>
+          <button class="modal-action waves-effect waves-light btn" type="button" :disabled="savingAltText" @click="useGeneratedAltText">
+            {{ savingAltText ? 'Saving...' : 'Use Generated' }}
+          </button>
+        </template>
+      </materialize-modal>
 
     </template>
 
@@ -458,6 +498,13 @@ export default {
         changes: []
       },
       loading: false,
+      generatingAltText: false,
+      savingAltText: false,
+      altTextRequestId: 0,
+      altTextConfigured: false,
+      pendingAltText: null,
+      translationConfigured: false,
+      translationConfigurationMessage: 'Checking translation configuration...',
       isReferencedInPublish: true
     }
   },
@@ -512,6 +559,7 @@ export default {
       return this.nodeTypeGroups.allowDelete.indexOf(this.nodeType) > -1;
     },
     allowTranslate() {
+      if (this.nodeType === NodeType.ASSET) return this.isImage;
       return this.nodeTypeGroups.allowTranslate.indexOf(this.nodeType) > -1;
     },
     allowWebPublish() {
@@ -540,6 +588,10 @@ export default {
       }
       const mime = node.mimeType;
       return Object.values(MimeType.Image).indexOf(mime) >= 0
+    },
+    canGenerateAltText() {
+      return typeof this.currentObject === 'string'
+          && /\.(png|jpe?g|webp|gif)$/i.test(this.currentObject);
     },
     isVideo() {
       const node = $perAdminApp.findNodeFromPath(
@@ -611,8 +663,17 @@ export default {
       if (tab === 'publishing') {
         this.updateIsReferencedInPublish()
       }
+      if (tab === Tab.ACTIONS) {
+        this.loadTranslationConfiguration()
+        this.loadAltTextConfiguration()
+      }
     },
     currentObject : function(path) {
+      this.altTextRequestId++;
+      if (this.pendingAltText && this.$refs.altTextCompareModal) this.$refs.altTextCompareModal.close();
+      this.generatingAltText = false;
+      this.savingAltText = false;
+      this.pendingAltText = null;
       if (this.activeTab === 'versions') {
         this.showVersions()
       }
@@ -638,8 +699,134 @@ export default {
   mounted() {
     this.path.selected = this.selectedPath
     this.path.current = this.currentPath
+    if (this.activeTab === Tab.ACTIONS) {
+      this.loadTranslationConfiguration()
+      this.loadAltTextConfiguration()
+    }
+  },
+  beforeDestroy() {
+    this.altTextRequestId++;
   },
   methods: {
+    async loadAltTextConfiguration() {
+      this.altTextConfigured = false;
+      try {
+        const response = await fetch('/perapi/admin/generateAltText.json');
+        if (!response.ok) return;
+        const data = await response.json();
+        this.altTextConfigured = data.altTextConfigured === true;
+      } catch (error) {
+        console.warn('Could not check alt text configuration', error);
+      }
+    },
+    async loadTranslationConfiguration() {
+      this.translationConfigured = false;
+      try {
+        const response = await fetch('/perapi/admin/translateNode.json');
+        if (!response.ok) {
+          this.translationConfigurationMessage = 'Could not check translation configuration. Verify that the admin core bundle is installed.';
+          return;
+        }
+        const data = await response.json();
+        if (typeof data.translationConfigured === 'boolean') {
+          this.translationConfigured = data.translationConfigured;
+        } else {
+          this.translationConfigured = !!data.languageMap && Object.keys(data.languageMap).length > 0;
+        }
+        this.translationConfigurationMessage = this.translationConfigured
+            ? ''
+            : 'Translation requires a Language Map, Gemini Prompt, Gemini Model, and Gemini API Key in the Translate Node configuration.';
+      } catch (error) {
+        this.translationConfigurationMessage = 'Could not check translation configuration.';
+      }
+    },
+    async generateAltText() {
+      if (!this.canGenerateAltText || !this.altTextConfigured || this.generatingAltText || this.savingAltText) return;
+      const path = this.currentObject;
+      const asset = this.node;
+      const requestId = ++this.altTextRequestId;
+      const isCurrentRequest = () => requestId === this.altTextRequestId && this.currentObject === path;
+      let phase = 'generate';
+      this.generatingAltText = true;
+      try {
+        const response = await $perAdminApp.getApi().generateAltText(path);
+        if (!isCurrentRequest()) return;
+        if (!response.data || typeof response.data.altText !== 'string') {
+          throw new Error('The alt text service returned an unexpected response.');
+        }
+        const altText = response.data.altText.trim();
+        if (!altText) {
+          $perAdminApp.notifyUser('info', 'No clear alt text could be generated for this image.');
+          return;
+        }
+        if (/[<>]/.test(altText)) {
+          throw new Error('Generated alt text contains markup and was not saved.');
+        }
+        const currentAltText = typeof asset.alt === 'string' ? asset.alt.trim() : '';
+        if (currentAltText) {
+          this.pendingAltText = {
+            path,
+            asset,
+            requestId,
+            current: currentAltText,
+            generated: altText
+          };
+          this.$nextTick(() => {
+            if (isCurrentRequest() && this.pendingAltText && this.pendingAltText.requestId === requestId) {
+              if (this.$refs.altTextCompareModal) this.$refs.altTextCompareModal.open();
+            }
+          });
+        } else {
+          phase = 'save';
+          await this.saveGeneratedAltText(path, asset, altText, requestId);
+        }
+      } catch (error) {
+        if (!isCurrentRequest()) return;
+        const responseData = error.response && error.response.data;
+        const message = phase === 'generate' && error.response && error.response.status === 409
+            ? 'Alt text service is unavailable. Update Peregrine CMS and try again.'
+            : ((responseData && responseData.message) || (error.response && error.response.statusText) || error.message);
+        $perAdminApp.notifyUser('error', `Could not ${phase === 'save' ? 'save' : 'generate'} alt text: ` + (message || 'An unexpected error occurred.'));
+      } finally {
+        if (isCurrentRequest()) {
+          this.generatingAltText = false;
+          this.savingAltText = false;
+        }
+      }
+    },
+    async saveGeneratedAltText(path, asset, altText, requestId = this.altTextRequestId) {
+      const isCurrentRequest = () => requestId === this.altTextRequestId && this.currentObject === path;
+      if (!isCurrentRequest()) return false;
+      this.savingAltText = true;
+      try {
+        await $perAdminApp.getApi().saveAssetProperties({ ...asset, alt: altText });
+        if (isCurrentRequest() && this.node === asset) {
+          this.$set(asset, 'alt', altText);
+          const preview = altText.length > 500 ? `${altText.substring(0, 500)}...` : altText;
+          $perAdminApp.notifyUser('info', `Alt text saved: ${preview}`);
+        }
+        return isCurrentRequest();
+      } catch (error) {
+        if (!isCurrentRequest()) return false;
+        const responseData = error.response && error.response.data;
+        const message = (responseData && responseData.message) || (error.response && error.response.statusText) || error.message;
+        $perAdminApp.notifyUser('error', 'Could not save alt text: ' + (message || 'An unexpected error occurred.'));
+        return false;
+      } finally {
+        if (isCurrentRequest()) this.savingAltText = false;
+      }
+    },
+    keepCurrentAltText() {
+      this.$refs.altTextCompareModal.close();
+    },
+    async useGeneratedAltText() {
+      const pending = this.pendingAltText;
+      if (!pending || this.savingAltText || pending.requestId !== this.altTextRequestId) return;
+      const saved = await this.saveGeneratedAltText(pending.path, pending.asset, pending.generated, pending.requestId);
+      if (saved && pending.requestId === this.altTextRequestId && this.$refs.altTextCompareModal) {
+        this.$refs.altTextCompareModal.close();
+      }
+    },
     itemToTarget(path) {
       const ret = { path, target: path }
       const tenant = $perAdminApp.getNodeFromViewOrNull('/state/tenant')
@@ -950,6 +1137,7 @@ export default {
     },
 
     openTranslationsModal(){
+      if (!this.translationConfigured) return;
       this.$refs.translationsModal.open();
     },
 
@@ -1228,6 +1416,57 @@ export default {
 </style>
 
 <style scoped>
+.alt-text-comparison {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.alt-text-value {
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid #9e9e9e;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #333;
+}
+
+.generate-alt-text-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 0;
+}
+
+.generate-alt-text-action svg {
+    width: 24px;
+    height: 24px;
+    flex: none;
+}
+
+.generate-alt-text-action:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.generate-alt-text-action.operationDisabledOnActivatedItem:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+@media (max-width: 600px) {
+    .alt-text-comparison {
+        grid-template-columns: 1fr;
+    }
+}
+
 .info-view-image {
     cursor: pointer;
 }
