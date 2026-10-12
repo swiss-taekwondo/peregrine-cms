@@ -34,6 +34,9 @@
   <!--  <filter root="/content/docs">-->
   <!--    <exclude pattern="/content/docs/objects/tags/.*"/>-->
   <!--  </filter>-->
+  <filter root="/perapi/admin/generateAltText"/>
+  <filter root="/perapi/admin/listTranslations"/>
+  <filter root="/perapi/admin/translateNode"/>
   <filter root="/etc/felibs/admin"/>
   <filter root="/apps/admin">
     <exclude pattern="/apps/admin/install/.*"/>

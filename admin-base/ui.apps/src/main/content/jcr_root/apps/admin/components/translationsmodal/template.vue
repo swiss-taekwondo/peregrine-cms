@@ -245,6 +245,9 @@ export default {
         console.error(err);
         throw new Error(`Language Configuration Error: ${err.message}`);
       }
+      if (this.languages.length === 0) {
+        throw new Error('No translation languages are configured in the CMS.');
+      }
     },
     open() {
       this.$refs.materializemodal.open();
@@ -397,6 +400,10 @@ export default {
     async fetchTranslationModel() {
       if (this.translationModel) return;
       try {
+        if (/^\/content\/[a-zA-Z0-9_.-]+\/assets\/.+/.test(this.path)) {
+          this.translationModel = { asset: ['alt'] };
+          return;
+        }
         const tenantName = $perAdminApp.getView().state.tenant.name;
         if (!tenantName) throw new Error("Could not determine tenant name.");
         const tenantRes = await fetch(`/content/${tenantName}.json`);
