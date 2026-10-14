@@ -2543,7 +2543,9 @@ export default {
 
       const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
       if (href.startsWith('/') && isPageType && !href.includes('.html')) {
-        href += '.html'
+        const url = new URL(href, "https://placeholder.invalid");
+        url.pathname += ".html";
+        href = url.pathname + url.search + url.hash;
       }
 
       const applyLinkAttributes = (link) => {
