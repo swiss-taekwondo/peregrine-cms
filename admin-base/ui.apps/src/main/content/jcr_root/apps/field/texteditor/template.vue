@@ -52,7 +52,7 @@
 
 <script>
 import {Key} from '../../../../../js/constants'
-import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
+import { saveSelection, set } from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 import DOMPurify from 'dompurify'
 
@@ -201,7 +201,7 @@ export default {
       this.$nextTick(() => this.pingToolbar())
       return true
     },
-    onFocusIn(event) {
+    onFocusIn() {
       const view = this.view
       if (!view) return
       set(view, '/state/inline/rich', true)
@@ -221,11 +221,7 @@ export default {
       if (headingDigit !== null) {
         event.preventDefault()
         const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
-        if (!this.formatBlock(value)) {
-          document.execCommand('formatBlock', false, `<${value}>`)
-          this.textEditorWriteToModel()
-          this.$nextTick(() => this.pingToolbar())
-        }
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
       } else if (key === Key.B && ctrlOrCmd) {
         // override and dispatchevent here for more predictable outcomes and avoid contenteditable default keybinds when we have custom functionality.
         event.preventDefault()
@@ -337,7 +333,6 @@ export default {
     _saveInlineSelectionState(vm = this) {
       const view = $perAdminApp.getView()
       if (!view) return
-      const sel = document.getSelection()
       vm.syncToolbarSelection()
       set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
       set(view, '/state/inline/lastDoc', vm.doc)
