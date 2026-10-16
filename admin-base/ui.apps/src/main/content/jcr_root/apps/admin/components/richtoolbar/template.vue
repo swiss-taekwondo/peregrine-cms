@@ -125,21 +125,121 @@ function getDeepestLastTextNode(node) {
   return last
 }
 
-function getSelectedBlockFromRange(range, editor) {
-  if (!range || !editor) return null
-  const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
-    ? range.startContainer.parentElement
-    : range.startContainer
-  const exactText = range.toString().trim()
-  return (
-    (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-    || (exactText
-      ? Array.from(editor.querySelectorAll('p, h1, h2, h3, h4, h5, h6')).find(
-        (element) => (element.textContent || '').trim() === exactText,
-      ) || null
-      : null)
-    || (editor.matches && editor.matches('p, h1, h2, h3, h4, h5, h6') ? editor : null)
-  )
+const blockSelector = 'p, h1, h2, h3, h4, h5, h6, div:not([contenteditable="true"]'
+function getSelectedBlocksFromRange(range, editor) {
+  if (!range || !editor) return []
+
+  // A caret formats the block containing it.
+  if (range.collapsed) {
+    const container = range.startContainer
+    const element = container.nodeType === Node.ELEMENT_NODE
+      ? container
+      : container.parentElement
+    const block = element?.closest(blockSelector)
+
+    return block && editor.contains(block) ? [block] : []
+  }
+
+  // A text selection formats every block it intersects.
+  return Array.from(editor.querySelectorAll(blockSelector))
+    .filter((block) => range.intersectsNode(block))
+}
+
+function wrapSelectedRangeInBlock(range, editor, tagName) {
+  if (range.collapsed) return false
+  const doc = editor.ownerDocument
+  // Handle a selection within a text node directly under contenteditable.
+  const textNode = range.startContainer
+  if (
+    textNode.nodeType === Node.TEXT_NODE &&
+    textNode === range.endContainer &&
+    textNode.parentNode === editor
+  ) {
+    const text = textNode.nodeValue || ''
+    const before = text.slice(0, range.startOffset)
+    const selected = text.slice(range.startOffset, range.endOffset)
+    const after = text.slice(range.endOffset)
+
+    if (!selected) return false
+
+    const wrapped = doc.createElement(tagName)
+    wrapped.textContent = selected
+
+    const fragment = doc.createDocumentFragment()
+    if (before) fragment.appendChild(doc.createTextNode(before))
+    fragment.appendChild(wrapped)
+    if (after) fragment.appendChild(doc.createTextNode(after))
+
+    textNode.replaceWith(fragment)
+
+    const nextRange = doc.createRange()
+    nextRange.selectNodeContents(wrapped)
+    const selection = doc.defaultView?.getSelection?.()
+    if (selection) {
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+    }
+
+    return true
+  }
+
+  const getBlock = (node) => {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement
+    return element?.closest(blockSelector) || null
+  }
+
+  const block = getBlock(range.startContainer)
+  if (!block || getBlock(range.endContainer) !== block || !editor.contains(block)) {
+    return false
+  }
+
+  const beforeRange = doc.createRange()
+  beforeRange.selectNodeContents(block)
+  beforeRange.setEnd(range.startContainer, range.startOffset)
+
+  const afterRange = doc.createRange()
+  afterRange.selectNodeContents(block)
+  afterRange.setStart(range.endContainer, range.endOffset)
+
+  const before = beforeRange.cloneContents()
+  const selected = range.cloneContents()
+  const after = afterRange.cloneContents()
+
+  const wrapped = doc.createElement(tagName)
+  for (const attr of Array.from(block.attributes)) {
+    wrapped.setAttribute(attr.name, attr.value)
+  }
+  wrapped.append(selected)
+
+  const replacements = []
+
+  if (before.hasChildNodes()) {
+    const beforeBlock = block.cloneNode(false)
+    beforeBlock.append(before)
+    replacements.push(beforeBlock)
+  }
+
+  replacements.push(wrapped)
+
+  if (after.hasChildNodes()) {
+    const afterBlock = block.cloneNode(false)
+    afterBlock.append(after)
+    replacements.push(afterBlock)
+  }
+
+  const fragment = doc.createDocumentFragment()
+  replacements.forEach((node) => fragment.appendChild(node))
+  block.replaceWith(fragment)
+
+  const nextRange = doc.createRange()
+  nextRange.selectNodeContents(wrapped)
+  const selection = doc.defaultView?.getSelection?.()
+  if (selection) {
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+  }
+
+  return true
 }
 
 function findComponentWithMethodFromElement(element, methodName) {
@@ -1233,7 +1333,7 @@ export default {
     inlineCmdHandler(event) {
       if (this.onSubNav) return
       if (typeof this[event.detail.cmd] === 'function') {
-        this[event.detail.cmd]()
+        this[event.detail.cmd](event.detail.value)
       } else {
         this.exec(event.detail.cmd, event.detail.value || null)
       }
@@ -1737,35 +1837,32 @@ export default {
         }
         if (!range || !textEditor || !this.isRangeInEditor(range, textEditor)) return false
       }
+      if (!range.collapsed) {
+        if (!wrapSelectedRangeInBlock(range, textEditor, normalizedTagName)) return false
+        this.writeEditorToModel(textEditor)
+        textEditor.dispatchEvent(new Event('input'))
+        this.pingRichToolbar()
+        return true
+      }
 
-      const block = getSelectedBlockFromRange(range, textEditor)
-      let resolvedBlock = block
-      if (!resolvedBlock && this.selection?.container && this.selection?.buffer) {
-        const doc = this.selection.doc || this.selection.container.ownerDocument
-        restoreSelection(this.selection.container, this.selection.buffer, doc)
-        range = this.getEditorSelection()
-        textEditor = range ? this.getEditorFrom(range) : null
-        resolvedBlock = range && textEditor ? getSelectedBlockFromRange(range, textEditor) : null
-      }
-      if (!resolvedBlock) return false
-      if (resolvedBlock.tagName === normalizedTagName) return true
+      const blocks = getSelectedBlocksFromRange(range, textEditor)
+      if (!blocks.length) return false
+      if (blocks.every((block) => block.tagName === normalizedTagName)) return true
 
-      const replacement = textEditor.ownerDocument.createElement(normalizedTagName)
-      for (const attr of Array.from(resolvedBlock.attributes)) {
-        replacement.setAttribute(attr.name, attr.value)
-      }
-      while (resolvedBlock.firstChild) {
-        replacement.appendChild(resolvedBlock.firstChild)
-      }
-      resolvedBlock.replaceWith(replacement)
+      for (const block of blocks) {
+        const replacement = textEditor.ownerDocument.createElement(normalizedTagName)
 
-      const nextRange = textEditor.ownerDocument.createRange()
-      nextRange.selectNodeContents(replacement)
-      const selection = textEditor.ownerDocument.defaultView?.getSelection?.()
-      if (selection) {
-        selection.removeAllRanges()
-        selection.addRange(nextRange)
+        for (const attr of Array.from(block.attributes)) {
+          replacement.setAttribute(attr.name, attr.value)
+        }
+
+        while (block.firstChild) {
+          replacement.appendChild(block.firstChild)
+        }
+      
+        block.replaceWith(replacement)
       }
+
       this.writeEditorToModel(textEditor)
       textEditor.dispatchEvent(new Event('input'))
       this.pingRichToolbar()
