@@ -427,6 +427,16 @@
                   <dt>Created</dt>
                   <dd>{{ preview.created }}</dd>
                 </dl>
+
+                <div class="form-group" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
+                  <label for="pageAnchor">Anchor</label>
+                  <select id="pageAnchor" v-model="selectedAnchor" class="browser-default">
+                    <option value="">None</option>
+                    <option v-for="anchor in preview.anchors" :key="anchor" :value="anchor">
+                      {{ anchor }}
+                    </option>
+                  </select>
+                </div>
               </template>
               <div v-else class="no-asset-selected">
                 <span>{{ $i18n('noAssetSelected') }}</span>
@@ -521,13 +531,6 @@ export default {
     } else {
       this.tab = 'browse'
     }
-
-    this.$on('setSelectedPath', () => {
-      console.log('setSelectedPath')
-    })
-    this.$on('setCurrentPath', () => {
-      console.log('setCurrentPath')
-    })
   },
   data: function () {
     return {
@@ -537,20 +540,12 @@ export default {
       search: '',
       previewType: this.selectedPath ? 'selected' : 'current',
       sortBy: '',
-      filterBy: '*'
+      filterBy: '*',
     }
   },
   computed: {
     isRoot() {
       return this.currentPath === this.browserRoot
-    },
-    preview() {
-      if (this.previewType === 'selected') {
-        const view = $perAdminApp.getView()
-        return $perAdminApp.findNodeFromPath(view.admin.pathBrowser, this.selectedPath)
-      } else {
-        return this.nodes
-      }
     },
     nodes() {
       let view = $perAdminApp.getView()
@@ -619,7 +614,30 @@ export default {
           this.selectedPath.startsWith('http://')
           || this.selectedPath.startsWith('https://')
       )
-    }
+    },
+    selectedAnchor: {
+      get() {
+        if (!this.selectedPath) return ''
+        const parts = this.selectedPath.split('#')
+        return parts.length > 1 ? parts[1] : ''
+      },
+      set(val) {
+        if (!this.selectedPath) return
+        const basePath = this.selectedPath.split('#')[0]
+        const newPath = val ? `${basePath}#${val}` : basePath
+        this.setSelectedPath(newPath)
+      }
+    },
+    preview() {
+      if (this.previewType === 'selected') {
+        const view = $perAdminApp.getView()
+        let basePath = this.selectedPath ? this.selectedPath.split('#')[0] : ''
+        basePath = basePath.replace(/\.html$/, '')
+        return $perAdminApp.findNodeFromPath(view.admin.pathBrowser, basePath)
+      } else {
+        return this.nodes
+      }
+    },
   },
   methods: {
     onPrevent() {
@@ -731,7 +749,9 @@ export default {
       ].indexOf(item.resourceType) >= 0
     },
     isSelected(path) {
-      return this.selectedPath === path
+      let basePath = this.selectedPath ? this.selectedPath.split('#')[0] : ''
+      basePath = basePath.replace(/\.html$/, '')
+      return basePath === path
     },
     hasPreview(item) {
 
