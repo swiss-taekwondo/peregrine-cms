@@ -94,8 +94,10 @@ public abstract class AbstractBaseServlet
                 out = new ErrorResponse().setHttpErrorCode(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).setErrorCode(-123).setErrorMessage("Servlet did not return a Response");
             }
         } catch(IOException e) {
+            logger.error("Servlet request failed with an I/O exception: {}", request.getRequestURI(), e);
             out = new ErrorResponse().setHttpErrorCode(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).setErrorCode(-124).setErrorMessage("Failed with IO exception").setException(e);
         } catch(RuntimeException e) {
+            logger.error("Servlet request failed with a runtime exception: {}", request.getRequestURI(), e);
             out = new ErrorResponse().setHttpErrorCode(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).setErrorCode(-125).setErrorMessage("Failed with runtime exception").setException(e);
         } catch(Error e) {
             // Do not swallow errors as the system needs to handle that -> log and rethrow

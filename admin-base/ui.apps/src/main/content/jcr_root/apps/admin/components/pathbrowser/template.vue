@@ -280,7 +280,7 @@
                       </div>
                       <template v-if="isFile(item)">
                         <img
-                            v-if="isImagePath(item)"
+                            v-if="isImagePath(item.path)"
                             :class="isSelected(item.path) ? 'item-image selected' : 'item-image'"
                             v-bind:style="`width: ${cardSize}px`"
                             v-bind:src="item.path"
@@ -414,8 +414,8 @@
                   <admin-components-iconopenfolder></admin-components-iconopenfolder>
                 </div>
                 <template v-else>
-                  <img v-if="isImagePath(preview)" class="preview-image" v-bind:src="preview.path" :alt="preview.name"/>
-                  <icon v-bind="getFileIcon(preview)"/>
+                  <img v-if="isImagePath(preview.path)" class="preview-image" v-bind:src="preview.path" :alt="preview.name"/>
+                  <icon v-else v-bind="getFileIcon(preview)"/>
                 </template>
                 <dl class="preview-data">
                   <dt>Name</dt>

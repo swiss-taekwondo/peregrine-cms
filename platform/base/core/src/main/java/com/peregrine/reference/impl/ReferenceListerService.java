@@ -38,6 +38,7 @@ import com.peregrine.commons.util.PerUtil;
 import com.peregrine.commons.util.PerUtil.MissingOrOutdatedResourceChecker;
 import com.peregrine.reference.Reference;
 import com.peregrine.reference.ReferenceLister;
+import com.peregrine.reference.ReferencePathMatcher;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -93,7 +94,6 @@ public final class ReferenceListerService implements ReferenceLister {
 
     private static final String REFERENCED_BY_QUERY = "select * from [nt:base] as s where isdescendantnode('%s') " +
             "and contains(s.*, '%s')";
-    private static final String REFERENCE_REGEX_TEMPLATE = "(^|[\" ])%s($|[\" .])";
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -142,8 +142,8 @@ public final class ReferenceListerService implements ReferenceLister {
                 final Resource referrer = referrers.next();
                 if (checker.doAdd(referrer)) {
                     final List<String> referencingProps = findKeysForMatchingValues(referrer.getValueMap(), containsReference);
-                    if (!referencingProps.isEmpty()) {
-                        result.add(new Reference(getBaseResource(referrer), referencingProps.get(0), referrer));
+                    for (final String propertyName : referencingProps) {
+                        result.add(new Reference(getBaseResource(referrer), propertyName, referrer));
                     }
                 }
             }
@@ -160,7 +160,7 @@ public final class ReferenceListerService implements ReferenceLister {
         // But does not match
         //   /path/child
         //   something/path
-        final Pattern regex = Pattern.compile(String.format(REFERENCE_REGEX_TEMPLATE, resource.getPath()));
+        final Pattern regex = ReferencePathMatcher.patternFor(resource.getPath());
         return s -> regex.matcher(s).find();
     }
 

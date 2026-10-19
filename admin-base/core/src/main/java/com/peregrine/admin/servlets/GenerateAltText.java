@@ -55,6 +55,7 @@ import static org.osgi.framework.Constants.*;
         SERVICE_VENDOR + EQUALS + PER_VENDOR,
         SLING_SERVLET_METHODS + EQUALS + POST,
         SLING_SERVLET_METHODS + EQUALS + GET,
+        SLING_SERVLET_PATHS + EQUALS + "/perapi/admin/generateAltText",
         SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_GENERATE_ALT_TEXT
 })
 @Designate(ocd = GenerateAltText.Configuration.class)

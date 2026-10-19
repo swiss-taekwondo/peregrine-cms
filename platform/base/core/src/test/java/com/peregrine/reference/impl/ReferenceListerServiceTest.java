@@ -4,6 +4,7 @@ import com.peregrine.SlingResourcesTest;
 import com.peregrine.mock.PageContentMock;
 import com.peregrine.mock.PageMock;
 import com.peregrine.mock.ResourceMock;
+import com.peregrine.reference.Reference;
 import org.apache.sling.api.resource.Resource;
 import org.junit.Before;
 import org.junit.Test;
@@ -12,11 +13,13 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import java.util.stream.Collectors;
+import java.util.Set;
 
 import static com.peregrine.commons.util.PerConstants.SLASH;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +93,32 @@ public final class ReferenceListerServiceTest extends SlingResourcesTest {
 				);
 		parent.putProperty("reference", resource.getPath());
 		assertFalse(model.getReferencedByList(resource).isEmpty());
+	}
+
+	@Test
+	public void returnsEveryPropertyWhenOneComponentUsesTheAssetTwice() {
+		when(resourceResolver.findResources(anyString(), anyString()))
+				.thenReturn(java.util.Collections.<Resource>singletonList(parent).iterator());
+		parent.putProperty("image", resource.getPath());
+		parent.putProperty("logo", resource.getPath());
+
+		final var references = model.getReferencedByList(resource);
+		final Set<String> propertyNames = references.stream().map(Reference::getPropertyName)
+				.collect(Collectors.toSet());
+		assertEquals(Set.of("image", "logo"), propertyNames);
+		assertEquals(2, references.size());
+	}
+
+	@Test
+	public void findsSingleQuotedReferencesWithoutMatchingSimilarPaths() {
+		when(resourceResolver.findResources(anyString(), anyString()))
+				.thenReturn(java.util.Collections.<Resource>singletonList(parent).iterator());
+		parent.putProperty("html", "<img src='" + resource.getPath() + "?width=400'>");
+		parent.putProperty("other", resource.getPath().replace("/resource", "/resource-extra"));
+
+		final var references = model.getReferencedByList(resource);
+		assertEquals(1, references.size());
+		assertEquals("html", references.get(0).getPropertyName());
 	}
 
 }

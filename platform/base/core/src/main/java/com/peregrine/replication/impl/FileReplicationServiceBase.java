@@ -201,8 +201,8 @@ public abstract class FileReplicationServiceBase extends ReplicationServiceBase 
                 path = replicatePerResource(item);
             }
 
-            answer.add(item);
             if (isNotBlank(path)) {
+                answer.add(item);
                 final Resource contentResource = item.getChild(JCR_CONTENT);
                 markAsActivated(requireNonNullElse(contentResource, item), path);
             }

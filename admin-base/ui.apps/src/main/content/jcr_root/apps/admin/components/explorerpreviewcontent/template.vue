@@ -257,6 +257,9 @@
             </svg>
             <span>{{ savingAltText ? 'Saving...' : (generatingAltText ? 'Generating...' : 'Generate Alt Text') }}</span>
           </button>
+          <button v-if="nodeType === NodeType.ASSET" class="action generate-alt-text-action" type="button" @click.stop.prevent="openAltTextQueue">
+            <icon icon="list" /> <span>Image Republish Queue{{ altTextQueueImageCount === null ? '' : ` (${altTextQueueImageCount})` }}</span>
+          </button>
           <div v-if="allowTranslate"
                :class="translationConfigured ? 'action' : 'action operationDisabledOnActivatedItem'"
                :title="translationConfigured ? `translate ${nodeType}` : translationConfigurationMessage"
@@ -310,6 +313,197 @@
           </button>
           <button class="modal-action waves-effect waves-light btn" type="button" :disabled="savingAltText" @click="useGeneratedAltText">
             {{ savingAltText ? 'Saving...' : 'Use Generated' }}
+          </button>
+        </template>
+      </materialize-modal>
+
+      <materialize-modal ref="altTextDecisionModal" modalTitle="">
+        <p>Image changes were saved. What would you like to do with this image?</p>
+        <div v-if="currentAltTextEntry" class="alt-text-queue-preview">
+          <img :src="currentAltTextEntry.assetPath" alt="" />
+          <div>
+            <div class="alt-text-queue-path">{{ currentAltTextEntry.assetPath }}</div>
+            <div><strong>Alt text:</strong> {{ currentAltTextEntry.altText || '(empty)' }}</div>
+          </div>
+        </div>
+        <div v-if="loadingAltTextQueue" role="status" aria-label="Loading affected pages">
+          <admin-components-materializespinner/>
+        </div>
+        <p v-if="altTextQueueError">{{ altTextQueueError }}</p>
+        <template v-if="currentAltTextEntry && !loadingAltTextQueue">
+          <p>Pages that can be republished:</p>
+          <ul v-if="currentAltTextEntry.eligiblePages.length">
+            <li v-for="pagePath in currentAltTextEntry.eligiblePages" :key="pagePath">
+              <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+            </li>
+          </ul>
+          <p v-else>None.</p>
+          <p v-if="currentAltTextEntry.assetRepublishable">The image itself can be republished.</p>
+          <p>Published pages with unpublished changes (manual review required):</p>
+          <ul v-if="currentAltTextEntry.blockedPages.length">
+            <li v-for="pagePath in currentAltTextEntry.blockedPages" :key="pagePath">
+              <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+            </li>
+          </ul>
+          <p v-else>None.</p>
+        </template>
+        <p v-if="republishedAltTextPages.length">The image was republished on these pages:</p>
+        <ul v-if="republishedAltTextPages.length">
+          <li v-for="pagePath in republishedAltTextPages" :key="pagePath">
+            <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+          </li>
+        </ul>
+        <p v-if="republishedAltTextAssets.length">The image asset was republished:</p>
+        <ul v-if="republishedAltTextAssets.length">
+          <li v-for="assetPath in republishedAltTextAssets" :key="assetPath">{{ assetPath }}</li>
+        </ul>
+        <div v-if="republishingAltTextPages && altTextRepublishRequested" role="status" aria-label="Checking republish status">
+          <admin-components-materializespinner/>
+        </div>
+        <p v-if="altTextRepublishStatusUnavailable">{{ altTextRepublishStatusUnavailable }}</p>
+        <template slot="footer">
+          <button v-if="currentAltTextEntry && currentAltTextEntry.reportToken && (currentAltTextEntry.assetRepublishable || currentAltTextEntry.eligiblePages.length) && !altTextRepublishRequested" class="modal-action waves-effect waves-light btn-flat"
+                  type="button" @click="$refs.altTextDecisionModal.close()">Add to Queue</button>
+          <button v-if="currentAltTextEntry && currentAltTextEntry.reportToken && (currentAltTextEntry.assetRepublishable || currentAltTextEntry.eligiblePages.length) && !altTextRepublishRequested" class="waves-effect waves-light btn-flat"
+                  type="button" :disabled="decidingAltTextQueue" @click="decideAltTextQueue(currentAltTextEntry, 'republish')">Republish</button>
+          <button v-if="currentAltTextEntry && currentAltTextEntry.reportToken && (currentAltTextEntry.assetRepublishable || currentAltTextEntry.eligiblePages.length) && !altTextRepublishRequested" class="waves-effect waves-light btn-flat"
+                  type="button" :disabled="decidingAltTextQueue" @click="decideAltTextQueue(currentAltTextEntry, 'discard')">Do not Republish</button>
+          <button v-if="altTextRepublishRequested && !altTextRepublishComplete" class="waves-effect waves-light btn-flat"
+                  type="button" :disabled="republishingAltTextPages" @click="checkAltTextRepublishStatusAgain">Check again</button>
+          <button class="modal-action waves-effect waves-light btn" type="button" @click="$refs.altTextDecisionModal.close()">Close</button>
+        </template>
+      </materialize-modal>
+
+      <materialize-modal
+          ref="unpublishedAltTextPagesModal"
+          modalTitle="Image Republish Queue">
+        <div class="alt-text-queue-tabs" role="tablist" aria-label="Queue view">
+          <button type="button" role="tab" :aria-selected="altTextQueueTab === 'images'"
+                  :class="{'is-active': altTextQueueTab === 'images'}" @click="altTextQueueTab = 'images'">
+            Images ({{ altTextQueueImageCount === null ? 0 : altTextQueueImageCount }})
+          </button>
+          <button type="button" role="tab" :aria-selected="altTextQueueTab === 'pages'"
+                  :class="{'is-active': altTextQueueTab === 'pages'}" @click="altTextQueueTab = 'pages'">
+            Pages ({{ altTextQueuePages.length }})
+          </button>
+          <button type="button" role="tab" :aria-selected="altTextQueueTab === 'manual'"
+                  :class="{'is-active': altTextQueueTab === 'manual'}" @click="altTextQueueTab = 'manual'">
+            Manual work ({{ manualAltTextQueuePages.length }})
+          </button>
+        </div>
+        <div v-if="loadingAltTextQueue" role="status" aria-label="Loading image republish queue">
+          <admin-components-materializespinner/>
+        </div>
+        <p v-if="altTextQueueError">{{ altTextQueueError }}</p>
+        <p v-if="altTextQueueTab === 'images' && !loadingAltTextQueue && !republishableAltTextQueueEntries.length">No image changes are queued.</p>
+        <div v-if="altTextQueueTab === 'images'">
+        <div v-for="entry in republishableAltTextQueueEntries" :key="entry.reportToken" class="alt-text-queue-entry">
+          <div class="alt-text-queue-preview">
+            <img :src="entry.assetPath" alt="" />
+            <span>
+              <span class="alt-text-queue-path">{{ entry.assetPath }}</span>
+              <span><strong>Alt text:</strong>
+                {{ entry.altText || '(empty)' }}</span>
+            </span>
+          </div>
+          <button type="button" class="waves-effect waves-light btn-flat"
+                  :disabled="decidingAltTextQueue || republishingAltTextPages"
+                  @click="removeImageFromAltTextQueue(entry.assetPath)">Remove from queue</button>
+          <button type="button" class="waves-effect waves-light btn-flat"
+                  :disabled="decidingAltTextQueue || republishingAltTextPages"
+                  @click="republishQueuedImage(entry)">Republish</button>
+          <p v-if="entry.manualReview">Manual review is still required for these pages:</p>
+          <p v-else>Pages that can be republished:</p>
+          <ul v-if="!entry.manualReview && entry.eligiblePages.length">
+            <li v-for="pagePath in entry.eligiblePages" :key="pagePath">
+              <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+            </li>
+          </ul>
+          <p v-else-if="!entry.manualReview">None.</p>
+          <p v-if="entry.assetRepublishable">The image itself will be republished.</p>
+          <p v-if="!entry.manualReview">Published pages with unpublished changes (manual review required):</p>
+          <ul v-if="entry.blockedPages.length">
+            <li v-for="pagePath in entry.blockedPages" :key="pagePath">
+              <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+            </li>
+          </ul>
+          <p v-else>None.</p>
+        </div>
+        </div>
+        <div v-else-if="altTextQueueTab === 'pages' && altTextQueueEntries.length">
+          <div v-for="page in altTextQueuePages" :key="page.path" class="alt-text-queue-entry">
+            <a :href="pageEditorUrl(page.path)" target="_blank" rel="noopener noreferrer">{{ page.path }}</a>
+            <p>{{ page.needsManualReview ? 'Manual check required: unpublished changes' : 'Can be republished' }}</p>
+            <p>Images ({{ page.images.length }}):
+              <span v-for="(imagePath, index) in page.images" :key="imagePath" class="alt-text-queue-image-hover" tabindex="0">
+                {{ index ? ', ' : '' }}{{ imagePath }}
+                <span class="alt-text-queue-image-tooltip" aria-hidden="true"><img :src="imagePath" alt="" /></span>
+              </span>
+            </p>
+          </div>
+          <p v-if="!altTextQueuePages.length">No published pages are associated with the queued images.</p>
+        </div>
+        <p v-else-if="altTextQueueTab === 'pages' && !loadingAltTextQueue">No queued pages to display.</p>
+        <div v-else-if="altTextQueueTab === 'manual'">
+          <p v-if="!manualAltTextQueuePages.length">No manual work is needed.</p>
+          <div v-for="entry in manualAltTextQueueEntries" :key="entry.reportToken" class="alt-text-queue-entry">
+            <div class="alt-text-queue-preview">
+              <img :src="entry.assetPath" alt="" />
+              <span>
+                <span class="alt-text-queue-path">{{ entry.assetPath }}</span>
+                <span><strong>Alt text:</strong> {{ entry.altText || '(empty)' }}</span>
+              </span>
+            </div>
+            <p>Manual review is needed on these pages:</p>
+            <ul>
+              <li v-for="pagePath in entry.blockedPages" :key="pagePath">
+                <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+              </li>
+            </ul>
+            <button type="button" class="waves-effect waves-light btn-flat"
+                    :disabled="decidingAltTextQueue || republishingAltTextPages"
+                    @click="removeImageFromAltTextQueue(entry.assetPath)">Remove from queue</button>
+          </div>
+          <div v-for="page in manualAltTextQueuePages.filter(page => !page.images.length)" :key="page.path" class="alt-text-queue-entry">
+            <a :href="pageEditorUrl(page.path)" target="_blank" rel="noopener noreferrer">{{ page.path }}</a>
+            <p>Manual review is needed before the image can be republished.</p>
+          </div>
+        </div>
+        <p v-if="republishedAltTextPages.length">The image was successfully republished on these pages:</p>
+        <ul>
+          <li v-for="pagePath in republishedAltTextPages" :key="pagePath">
+            <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+          </li>
+        </ul>
+        <p v-if="republishedAltTextAssets.length">The image assets were republished:</p>
+        <ul v-if="republishedAltTextAssets.length">
+          <li v-for="assetPath in republishedAltTextAssets" :key="assetPath">{{ assetPath }}</li>
+        </ul>
+        <p v-if="altTextRepublishComplete && unpublishedAltTextPages.length">These published pages could not be updated automatically. Review and publish them manually:</p>
+        <ul v-if="altTextRepublishComplete && unpublishedAltTextPages.length">
+          <li v-for="pagePath in unpublishedAltTextPages" :key="pagePath">
+            <a :href="pageEditorUrl(pagePath)" target="_blank" rel="noopener noreferrer">{{ pagePath }}</a>
+          </li>
+        </ul>
+        <div v-if="republishingAltTextPages && altTextRepublishRequested" role="status" aria-label="Checking which pages were republished">
+          <admin-components-materializespinner/>
+        </div>
+        <p v-if="altTextRepublishComplete && !republishedAltTextPages.length">No pages were republished.</p>
+        <p v-if="altTextRepublishStatusUnavailable">{{ altTextRepublishStatusUnavailable }}</p>
+        <template slot="footer">
+          <button v-if="republishableAltTextQueueEntries.length"
+                  class="waves-effect waves-light btn-flat" type="button" :disabled="decidingAltTextQueue || republishingAltTextPages"
+                  @click="republishAltTextQueue">Republish all</button>
+          <button v-if="altTextQueueEntries.length"
+                  class="waves-effect waves-light btn-flat" type="button" :disabled="decidingAltTextQueue || republishingAltTextPages"
+                  @click="clearAltTextQueue">Clear Queue</button>
+          <button v-if="((currentAltTextReportToken && currentAltTextAssetPath) || unconfirmedAltTextReports.length) && altTextRepublishRequested && !altTextRepublishComplete"
+                  class="waves-effect waves-light btn-flat" type="button" :disabled="republishingAltTextPages"
+                  @click="checkAltTextRepublishStatusAgain">
+            Check again
+          </button>
+          <button class="modal-action waves-effect waves-light btn" type="button" @click="$refs.unpublishedAltTextPagesModal.close()">
+            Close
           </button>
         </template>
       </materialize-modal>
@@ -503,6 +697,27 @@ export default {
       altTextRequestId: 0,
       altTextConfigured: false,
       pendingAltText: null,
+      unpublishedAltTextPages: [],
+      republishedAltTextPages: [],
+      republishedAltTextAssets: [],
+      altTextQueueEntries: [],
+      unconfirmedAltTextReports: [],
+      altTextQueueTab: 'images',
+      altTextQueueImageCount: null,
+      currentAltTextAssetRepublishable: false,
+      loadingAltTextQueue: false,
+      altTextQueueRequestId: 0,
+      decidingAltTextQueue: false,
+      altTextQueueError: '',
+      altTextRepublishRequested: false,
+      republishingAltTextPages: false,
+      altTextRepublishComplete: false,
+      currentAltTextReportToken: null,
+      currentAltTextAssetPath: null,
+      currentAltTextValue: '',
+      currentAltTextSavedEntry: null,
+      altTextRepublishStatusUnavailable: '',
+      altTextStatusController: null,
       translationConfigured: false,
       translationConfigurationMessage: 'Checking translation configuration...',
       isReferencedInPublish: true
@@ -510,6 +725,50 @@ export default {
   },
   mixins: [NodeNameValidation,ReferenceUtil],
   computed: {
+    currentAltTextEntry() {
+      if (!this.currentAltTextAssetPath) return null;
+      return this.altTextQueueEntries.find(entry => this.currentAltTextReportToken
+        ? entry.reportToken === this.currentAltTextReportToken
+        : entry.assetPath === this.currentAltTextAssetPath)
+        || (this.currentAltTextSavedEntry && this.currentAltTextSavedEntry.assetPath === this.currentAltTextAssetPath
+          ? this.currentAltTextSavedEntry : null)
+        || {reportToken: this.currentAltTextReportToken, assetPath: this.currentAltTextAssetPath,
+          eligiblePages: [], blockedPages: this.unpublishedAltTextPages, altText: this.currentAltTextValue,
+          assetRepublishable: this.currentAltTextAssetRepublishable};
+    },
+    republishableAltTextQueueEntries() {
+      return this.altTextQueueEntries.filter(entry => !entry.manualReview
+        && (entry.assetRepublishable || (entry.eligiblePages && entry.eligiblePages.length)));
+    },
+    manualAltTextQueueEntries() {
+      return this.altTextQueueEntries.filter(entry => entry.manualReview || (entry.blockedPages && entry.blockedPages.length));
+    },
+    altTextQueuePages() {
+      const pages = new Map();
+      this.altTextQueueEntries.forEach(entry => {
+        const addPage = (path, needsManualReview) => {
+          if (!pages.has(path)) pages.set(path, {path, needsManualReview: false, images: []});
+          const page = pages.get(path);
+          page.needsManualReview = page.needsManualReview || needsManualReview;
+          if (!page.images.includes(entry.assetPath)) page.images.push(entry.assetPath);
+        };
+        (entry.eligiblePages || []).forEach(path => addPage(path, false));
+        (entry.blockedPages || []).forEach(path => addPage(path, true));
+      });
+      return Array.from(pages.values()).sort((a, b) => a.path.localeCompare(b.path));
+    },
+    manualAltTextQueuePages() {
+      const pages = new Map();
+      const addPage = (path, assetPath) => {
+        if (!pages.has(path)) pages.set(path, {path, images: []});
+        const page = pages.get(path);
+        if (assetPath && !page.images.includes(assetPath)) page.images.push(assetPath);
+      };
+      this.altTextQueuePages.filter(page => page.needsManualReview)
+        .forEach(page => page.images.forEach(assetPath => addPage(page.path, assetPath)));
+      this.unpublishedAltTextPages.forEach(path => addPage(path, null));
+      return Array.from(pages.values()).sort((a, b) => a.path.localeCompare(b.path));
+    },
     uNodeType() {
       return this.capFirstLetter(this.nodeType);
     },
@@ -666,9 +925,11 @@ export default {
       if (tab === Tab.ACTIONS) {
         this.loadTranslationConfiguration()
         this.loadAltTextConfiguration()
+        if (this.nodeType === NodeType.ASSET) this.refreshAltTextQueueCount()
       }
     },
     currentObject : function(path) {
+      if (this.activeTab === Tab.ACTIONS && this.nodeType === NodeType.ASSET) this.refreshAltTextQueueCount()
       this.altTextRequestId++;
       if (this.pendingAltText && this.$refs.altTextCompareModal) this.$refs.altTextCompareModal.close();
       this.generatingAltText = false;
@@ -702,12 +963,27 @@ export default {
     if (this.activeTab === Tab.ACTIONS) {
       this.loadTranslationConfiguration()
       this.loadAltTextConfiguration()
+      if (this.nodeType === NodeType.ASSET) this.refreshAltTextQueueCount()
     }
   },
   beforeDestroy() {
     this.altTextRequestId++;
+    if (this.altTextStatusController) this.altTextStatusController.abort();
   },
   methods: {
+    async refreshAltTextQueueCount() {
+      try {
+        const response = await fetch('/perapi/admin/assetAltTextRepublishStatus.json?queue=true',
+          {credentials: 'same-origin', cache: 'no-store'});
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        this.altTextQueueImageCount = new Set((Array.isArray(data.entries) ? data.entries : [])
+          .filter(entry => !entry.manualReview && (entry.assetRepublishable || (entry.eligiblePages && entry.eligiblePages.length)))
+          .map(entry => entry.assetPath).filter(Boolean)).size;
+      } catch (error) {
+        this.altTextQueueImageCount = null;
+      }
+    },
     async loadAltTextConfiguration() {
       this.altTextConfigured = false;
       try {
@@ -799,9 +1075,10 @@ export default {
       if (!isCurrentRequest()) return false;
       this.savingAltText = true;
       try {
-        await $perAdminApp.getApi().saveAssetProperties({ ...asset, alt: altText });
+        const response = await $perAdminApp.getApi().saveAssetProperties({ ...asset, alt: altText });
         if (isCurrentRequest() && this.node === asset) {
           this.$set(asset, 'alt', altText);
+          this.showUnpublishedAltTextPages(response, true, path, altText);
           const preview = altText.length > 500 ? `${altText.substring(0, 500)}...` : altText;
           $perAdminApp.notifyUser('info', `Alt text saved: ${preview}`);
         }
@@ -815,6 +1092,410 @@ export default {
       } finally {
         if (isCurrentRequest()) this.savingAltText = false;
       }
+    },
+    showUnpublishedAltTextPages(response, forceOpen = false, savedAssetPath = null, savedAltText = '') {
+      const data = response && response.data ? response.data : response;
+      const pages = data && data.unpublishedPages;
+      this.unpublishedAltTextPages = Array.isArray(pages) ? pages : [];
+      this.republishedAltTextPages = [];
+      this.republishedAltTextAssets = [];
+      this.altTextRepublishComplete = false;
+      this.altTextRepublishRequested = false;
+      this.republishingAltTextPages = false;
+      this.altTextRepublishStatusUnavailable = '';
+      this.currentAltTextReportToken = data && data.reportToken || null;
+      this.currentAltTextAssetPath = data && data.assetPath || savedAssetPath || null;
+      this.currentAltTextAssetRepublishable = !!(data && data.assetRepublishable);
+      this.currentAltTextValue = savedAltText || this.node && this.node.alt || '';
+      this.currentAltTextSavedEntry = null;
+      this.altTextQueueEntries = [];
+      this.unconfirmedAltTextReports = [];
+      if (!data || !data.assetPath || !data.reportToken) {
+        if (!forceOpen && !this.unpublishedAltTextPages.length && !(data && data.republishWarning)) return;
+        this.republishingAltTextPages = false;
+        this.altTextRepublishStatusUnavailable = data && data.republishWarning || '';
+        this.openAltTextRepublishModal();
+        if (this.currentAltTextAssetPath) {
+          this.loadAltTextQueue(this.currentAltTextAssetPath);
+          this.refreshAltTextQueueCount();
+        }
+        return;
+      }
+      this.republishingAltTextPages = false;
+      this.openAltTextRepublishModal();
+      this.loadAltTextQueue(data.assetPath);
+      this.refreshAltTextQueueCount();
+    },
+    openAltTextQueue() {
+      this.altTextQueueTab = 'images';
+      this.currentAltTextReportToken = null;
+      this.currentAltTextAssetPath = null;
+      this.currentAltTextAssetRepublishable = false;
+      this.currentAltTextSavedEntry = null;
+      this.altTextQueueEntries = [];
+      this.unconfirmedAltTextReports = [];
+      this.republishedAltTextPages = [];
+      this.republishedAltTextAssets = [];
+      this.unpublishedAltTextPages = [];
+      this.altTextRepublishComplete = false;
+      this.altTextRepublishRequested = false;
+      this.republishingAltTextPages = false;
+      this.altTextRepublishStatusUnavailable = '';
+      this.$nextTick(() => {
+        if (this.$refs.unpublishedAltTextPagesModal) this.$refs.unpublishedAltTextPagesModal.open();
+      });
+      this.loadAltTextQueue();
+    },
+    async loadAltTextQueue(assetPath = null) {
+      const requestId = ++this.altTextQueueRequestId;
+      this.loadingAltTextQueue = true;
+      this.altTextQueueError = '';
+      try {
+        const query = new URLSearchParams({queue: 'true'});
+        if (assetPath) query.set('path', assetPath);
+        const response = await fetch(`/perapi/admin/assetAltTextRepublishStatus.json?${query}`,
+          {credentials: 'same-origin', cache: 'no-store'});
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (requestId !== this.altTextQueueRequestId) return;
+        this.altTextQueueEntries = Array.isArray(data.entries) ? data.entries : [];
+        if (!assetPath) this.altTextQueueImageCount = new Set(this.altTextQueueEntries
+          .filter(entry => !entry.manualReview && (entry.assetRepublishable || (entry.eligiblePages && entry.eligiblePages.length)))
+          .map(entry => entry.assetPath).filter(Boolean)).size;
+        if (assetPath && this.currentAltTextReportToken) {
+          this.currentAltTextSavedEntry = this.altTextQueueEntries.find(entry => this.currentAltTextReportToken
+            ? entry.reportToken === this.currentAltTextReportToken
+            : entry.assetPath === assetPath) || null;
+        }
+      } catch (error) {
+        if (requestId === this.altTextQueueRequestId) {
+          this.altTextQueueError = `Could not load alt text queue (${error.message}).`;
+        }
+      } finally {
+        if (requestId === this.altTextQueueRequestId) this.loadingAltTextQueue = false;
+      }
+    },
+    async sendAltTextQueueAction(entry, action) {
+      const body = new URLSearchParams({queue: 'true', path: entry.assetPath,
+        reportToken: entry.reportToken, action});
+      const response = await fetch('/perapi/admin/assetAltTextRepublishStatus.json', {
+        method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    async removeImageFromAltTextQueue(assetPath) {
+      if (this.decidingAltTextQueue || this.republishingAltTextPages) return;
+      this.decidingAltTextQueue = true;
+      this.altTextQueueError = '';
+      let removalError = '';
+      try {
+        for (const entry of this.altTextQueueEntries.filter(item => item.assetPath === assetPath)) {
+          await this.sendAltTextQueueAction(entry, 'discard');
+          this.altTextQueueEntries = this.altTextQueueEntries.filter(item => item.reportToken !== entry.reportToken);
+        }
+      } catch (error) {
+        removalError = `Could not remove this image from the queue (${error.message}).`;
+      } finally {
+        this.decidingAltTextQueue = false;
+        await this.loadAltTextQueue();
+        if (removalError) {
+          this.altTextQueueError = this.altTextQueueError
+            ? `${removalError} ${this.altTextQueueError}`
+            : removalError;
+        }
+      }
+    },
+    async clearAltTextQueue() {
+      if (this.decidingAltTextQueue || this.republishingAltTextPages) return;
+      this.decidingAltTextQueue = true;
+      this.altTextQueueError = '';
+      const failures = [];
+      try {
+        for (const entry of this.altTextQueueEntries.slice()) {
+          try {
+            await this.sendAltTextQueueAction(entry, 'discard');
+          } catch (error) {
+            failures.push(`${entry.assetPath}: ${error.message}`);
+          }
+        }
+        await this.loadAltTextQueue();
+        if (failures.length) this.altTextQueueError = `Some queue entries could not be cleared: ${failures.join('; ')}`;
+      } finally {
+        this.decidingAltTextQueue = false;
+      }
+    },
+    async republishAltTextQueue() {
+      if (this.decidingAltTextQueue || this.republishingAltTextPages) return;
+      const entries = this.republishableAltTextQueueEntries;
+      if (!entries.length) return;
+      this.decidingAltTextQueue = true;
+      this.altTextQueueError = '';
+      this.republishedAltTextPages = [];
+      this.republishedAltTextAssets = [];
+      this.unpublishedAltTextPages = [];
+      this.altTextRepublishComplete = false;
+      this.altTextRepublishRequested = true;
+      this.republishingAltTextPages = true;
+      this.unconfirmedAltTextReports = [];
+      const accepted = [];
+      const failures = [];
+      try {
+        for (const entry of entries) {
+          try {
+            await this.sendAltTextQueueAction(entry, 'republish');
+            accepted.push(entry);
+          } catch (error) {
+            failures.push(`${entry.assetPath}: ${error.message}`);
+          }
+        }
+        await this.loadAltTextQueue();
+        const results = await Promise.all(accepted.map(async entry => {
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            try {
+              const query = new URLSearchParams({path: entry.assetPath, reportToken: entry.reportToken});
+              const response = await fetch(`/perapi/admin/assetAltTextRepublishStatus.json?${query}`,
+                {credentials: 'same-origin', cache: 'no-store'});
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              if (data.completed) return data;
+            } catch (error) {
+              failures.push(`${entry.assetPath}: status check failed (${error.message})`);
+              return null;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          failures.push(`${entry.assetPath}: republishing was not confirmed within 30 seconds`);
+          return null;
+        }));
+        this.republishedAltTextPages = [...new Set(results.flatMap(result => result && result.republishedPages || []))];
+        this.republishedAltTextAssets = [...new Set(results.flatMap(result => result && result.republishedAssets || []))];
+        this.unpublishedAltTextPages = [...new Set(results.flatMap(result => result && result.unpublishedPages || []))];
+        results.forEach((result, index) => {
+          if (result && result.error) failures.push(`${accepted[index].assetPath}: ${result.error}`);
+        });
+        const unconfirmedCount = results.filter(result => !result).length;
+        this.unconfirmedAltTextReports = accepted.filter((entry, index) => !results[index]);
+        this.altTextRepublishComplete = unconfirmedCount === 0;
+        this.altTextRepublishStatusUnavailable = unconfirmedCount
+          ? `Republish status could not be confirmed for ${unconfirmedCount} image${unconfirmedCount === 1 ? '' : 's'}. Verify the published pages manually.`
+          : '';
+        await this.refreshRepublishedImageNodes(this.republishedAltTextAssets);
+        await this.loadAltTextQueue();
+        this.altTextQueueError = failures.join('; ');
+      } finally {
+        this.republishingAltTextPages = false;
+        this.decidingAltTextQueue = false;
+      }
+    },
+    async decideAltTextQueue(entry, action) {
+      if (this.decidingAltTextQueue) return;
+      this.decidingAltTextQueue = true;
+      this.altTextQueueError = '';
+      try {
+        const body = new URLSearchParams({queue: 'true', path: entry.assetPath,
+          reportToken: entry.reportToken, action});
+        const response = await fetch('/perapi/admin/assetAltTextRepublishStatus.json', {
+          method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        this.altTextQueueEntries = this.altTextQueueEntries.filter(item => item.reportToken !== entry.reportToken);
+        this.refreshAltTextQueueCount();
+        if (action === 'republish') {
+          this.currentAltTextAssetPath = entry.assetPath;
+          this.currentAltTextReportToken = entry.reportToken;
+          this.unpublishedAltTextPages = entry.blockedPages || [];
+          this.altTextRepublishComplete = false;
+          this.altTextRepublishRequested = true;
+          this.republishingAltTextPages = true;
+          this.pollAltTextRepublishStatus(entry.assetPath, entry.reportToken);
+        } else if (this.currentAltTextReportToken === entry.reportToken) {
+          if (this.$refs.altTextDecisionModal) this.$refs.altTextDecisionModal.close();
+          this.currentAltTextReportToken = null;
+          this.currentAltTextAssetPath = null;
+        }
+      } catch (error) {
+        this.altTextQueueError = `Could not ${action === 'republish' ? 'republish' : 'discard'} this entry (${error.message}).`;
+        await this.loadAltTextQueue(this.currentAltTextAssetPath || null);
+      } finally {
+        this.decidingAltTextQueue = false;
+      }
+    },
+    checkAltTextRepublishStatusAgain() {
+      if (!this.altTextRepublishRequested || this.republishingAltTextPages || this.altTextRepublishComplete) return;
+      if (this.unconfirmedAltTextReports.length) {
+        this.retryUnconfirmedAltTextReports();
+        return;
+      }
+      if (!this.currentAltTextReportToken || !this.currentAltTextAssetPath) return;
+      this.altTextRepublishStatusUnavailable = '';
+      this.republishingAltTextPages = true;
+      this.pollAltTextRepublishStatus(this.currentAltTextAssetPath, this.currentAltTextReportToken);
+    },
+    async retryUnconfirmedAltTextReports() {
+      if (this.republishingAltTextPages || !this.unconfirmedAltTextReports.length) return;
+      this.republishingAltTextPages = true;
+      this.altTextRepublishStatusUnavailable = '';
+      this.altTextQueueError = '';
+      const reports = this.unconfirmedAltTextReports.slice();
+      const statusErrors = [];
+      try {
+        const results = await Promise.all(reports.map(async entry => {
+          let lastError = '';
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            try {
+              const query = new URLSearchParams({path: entry.assetPath, reportToken: entry.reportToken});
+              const response = await fetch(`/perapi/admin/assetAltTextRepublishStatus.json?${query}`,
+                {credentials: 'same-origin', cache: 'no-store'});
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              if (data.completed) return data;
+            } catch (error) {
+              lastError = error.message;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          statusErrors.push(`${entry.assetPath}: ${lastError
+            ? `status check failed (${lastError})`
+            : 'republishing was not confirmed within 30 seconds'}`);
+          return null;
+        }));
+        this.republishedAltTextPages = [...new Set([
+          ...this.republishedAltTextPages,
+          ...results.flatMap(result => result && result.republishedPages || []),
+        ])];
+        this.republishedAltTextAssets = [...new Set([
+          ...this.republishedAltTextAssets,
+          ...results.flatMap(result => result && result.republishedAssets || []),
+        ])];
+        this.unpublishedAltTextPages = [...new Set([
+          ...this.unpublishedAltTextPages,
+          ...results.flatMap(result => result && result.unpublishedPages || []),
+        ])];
+        results.forEach((result, index) => {
+          if (result && result.error) statusErrors.push(`${reports[index].assetPath}: ${result.error}`);
+        });
+        this.unconfirmedAltTextReports = reports.filter((entry, index) => !results[index]);
+        this.altTextRepublishComplete = this.unconfirmedAltTextReports.length === 0;
+        this.altTextRepublishStatusUnavailable = this.unconfirmedAltTextReports.length
+          ? `Republish status could not be confirmed for ${this.unconfirmedAltTextReports.length} image${this.unconfirmedAltTextReports.length === 1 ? '' : 's'}. Verify the published pages manually.`
+          : '';
+        await this.refreshRepublishedImageNodes(results.flatMap(result => result && result.republishedAssets || []));
+        await this.loadAltTextQueue();
+        this.altTextQueueError = statusErrors.join('; ');
+      } finally {
+        this.republishingAltTextPages = false;
+      }
+    },
+    openAltTextRepublishModal() {
+      this.$nextTick(() => {
+        if (this.$refs.altTextDecisionModal) this.$refs.altTextDecisionModal.open();
+      });
+    },
+    async pollAltTextRepublishStatus(assetPath, reportToken) {
+      if (this.altTextStatusController) this.altTextStatusController.abort();
+      const controller = new AbortController();
+      this.altTextStatusController = controller;
+      const isCurrentPoll = () => !controller.signal.aborted
+        && this.altTextStatusController === controller
+        && this.currentAltTextReportToken === reportToken;
+      const maxAttempts = 30;
+      let retryError = '';
+      try {
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+          if (!isCurrentPoll()) return;
+          try {
+            const query = new URLSearchParams({path: assetPath, reportToken});
+            const response = await fetch(`/perapi/admin/assetAltTextRepublishStatus.json?${query}`, {
+              credentials: 'same-origin', signal: controller.signal,
+            });
+            const data = await response.json();
+            if (!isCurrentPoll()) return;
+            if (!response.ok) {
+              const detail = data && data.message ? ` ${data.message}` : '';
+              throw new Error(`Republish status request failed (HTTP ${response.status}).${detail}`);
+            }
+            if (data && data.completed) {
+              this.republishedAltTextPages = Array.isArray(data.republishedPages) ? data.republishedPages : [];
+              this.republishedAltTextAssets = Array.isArray(data.republishedAssets) ? data.republishedAssets : [];
+              if (Array.isArray(data.unpublishedPages)) {
+                this.unpublishedAltTextPages = [...new Set([...this.unpublishedAltTextPages, ...data.unpublishedPages])];
+              }
+              this.republishingAltTextPages = false;
+              this.altTextRepublishComplete = true;
+              this.altTextRepublishStatusUnavailable = data.error || '';
+              await this.refreshRepublishedImageNodes(this.republishedAltTextAssets);
+              return;
+            }
+            if (data && data.retrying) {
+              retryError = data.error || '';
+              this.altTextRepublishStatusUnavailable = retryError
+                ? `Republishing is retrying: ${retryError}`
+                : 'Republishing is retrying.';
+            }
+          } catch (error) {
+            if (!isCurrentPoll()) return;
+            this.republishingAltTextPages = false;
+            this.altTextRepublishStatusUnavailable = `The image was saved, but ${error.message || 'republish results could not be loaded.'}`;
+            return;
+          }
+          await new Promise(resolve => {
+            let timer;
+            const finish = () => {
+              clearTimeout(timer);
+              controller.signal.removeEventListener('abort', finish);
+              resolve();
+            };
+            timer = setTimeout(finish, 1000);
+            controller.signal.addEventListener('abort', finish, {once: true});
+          });
+        }
+        if (!isCurrentPoll()) return;
+        this.republishingAltTextPages = false;
+        this.altTextRepublishStatusUnavailable = retryError
+          ? `Republishing was not confirmed within 30 seconds. Last reported error: ${retryError} Check again or review the server log.`
+          : 'Republishing was not confirmed within 30 seconds. Check again or review the server log.';
+      } finally {
+        if (this.altTextStatusController === controller) this.altTextStatusController = null;
+      }
+    },
+    async refreshRepublishedImageNodes(assetPaths) {
+      const paths = [...new Set((assetPaths || []).filter(path => typeof path === 'string' && path))];
+      const parents = [...new Set(paths.map(path => path.substring(0, path.lastIndexOf('/'))))];
+      await Promise.all(parents.map(parent => $perAdminApp.getApi().populateNodesForBrowser(parent)));
+    },
+    async republishQueuedImage(entry) {
+      if (!entry || this.decidingAltTextQueue || this.republishingAltTextPages) return;
+      this.decidingAltTextQueue = true;
+      this.altTextQueueError = '';
+      this.currentAltTextAssetPath = entry.assetPath;
+      this.currentAltTextReportToken = entry.reportToken;
+      this.unpublishedAltTextPages = entry.blockedPages || [];
+      this.republishedAltTextPages = [];
+      this.republishedAltTextAssets = [];
+      this.altTextRepublishComplete = false;
+      this.altTextRepublishRequested = true;
+      this.altTextRepublishStatusUnavailable = '';
+      try {
+        await this.sendAltTextQueueAction(entry, 'republish');
+        this.republishingAltTextPages = true;
+        await this.pollAltTextRepublishStatus(entry.assetPath, entry.reportToken);
+        if (this.altTextRepublishComplete && !this.altTextRepublishStatusUnavailable) {
+          this.altTextQueueEntries = this.altTextQueueEntries.filter(item => item.reportToken !== entry.reportToken);
+          this.currentAltTextSavedEntry = null;
+          this.refreshAltTextQueueCount();
+          await this.refreshRepublishedImageNodes(this.republishedAltTextAssets);
+          await this.loadAltTextQueue();
+        }
+      } catch (error) {
+        this.altTextQueueError = `Could not republish ${entry.assetPath} (${error.message}).`;
+        await this.loadAltTextQueue();
+      } finally {
+        this.republishingAltTextPages = false;
+        this.decidingAltTextQueue = false;
+      }
+    },
+    pageEditorUrl(path) {
+      return `/content/admin/pages/pages/edit.html/path:${path}`;
     },
     keepCurrentAltText() {
       this.$refs.altTextCompareModal.close();
@@ -1255,6 +1936,10 @@ export default {
           return
         }
       }
+      const savedPath = this.node.path;
+      const previousAltText = this.nodeType === NodeType.ASSET
+        ? (this.formGenerator.original ? this.formGenerator.original.alt : this.node.alt)
+        : undefined;
       let promise
       if (this.nodeType === NodeType.OBJECT) {
         promise = this.saveObject();
@@ -1263,7 +1948,26 @@ export default {
         this.edit = false;
       }
 
-      promise.then(() => $perAdminApp.getApi().populateNodesForBrowser(this.node.path.split('/').slice(0, -1).join('/')))
+      promise.then((response) => {
+        if (this.currentObject === savedPath) {
+          const responseData = response && response.data ? response.data : response;
+          const imageChanged = this.nodeType === NodeType.ASSET
+            && ((responseData && responseData.imageChanged === true)
+              || this.node.alt !== previousAltText
+              || (responseData && responseData.republishWarning));
+          this.showUnpublishedAltTextPages(response, imageChanged, savedPath, this.node.alt);
+        }
+        return $perAdminApp.getApi().populateNodesForBrowser(savedPath.split('/').slice(0, -1).join('/'));
+      }).catch((error) => {
+        const responseData = error && error.response && error.response.data;
+        const serverException = responseData && Array.isArray(responseData.exception)
+          ? responseData.exception.slice(0, 4).join(' ')
+          : '';
+        const detail = serverException || (responseData && responseData.message)
+          || (error && error.message) || 'The server rejected the save without returning error details.';
+        console.error(`Could not save ${savedPath}`, responseData || error || 'Request rejected without an error object');
+        $perAdminApp.notifyUser('error', `Could not save ${savedPath}: ${detail}`);
+      })
     },
     saveObject() {
       let data = this.node;
@@ -1401,6 +2105,70 @@ export default {
 </script>
 
 <style>
+.alt-text-queue-entry {
+  border-bottom: 1px solid #ddd;
+  padding: 12px 0;
+}
+.alt-text-queue-preview {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  text-align: left;
+}
+.alt-text-queue-preview img {
+  height: 72px;
+  object-fit: cover;
+  width: 72px;
+}
+.alt-text-queue-preview span span, .alt-text-queue-path {
+  display: block;
+}
+.alt-text-queue-path {
+  overflow-wrap: anywhere;
+}
+.alt-text-queue-image-hover {
+  position: relative;
+  cursor: default;
+  overflow-wrap: anywhere;
+}
+.alt-text-queue-image-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  padding: 5px;
+  background: white;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+}
+.alt-text-queue-image-hover:hover .alt-text-queue-image-tooltip,
+.alt-text-queue-image-hover:focus .alt-text-queue-image-tooltip {
+  display: block;
+}
+.alt-text-queue-image-tooltip img {
+  display: block;
+  max-width: 180px;
+  max-height: 140px;
+  object-fit: contain;
+}
+.alt-text-queue-tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 12px;
+}
+.alt-text-queue-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  padding: 10px 16px;
+}
+.alt-text-queue-tabs button.is-active {
+  border-bottom-color: #26a69a;
+  color: #00796b;
+}
 .deleteVersionWrapper {
   margin-left: auto;
 }
