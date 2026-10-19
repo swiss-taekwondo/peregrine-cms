@@ -438,7 +438,7 @@
 
           <div class="modal-footer">
             <div class="pathbrowser-footer-details">
-              <span class="pathbrowser-selected-path">{{ selectedPath.split('#')[0] }}</span>
+              <span class="pathbrowser-selected-path">{{ selectedPath && selectedPath.split ? selectedPath.split('#')[0] : '' }}</span>
 
             <div class="" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
               <select id="pageAnchor" v-model="selectedAnchor" class="browser-default" aria-label="Select anchor">
