@@ -606,6 +606,7 @@
                         box-shadow: none;
                         border: none;
                         clear: both;
+                        overflow: hidden;
                         > li {
                             position: relative;
                             .collapsible-header {

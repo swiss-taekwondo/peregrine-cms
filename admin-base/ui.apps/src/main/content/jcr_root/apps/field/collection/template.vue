@@ -46,7 +46,7 @@
             @drop.stop.prevent="onDrop($event, index, item)"
             @click.stop.prevent="onSetActiveItem(index)">
           <i class="material-icons">drag_handle</i>
-          <span v-if="schema.multifield">{{ itemName(item, index) }}</span>
+          <span v-if="schema.multifield" :title="itemName(item, index)">{{ itemName(item, index) }}</span>
           <input
               v-else
               ref="input"
