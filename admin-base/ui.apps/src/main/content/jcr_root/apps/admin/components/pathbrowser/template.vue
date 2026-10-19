@@ -428,15 +428,6 @@
                   <dd>{{ preview.created }}</dd>
                 </dl>
 
-                <div class="form-group" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
-                  <label for="pageAnchor">Anchor</label>
-                  <select id="pageAnchor" v-model="selectedAnchor" class="browser-default">
-                    <option value="">None</option>
-                    <option v-for="anchor in preview.anchors" :key="anchor" :value="anchor">
-                      {{ anchor }}
-                    </option>
-                  </select>
-                </div>
               </template>
               <div v-else class="no-asset-selected">
                 <span>{{ $i18n('noAssetSelected') }}</span>
@@ -447,7 +438,16 @@
 
           <div class="modal-footer">
             <div class="pathbrowser-footer-details">
-              <span class="pathbrowser-selected-path">{{ selectedPath }}</span>
+              <span class="pathbrowser-selected-path">{{ selectedPath.split('#')[0] }}</span>
+
+            <div class="" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
+              <select id="pageAnchor" v-model="selectedAnchor" class="browser-default" aria-label="Select anchor">
+                <option value="">None</option>
+                <option v-for="anchor in preview.anchors" :key="anchor" :value="anchor">
+                  #{{ anchor }}
+                </option>
+              </select>
+            </div>
             </div>
             <div class="pathbrowser-buttons">
               <button v-on:click="onCancel"
