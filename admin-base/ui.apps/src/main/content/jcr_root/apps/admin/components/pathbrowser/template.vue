@@ -427,6 +427,7 @@
                   <dt>Created</dt>
                   <dd>{{ preview.created }}</dd>
                 </dl>
+
               </template>
               <div v-else class="no-asset-selected">
                 <span>{{ $i18n('noAssetSelected') }}</span>
@@ -437,7 +438,16 @@
 
           <div class="modal-footer">
             <div class="pathbrowser-footer-details">
-              <span class="pathbrowser-selected-path">{{ selectedPath }}</span>
+              <span class="pathbrowser-selected-path">{{ selectedPath && selectedPath.split ? selectedPath.split('#')[0] : '' }}</span>
+
+            <div class="" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
+              <select id="pageAnchor" v-model="selectedAnchor" class="browser-default" aria-label="Select anchor">
+                <option value="">Anchor: none</option>
+                <option v-for="anchor in preview.anchors" :key="anchor" :value="anchor">
+                  #{{ anchor }}
+                </option>
+              </select>
+            </div>
             </div>
             <div class="pathbrowser-buttons">
               <button v-on:click="onCancel"
@@ -521,13 +531,6 @@ export default {
     } else {
       this.tab = 'browse'
     }
-
-    this.$on('setSelectedPath', () => {
-      console.log('setSelectedPath')
-    })
-    this.$on('setCurrentPath', () => {
-      console.log('setCurrentPath')
-    })
   },
   data: function () {
     return {
@@ -537,20 +540,12 @@ export default {
       search: '',
       previewType: this.selectedPath ? 'selected' : 'current',
       sortBy: '',
-      filterBy: '*'
+      filterBy: '*',
     }
   },
   computed: {
     isRoot() {
       return this.currentPath === this.browserRoot
-    },
-    preview() {
-      if (this.previewType === 'selected') {
-        const view = $perAdminApp.getView()
-        return $perAdminApp.findNodeFromPath(view.admin.pathBrowser, this.selectedPath)
-      } else {
-        return this.nodes
-      }
     },
     nodes() {
       let view = $perAdminApp.getView()
@@ -619,7 +614,30 @@ export default {
           this.selectedPath.startsWith('http://')
           || this.selectedPath.startsWith('https://')
       )
-    }
+    },
+    selectedAnchor: {
+      get() {
+        if (!this.selectedPath) return ''
+        const parts = this.selectedPath.split('#')
+        return parts.length > 1 ? parts[1] : ''
+      },
+      set(val) {
+        if (!this.selectedPath) return
+        const basePath = this.selectedPath.split('#')[0]
+        const newPath = val ? `${basePath}#${val}` : basePath
+        this.setSelectedPath(newPath)
+      }
+    },
+    preview() {
+      if (this.previewType === 'selected') {
+        const view = $perAdminApp.getView()
+        let basePath = this.selectedPath ? this.selectedPath.split('#')[0] : ''
+        basePath = basePath.replace(/\.html$/, '')
+        return $perAdminApp.findNodeFromPath(view.admin.pathBrowser, basePath)
+      } else {
+        return this.nodes
+      }
+    },
   },
   methods: {
     onPrevent() {
@@ -731,7 +749,9 @@ export default {
       ].indexOf(item.resourceType) >= 0
     },
     isSelected(path) {
-      return this.selectedPath === path
+      let basePath = this.selectedPath ? this.selectedPath.split('#')[0] : ''
+      basePath = basePath.replace(/\.html$/, '')
+      return basePath === path
     },
     hasPreview(item) {
 

@@ -119,6 +119,20 @@ public class NodesServlet extends AbstractBaseServlet {
         return answer;
     }
 
+    private void findAnchors(Resource resource, List<String> anchors) {
+        if (resource == null) return;
+
+        ValueMap props = resource.getValueMap();
+        String anchorName = props.get("anchorname", String.class);
+        if (anchorName != null && !anchorName.trim().isEmpty()) {
+            anchors.add(anchorName);
+        }
+
+        for (Resource child : resource.getChildren()) {
+            findAnchors(child, anchors);
+        }
+    }
+
     private void convertResource(JsonResponse json, Resource resource, boolean path) throws IOException {
         Iterable<Resource> children = resource.getChildren();
         for(Resource child : children) {
@@ -226,6 +240,17 @@ public class NodesServlet extends AbstractBaseServlet {
                             json.writeAttribute(COMPONENT, component);
                             convertNamedChild(json, content, TAGS);
                             convertNamedChild(json, content, METAPROPERTIES);
+
+                            // Find and append anchors
+                            List<String> anchors = new ArrayList<>();
+                            findAnchors(content, anchors);
+                            if (!anchors.isEmpty()) {
+                                json.writeArray("anchors");
+                                for (String anchor : anchors) {
+                                    json.writeString(anchor);
+                                }
+                                json.writeClose();
+                            }
                         } else {
                             logger.debug("No Content Child found for: '{}'", child.getPath());
                         }
@@ -336,4 +361,3 @@ public class NodesServlet extends AbstractBaseServlet {
     }
 
 }
-
