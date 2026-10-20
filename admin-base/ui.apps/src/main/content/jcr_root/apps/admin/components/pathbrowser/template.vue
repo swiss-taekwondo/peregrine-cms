@@ -442,7 +442,7 @@
 
             <div class="" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
               <select id="pageAnchor" v-model="selectedAnchor" class="browser-default" aria-label="Select anchor">
-                <option value="">None</option>
+                <option value="">Anchor: none</option>
                 <option v-for="anchor in preview.anchors" :key="anchor" :value="anchor">
                   #{{ anchor }}
                 </option>
