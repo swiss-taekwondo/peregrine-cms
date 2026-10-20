@@ -192,7 +192,7 @@ export default {
             },
             async onSelect() {
                 await this.clearInheritedMediaText(this.value)
-                this.value = normalizeAssetPath(this.selectedPath)
+                this.value = this.selectedPath
                 await this.syncMediaText(this.selectedPath)
                 this.$emit('select', this.selectedPath);
                 this.isOpen = false
@@ -232,7 +232,7 @@ export default {
                 this.browserRoot = root
                 this.browserType = type
                 this.currentPath = currentPath
-                this.selectedPath = selectedPath
+                this.selectedPath = this.value
 
       let options = this.schema.browserOptions
       if (options && options.withLink !== null && options.withLink !== undefined) {

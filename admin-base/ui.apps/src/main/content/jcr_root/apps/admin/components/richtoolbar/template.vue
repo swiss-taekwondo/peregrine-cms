@@ -2275,7 +2275,7 @@ export default {
         try {
           const url = new URL(href)
           if (url.hostname === window.location.hostname) {
-            resolvedHref = url.pathname
+            resolvedHref = url.pathname + url.search + url.hash
           }
         } catch (e) { /* Do nothing */ }
       }
@@ -2285,13 +2285,17 @@ export default {
         this.browser.path.selected = resolvedHref
         startPath = this.roots.pages || '/'
       } else {
-        let hrefPath = resolvedHref.replace(/\.html$/, '')
+        // Normalize only the repository path; keep query strings and fragments verbatim.
+        const suffixIndex = resolvedHref.search(/[?#]/)
+        const pathname = suffixIndex < 0 ? resolvedHref : resolvedHref.slice(0, suffixIndex)
+        const suffix = suffixIndex < 0 ? '' : resolvedHref.slice(suffixIndex)
+        let hrefPath = pathname.replace(/\.html$/, '')
         if (!hrefPath.startsWith('/content/')) {
           hrefPath = (this.roots.pages || '') + hrefPath
         }
         const lastSlash = hrefPath.lastIndexOf('/')
         startPath = lastSlash > 0 ? hrefPath.substring(0, lastSlash) : (this.roots.pages || '/')
-        this.browser.path.selected = hrefPath
+        this.browser.path.selected = hrefPath + suffix
       }
       this.browser.path.current = startPath
       this.startBrowsing(startPath)
@@ -2639,9 +2643,11 @@ export default {
       }
 
       const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
-      if (href.startsWith('/') && isPageType && !href.includes('.html')) {
+      if (href.startsWith('/') && isPageType) {
         const url = new URL(href, "https://placeholder.invalid");
-        url.pathname += ".html";
+        if (!url.pathname.endsWith('.html')) {
+          url.pathname += ".html";
+        }
         href = url.pathname + url.search + url.hash;
       }
 
