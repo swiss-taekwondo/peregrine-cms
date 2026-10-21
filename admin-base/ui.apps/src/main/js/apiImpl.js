@@ -48,6 +48,32 @@ function json(data) {
   return blob(content)
 }
 
+function appendDeletedCollections(nodeData, node) {
+  const deletedCollections = node && node._deletedCollections
+  if (!deletedCollections) return null
+
+  Object.keys(deletedCollections).forEach((field) => {
+    const deletedItems = deletedCollections[field]
+    if (!Array.isArray(deletedItems)) {
+      throw new TypeError(`Deleted collection '${field}' must be an array`)
+    }
+    if (nodeData[field] == null) {
+      nodeData[field] = []
+    } else if (!Array.isArray(nodeData[field])) {
+      throw new TypeError(`Cannot append deleted items to non-array field '${field}'`)
+    }
+    nodeData[field].push(...deletedItems)
+  })
+  delete nodeData._deletedCollections
+  return deletedCollections
+}
+
+function clearDeletedCollections(node, submittedCollections) {
+  if (submittedCollections && node && node._deletedCollections === submittedCollections) {
+    Vue.delete(node, '_deletedCollections')
+  }
+}
+
 // Shared Diffing Helper: Finds exact paths of nodes with string changes AND their changed properties
 function getModifiedPaths({ oldObj = {}, newObj = {}, pagePath, currentObjPath, modifiedPathsMap = {} }) {
   const keys = Object.keys(newObj);
@@ -1435,6 +1461,7 @@ class PerAdminImpl {
       if (node.component) {
         nodeData['sling:resourceType'] = node.component.split('-').join('/')
       }
+      const deletedCollections = appendDeletedCollections(nodeData, node)
       stripNulls(nodeData)
 
       // Sanitize the target path for backend calls
@@ -1540,6 +1567,7 @@ class PerAdminImpl {
 
                 updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
                   .then(() => {
+                    clearDeletedCollections(node, deletedCollections)
                     resolve(); // Unblock the UI immediately
                     processTranslations(); // Run translations in the background
                   })
@@ -1559,6 +1587,7 @@ class PerAdminImpl {
 
             updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
               .then(() => {
+                clearDeletedCollections(node, deletedCollections)
                 resolve(); // Unblock the UI immediately
                 processTranslations(); // Run translations in the background
               })
@@ -1576,6 +1605,7 @@ class PerAdminImpl {
       const formData = new FormData()
       // convert to a new object
       const nodeData = JSON.parse(JSON.stringify(node))
+      const deletedCollections = appendDeletedCollections(nodeData, node)
       stripNulls(nodeData)
       delete nodeData['jcr:created']
       delete nodeData['jcr:createdBy']
@@ -1627,6 +1657,7 @@ class PerAdminImpl {
           // Update the backend with the new data
           updateWithForm('/admin/updateResource.json' + path, formData)
             .then(() => {
+              clearDeletedCollections(node, deletedCollections)
               resolve(); // Unblock the UI immediately
 
               // Bail early if there's no translation reference
