@@ -329,7 +329,7 @@ export default {
       }
     },
     textEditorWriteToModel(vm = this) {
-      const content = this.value;
+      const content = vm.$refs.textEditor.innerHTML;
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
