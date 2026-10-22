@@ -23,7 +23,7 @@
  * #L%
  */
 import {LoggerFactory} from '../logger'
-import {set} from '../utils'
+import {componentDataEqualizer, set} from '../utils'
 
 let log = LoggerFactory.logger('editComponent').setLevelDebug()
 
@@ -38,9 +38,8 @@ function bringUpEditor(me, view, target) {
         if (!view.state.editor || !view.state.editor.originalData) return;
         const currentNode = me.findNodeFromPath(view.pageView.page, view.state.editor.path)
         if (!currentNode) return;
-        const replacer = (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v
-        const originalStr = JSON.stringify(view.state.editor.originalData, replacer)
-        const currentStr = JSON.stringify(currentNode, replacer)
+        const originalStr = JSON.stringify(view.state.editor.originalData, componentDataEqualizer)
+        const currentStr = JSON.stringify(currentNode, componentDataEqualizer)
         if (originalStr !== currentStr) {
             e.preventDefault();
             e.returnValue = '';
@@ -50,7 +49,7 @@ function bringUpEditor(me, view, target) {
     $perAdminApp.setBeforeUnloadHandler(beforeUnloadHandler);
 
     me.beforeStateAction(function(name) {
-        if (name === 'savePageEdit' || name === 'deletePageNode' || name === 'editComponent') {
+        if (name === 'savePageEdit' || name === 'deletePageNode' || name === 'editComponent' || name === 'addComponentToPath') {
             return true;
         }
         if (!view.state.editor || !view.state.editor.originalData) {
@@ -60,8 +59,8 @@ function bringUpEditor(me, view, target) {
         if (!currentNode) {
             return true;
         }
-        const originalStr = JSON.stringify(view.state.editor.originalData, (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v)
-        const currentStr = JSON.stringify(currentNode, (k, v) => k === '_opDeleteProps' || k === 'children' || v === null || v === '' ? undefined : v)
+        const originalStr = JSON.stringify(view.state.editor.originalData, componentDataEqualizer)
+        const currentStr = JSON.stringify(currentNode, componentDataEqualizer)
         if (originalStr === currentStr) {
             return true;
         }

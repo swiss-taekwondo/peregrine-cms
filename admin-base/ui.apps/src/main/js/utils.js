@@ -144,9 +144,15 @@ export function stripNulls(data) {
   }
 }
 
-export function jsonEqualizer(name, value) {
-  if (value === null || value === undefined || value.length === 0) {
+export function componentDataEqualizer(name, value) {
+  if (name === '_opDeleteProps' || name === 'children' || value === null || value === undefined || value === '') {
     return undefined;
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return Object.keys(value).sort().reduce((sorted, key) => {
+      sorted[key] = value[key];
+      return sorted;
+    }, {});
   }
   return value;
 }
