@@ -18,7 +18,7 @@
 
       <ul>
         <template v-for="sizePreset in fontSizeSelections">
-          <li :key="sizePreset" @mousedown="onPresetMouseDown(sizePreset)" @click="onListSelect(sizePreset)">
+          <li :key="sizePreset" @click="onListSelect(sizePreset)">
             {{ sizePreset }}
           </li>
         </template>
@@ -46,7 +46,6 @@ export default {
     lastInRteSelection: {
       default: null,
     },
-    exec: { type: Function },
     iconLib: {
       type: String,
       default: IconLib.MATERIAL_ICONS
@@ -80,58 +79,20 @@ export default {
   },
   onBeforeUnmount() {
   },
+  watch: {
+    currentFontSize(newValue) {
+      this.inputValue = newValue;
+    }
+  },
 
   methods: {
-    getInlineState() {
-      const view = window.$perAdminApp?.getView?.()
-      if (!view) return null
-      view.state = view.state || {}
-      view.state.inline = view.state.inline || {}
-      return view.state.inline
-    },
-
-    getPresetState() {
-      if (!window.__rteFontSizePreset) {
-        window.__rteFontSizePreset = { active: false, value: null }
-      }
-      return window.__rteFontSizePreset
-    },
-
-    setPresetSelectionActive(active, sizePreset = null) {
-      window.__rteFontSizePreset = {
-        active,
-        value: active ? sizePreset : null,
-      }
-      const inlineState = this.getInlineState()
-      if (!inlineState) return
-      inlineState.fontSizePresetActive = active
-      inlineState.fontSizePresetValue = active ? sizePreset : null
-    },
-
-    isPresetSelectionActive() {
-      return !!this.getPresetState()?.active
-    },
-
-
-    // sets fontsize of input to that of selected text
-    onSelectionChange(event) {
-      // skip if no selection is present or input is being focused
-      const iframeDoc = document.querySelector("iframe#editview")?.contentDocument
-      if (this.isPresetSelectionActive()) return
-      const currSelection = event.currentTarget.getSelection()
-      if (currSelection.rangeCount <= 0) return
-      if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
-      if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
-
-      const currRange = currSelection.getRangeAt(0);
-    },
-
     applyFontSize() {
       if (!this.inputValue) {
         console.warn("tried to set falsy fontsize");
         return;
       }
-      this.exec("updateFontSize", this.inputValue);
+      // this.exec("updateFontSize", this.inputValue);
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: "updateFontSize", value: this.inputValue  } }))
     },
     onAdd() {
       let value = this.inputValue;
@@ -167,16 +128,7 @@ export default {
 
     onListSelect(sizePreset) {
       this.inputValue = sizePreset;
-      this.$nextTick(() => {
-        this.$refs.inputRef.parentElement.blur();
-        this.$refs.inputRef.blur();
-        this.presetSelectionActive = false
-        this.setPresetSelectionActive(false)
-      });
-    },
-
-    onPresetMouseDown(sizePreset) {
-      this.exec('updateFontSize', sizePreset)
+      this.applyFontSize();
     },
 
     // save/load selection between manual inputs

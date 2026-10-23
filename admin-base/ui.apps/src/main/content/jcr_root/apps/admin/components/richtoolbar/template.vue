@@ -170,9 +170,6 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
           if (inDropdown) e.stopPropagation()
           if (isDisabled) return
           if (closeDropdown) closeDropdown()
-          if (vm && typeof vm.restoreSelection === 'function') {
-            vm.restoreSelection()
-          }
           if (btn.click) btn.click(); else vm.exec(btn.cmd)
         },
       },
@@ -267,7 +264,6 @@ export default {
       sharedHistoryIndex: -1,
       sharedHistoryLength: 0,
 
-      hasEditorSelection: false,
       layoutPing: 0,
       lastInRteSelection: null,
       currentFontSize: 14,
@@ -366,7 +362,7 @@ export default {
       this.scheduleDocElDimensionsUpdate()
     })
     if (!this.onSubNav) {
-      window.addEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
+      window.addEventListener('richtoolbar:cmd', this.inlineCmdHandler)
     }
 
     document.addEventListener('selectionchange', this.handleSelectionChange)
@@ -384,7 +380,7 @@ export default {
 	    console.log('toolbarDisabled:', newVal)
 	  },
     currentFontSize(newVal) {
-      console.log('fontsize:', newVal)
+      if (this.onSubNav) console.log('fontsize:', newVal)
     },
     lastInRteSelection(newVal) {
       console.log('selection:', newVal)
@@ -408,7 +404,7 @@ export default {
       clearTimeout(this._resizeTimeout)
       this._resizeTimeout = null
     }
-    window.removeEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
+    window.removeEventListener('richtoolbar:cmd', this.inlineCmdHandler)
     if (this._inlineClickStickyTimer) {
       clearTimeout(this._inlineClickStickyTimer)
       this._inlineClickStickyTimer = null
@@ -1174,14 +1170,14 @@ export default {
       }
     },
 
-    // inlineCmdHandler(event) {
-    //   if (this.onSubNav) return
-    //   if (typeof this[event.detail.cmd] === 'function') {
-    //     this[event.detail.cmd](event.detail.value)
-    //   } else {
-    //     this.exec(event.detail.cmd, event.detail.value || null)
-    //   }
-    // },
+    inlineCmdHandler(event) {
+      if (this.onSubNav) return
+      if (typeof this[event.detail.cmd] === 'function') {
+        this[event.detail.cmd](event.detail.value)
+      } else {
+        this.exec(event.detail.cmd, event.detail.value || null)
+      }
+    },
 
     // saveSnapshot() {
     //   const content = this.editorContent
@@ -1206,7 +1202,7 @@ export default {
 
 //     undo() {
 //       if (this.onSubNav) {
-//         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+//         window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'undo' } }))
 //         return
 //       }
 //       if (this.historyIndex > 0) {
@@ -1236,7 +1232,7 @@ export default {
 // 
 //     redo() {
 //       if (this.onSubNav) {
-//         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
+//         window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'redo' } }))
 //         return
 //       }
 //       if (this.historyIndex < this.historyStack.length - 1) {
@@ -1917,7 +1913,7 @@ export default {
 
     link() {
       if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'link' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'link' } }))
         return
       }
       this.insertLink()
@@ -2016,7 +2012,7 @@ export default {
 
     insertLink() {
       if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'insertLink' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'insertLink' } }))
         return
       }
       const doc = this.getInlineDoc() || this.getLastDoc()
@@ -2056,7 +2052,7 @@ export default {
 
     editLink() {
       if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'editLink' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'editLink' } }))
         return
       }
       let anchor = this.getActiveAnchor()
@@ -2147,7 +2143,7 @@ export default {
 
     removeLink() {
       if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'removeLink' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'removeLink' } }))
         return
       }
       let anchor = this.getActiveAnchor()

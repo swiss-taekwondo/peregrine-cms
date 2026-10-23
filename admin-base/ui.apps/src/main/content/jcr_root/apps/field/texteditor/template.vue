@@ -225,25 +225,25 @@ export default {
       if (headingDigit !== null) {
         event.preventDefault()
         const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
       } else if (key === Key.B && ctrlOrCmd) {
         // override and dispatchevent here for more predictable outcomes and avoid contenteditable default keybinds when we have custom functionality.
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'bold' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'bold' } }))
       } else if (key === Key.I && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'italic' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'italic' } }))
       } else if (key === Key.U && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'underline' } }))
       } else if (key === Key.Z && ctrlOrCmd) {
         event.preventDefault()
         event.stopPropagation()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'undo' } }))
       } else if (key === Key.Y && ctrlOrCmd) {
         event.preventDefault()
         event.stopPropagation()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'redo' } }))
     }
     },
     onFocusOut() {

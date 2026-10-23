@@ -762,13 +762,13 @@ export default {
         this.onInlineSelectAll(event)
       } else if (key === Key.B && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'bold' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'bold' } }))
       } else if (key === Key.I && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'italic' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'italic' } }))
       } else if (key === Key.U && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'underline' } }))
       } else if (headingDigit !== null) {
         event.preventDefault()
         const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
@@ -780,10 +780,10 @@ export default {
         }
       } else if (key === Key.Z && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'undo' } }))
       } else if (key === Key.Y && ctrlOrCmd) {
         event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'redo' } }))
       } else if (backspaceOrDelete) {
         this.onInlineDelete(event)
       } else if (arrowKey && !shift) {
