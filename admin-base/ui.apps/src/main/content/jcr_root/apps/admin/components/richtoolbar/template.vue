@@ -40,7 +40,6 @@ import {
 } from './groups'
 import {get, restoreSelection, saveSelection, saveDomRangeSelection, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
-import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
@@ -342,10 +341,6 @@ export default {
         withImageTab: false,
         newWindow: false,
         linkTitle: '',
-        altText: undefined,
-        mediaSourcePath: '',
-        mediaSourceText: '',
-        mediaSourceFallback: '',
         path: {
           current: '',
           selected: null,
@@ -659,8 +654,6 @@ export default {
           newWindow: this.browser.newWindow,
           linkTitle: this.browser.linkTitle,
           setLinkTitle: this.setBrowserLinkTitle,
-          altText: this.browser.altText,
-          setAltText: this.setBrowserAltText,
           currentPath: this.browser.path.current,
           setCurrentPath: this.setBrowserPathCurrent,
           selectedPath: this.browser.path.selected,
@@ -1859,7 +1852,7 @@ export default {
         while (block.firstChild) {
           replacement.appendChild(block.firstChild)
         }
-      
+
         block.replaceWith(replacement)
       }
 
@@ -2216,7 +2209,7 @@ export default {
         return
       }
       let anchor = this.getActiveAnchor()
-      
+
       if (anchor && (!this.getInlineDoc() || !this.getLastDoc())) {
         const anchorDoc = anchor.ownerDocument
         if (anchorDoc) {
@@ -2442,17 +2435,9 @@ export default {
       this.startBrowsing()
     },
 
-    async getDefaultMediaText(path = '') {
-      const rootData = this.$root && this.$root.$data
-      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
-      return resolveMediaText(path, adminNodes)
-    },
-
-    async editImage(vm = this, target) {
+    editImage(vm = this, target) {
       const title = target.getAttribute('title')
       const src = target.getAttribute('src')
-      const defaultText = title || target.getAttribute('alt') || await vm.getDefaultMediaText(src)
-      const fallbackText = fallbackMediaText(src)
       const srcArr = src.split('/')
       const img = {
         width: target.style.width ? parseInt(target.style.width) : null,
@@ -2468,10 +2453,7 @@ export default {
       vm.browser.withLinkTab = true
       vm.browser.newWindow = undefined
       vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.linkTitle = defaultText
-      vm.browser.mediaSourcePath = src
-      vm.browser.mediaSourceText = defaultText || ''
-      vm.browser.mediaSourceFallback = fallbackText
+      vm.browser.linkTitle = title
       vm.browser.element = target
       vm.browser.img.width = img.width
       vm.browser.img.height = img.height
@@ -2495,8 +2477,7 @@ export default {
       this.getEditorFrom(range).dispatchEvent(new Event('input'))
     },
 
-    async editIcon(vm = this, target) {
-      const alt = target.getAttribute('alt') || await vm.getDefaultMediaText(target.getAttribute('src') || '')
+    editIcon(vm = this, target) {
       const src = target.getAttribute('src') || ''
       const img = {
         width: target.style.width ? parseInt(target.style.width) : 20,
@@ -2510,7 +2491,6 @@ export default {
       vm.browser.path.selected = src
       vm.browser.path.current = src
       vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.altText = alt
       vm.browser.linkTitle = undefined
       vm.browser.newWindow = undefined
       vm.browser.element = target
@@ -2581,9 +2561,6 @@ export default {
       this.browser.open = false
       this.browser.withImageTab = false
       this.param.anchor = null
-      this.browser.mediaSourcePath = ''
-      this.browser.mediaSourceText = ''
-      this.browser.mediaSourceFallback = ''
       if (this.selection.restore) {
         this.restoreSelection()
         this.selection.restore = false
@@ -2602,7 +2579,7 @@ export default {
           this.onLinkSelect()
           return
         } else if (['insertImage', 'editImage', 'editIcon'].includes(this.param.cmd)) {
-          this.onImageSelect().catch((err) => console.error(err))
+          this.onImageSelect()
           return
         }
 
@@ -2752,31 +2729,30 @@ export default {
       }
     },
 
-    async onImageSelect() {
+    onImageSelect() {
       if (this.param.cmd === 'editIcon') {
         const imgEl = this.browser.element
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        imgEl.setAttribute('alt', this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected) || '')
         imgEl.setAttribute('style', styles.join(';'))
         const container = imgEl.closest('[data-per-inline]')
         if (container) $perAdminApp.action(this, 'writeElementToModel', container)
+        const editor = imgEl.closest('[contenteditable="true"]')
+        if (editor) editor.dispatchEvent(new Event('input'))
         this.browser.element = null
-        this.browser.altText = undefined
         this.browser.withImageTab = false
         return
       }
       if (this.param.cmd === 'editImage') {
         const imgEl = this.browser.element
-        const linkTitle = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
+        const linkTitle = this.browser.linkTitle
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
         imgEl.setAttribute('src', this.browser.path.selected)
-        imgEl.setAttribute('alt', linkTitle || '')
         imgEl.setAttribute('title', linkTitle || '')
         imgEl.setAttribute('style', styles.join(';'))
         if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
@@ -2785,9 +2761,6 @@ export default {
         const editor = imgEl.closest('[contenteditable="true"]')
         if (editor) editor.dispatchEvent(new Event('input'))
         this.browser.element = null
-        this.browser.mediaSourcePath = ''
-        this.browser.mediaSourceText = ''
-        this.browser.mediaSourceFallback = ''
       } else {
         // insertImage
         const sel = window.getSelection()
@@ -2797,12 +2770,10 @@ export default {
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
 
         const img = document.createElement('img')
         img.setAttribute('src', this.browser.path.selected)
-        img.setAttribute('alt', mediaText || '')
-        img.setAttribute('title', mediaText || '')
+        img.setAttribute('title', this.browser.linkTitle || '')
         if (styles.length) {
           img.setAttribute('style', styles.join(';'))
         }
@@ -2818,9 +2789,6 @@ export default {
         if (editor) editor.dispatchEvent(new Event('input'))
 
       }
-      this.browser.mediaSourcePath = ''
-      this.browser.mediaSourceText = ''
-      this.browser.mediaSourceFallback = ''
     },
 
     setBrowserPathCurrent(path) {
@@ -2829,12 +2797,6 @@ export default {
 
     setBrowserPathSelected(path) {
       this.browser.path.selected = path
-      if (this.param.cmd === 'editImage' && path && path !== this.browser.mediaSourcePath) {
-        const current = String(this.browser.linkTitle || '').trim()
-        if (!current || current === this.browser.mediaSourceText || current === this.browser.mediaSourceFallback) {
-          this.browser.linkTitle = ''
-        }
-      }
     },
 
     setBrowserResourceType(type) {
@@ -2851,10 +2813,6 @@ export default {
 
     setBrowserLinkTitle(event) {
       this.browser.linkTitle = event.target.value
-    },
-
-    setBrowserAltText(event) {
-      this.browser.altText = event.target.value
     },
 
     getSelection(index = null) {

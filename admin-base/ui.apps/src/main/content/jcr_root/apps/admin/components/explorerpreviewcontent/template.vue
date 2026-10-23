@@ -388,7 +388,6 @@ import {
 import NodeNameValidation from "../../../../../../js/mixins/NodeNameValidation";
 import ReferenceUtil from "../../../../../../js/mixins/ReferenceUtil";
 import { deepClone, get, set } from "../../../../../../js/utils";
-import { resolveMediaText } from "../../../js/mediaText";
 import Action from "../action/template.vue";
 import ConfirmDialog from "../confirmdialog/template.vue";
 import ExplorerPreviewNavItem from "../explorerpreviewnavitem/template.vue";
@@ -804,6 +803,9 @@ export default {
           this.$set(asset, 'alt', altText);
           const preview = altText.length > 500 ? `${altText.substring(0, 500)}...` : altText;
           $perAdminApp.notifyUser('info', `Alt text saved: ${preview}`);
+
+          // Refresh the explorer list to update the published/outdated status indicators
+          $perAdminApp.getApi().populateNodesForBrowser(path.split('/').slice(0, -1).join('/'));
         }
         return isCurrentRequest();
       } catch (error) {
@@ -936,7 +938,6 @@ export default {
           newVal: newVal
         })
       }
-      this.autoFillAltFromAsset(newVal, schemaKey)
     },
     onValidated(isValid, errors) {
       if (this.edit) {
@@ -944,53 +945,6 @@ export default {
       }
       this.valid.state = isValid;
       this.valid.errors = errors;
-    },
-
-    async autoFillAltFromAsset(newVal, schemaKey) {
-      if (!newVal || typeof newVal !== 'string' || !newVal.startsWith('/content/')) return
-      const schema = this.getSchema(SchemaKey.MODEL)
-      if (!schema || !schema.fields) return
-      const findField = (fields) => {
-        if (!fields) return null
-        for (const f of fields) {
-          if (f.model === schemaKey) return f
-          if (f.fields) {
-            const found = findField(f.fields)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      const field = findField(schema.fields)
-      if (!field) return
-      let altModelKey = null
-      if (field.defaultAltFromAsset === true) {
-        altModelKey = schemaKey + 'Alt'
-        if (field.model !== altModelKey) {
-          const byDefaultFrom = (fields) => {
-            for (const f of fields) {
-              if (f.defaultFrom === schemaKey) return f
-              if (f.fields) {
-                const found = byDefaultFrom(f.fields)
-                if (found) return found
-              }
-            }
-            return null
-          }
-          const targetField = byDefaultFrom(schema.fields)
-          if (targetField) {
-            altModelKey = targetField.model
-          }
-        }
-      }
-      if (!altModelKey) return
-      if (this.node[altModelKey]) return
-      const rootData = this.$root && this.$root.$data
-      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
-      const text = await resolveMediaText(newVal, adminNodes)
-      if (text && !this.node[altModelKey]) {
-        this.node[altModelKey] = text
-      }
     },
 
     onConfirmDialog (event) {
@@ -1436,7 +1390,7 @@ export default {
 .generate-alt-text-action {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 14px;
     width: 100%;
     text-align: left;
     font: inherit;
