@@ -533,3 +533,7 @@ export function asyncLoadJsScript(src) {
 export function isMac() {
   return window.navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 }
+
+export function isImagePath(path = "") {
+  return (/\.(jpg|jpeg|png|gif|svg|webp|avif)$/i).test(String(path || ""));
+}
