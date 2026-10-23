@@ -122,7 +122,7 @@ export default {
             },
             async onSelect() {
                 this.value = this.selectedPath
-                this.$emit('select', this.selectedPath);
+                this.$emit('select', this.selectedPath)
                 this.isOpen = false
             },
             setCurrentPath(path){
@@ -158,7 +158,7 @@ export default {
                 this.browserRoot = root
                 this.browserType = type
                 this.currentPath = currentPath
-                this.selectedPath = selectedPath
+                this.selectedPath = this.value
 
       let options = this.schema.browserOptions
       if (options && options.withLink !== null && options.withLink !== undefined) {
