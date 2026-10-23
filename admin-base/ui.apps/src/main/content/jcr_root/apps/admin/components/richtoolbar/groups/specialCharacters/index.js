@@ -10,7 +10,7 @@ export default (vm) => {
     searchable: true,
     order: 90,
     priority: 110,
-    isDisabled: () => !vm.hasEditorSelection && !vm._specialCharRange,
+    isDisabled: () => vm.toolbarDisabled && !vm._specialCharRange,
     rules: () => !vm.responsive || !vm.hiddenGroups['special-characters'],
     items: [
       ...specialCharacters(vm)

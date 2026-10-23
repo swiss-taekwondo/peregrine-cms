@@ -7,6 +7,6 @@ export default (vm) => {
     iconLib: IconLib.PLAIN_TEXT,
     cmd: 'superscript',
     isActive: () => vm.itemIsTag('SUP'),
-    isDisabled: () => !vm.hasEditorSelection
+    isDisabled: () => vm.toolbarDisabled
   }
 }

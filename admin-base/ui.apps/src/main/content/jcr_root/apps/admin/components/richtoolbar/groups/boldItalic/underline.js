@@ -7,6 +7,6 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     cmd: 'underline',
     isActive: () => vm.queryCmdState('underline'),
-    isDisabled: () => !vm.hasEditorSelection
+    isDisabled: () => vm.toolbarDisabled
   }
 }

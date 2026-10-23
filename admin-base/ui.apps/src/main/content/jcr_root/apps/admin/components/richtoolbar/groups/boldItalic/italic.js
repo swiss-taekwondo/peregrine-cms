@@ -7,6 +7,6 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     cmd: 'italic',
     isActive: () => vm.queryCmdState('italic'),
-    isDisabled: () => !vm.hasEditorSelection
+    isDisabled: () => vm.toolbarDisabled
   }
 }

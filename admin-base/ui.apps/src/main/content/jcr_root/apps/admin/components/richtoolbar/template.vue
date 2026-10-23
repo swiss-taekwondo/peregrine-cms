@@ -38,7 +38,7 @@ import {
   superSubScriptGroup,
   textFormatGroup,
 } from './groups'
-import {get, restoreSelection, saveSelection, saveDomRangeSelection, set} from '../../../../../../js/utils'
+import {get, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
 import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
@@ -126,121 +126,7 @@ function getDeepestLastTextNode(node) {
 }
 
 const blockSelector = 'p, h1, h2, h3, h4, h5, h6, div:not([contenteditable="true"]'
-function getSelectedBlocksFromRange(range, editor) {
-  if (!range || !editor) return []
 
-  // A caret formats the block containing it.
-  if (range.collapsed) {
-    const container = range.startContainer
-    const element = container.nodeType === Node.ELEMENT_NODE
-      ? container
-      : container.parentElement
-    const block = element?.closest(blockSelector)
-
-    return block && editor.contains(block) ? [block] : []
-  }
-
-  // A text selection formats every block it intersects.
-  return Array.from(editor.querySelectorAll(blockSelector))
-    .filter((block) => range.intersectsNode(block))
-}
-
-function wrapSelectedRangeInBlock(range, editor, tagName) {
-  if (range.collapsed) return false
-  const doc = editor.ownerDocument
-  // Handle a selection within a text node directly under contenteditable.
-  const textNode = range.startContainer
-  if (
-    textNode.nodeType === Node.TEXT_NODE &&
-    textNode === range.endContainer &&
-    textNode.parentNode === editor
-  ) {
-    const text = textNode.nodeValue || ''
-    const before = text.slice(0, range.startOffset)
-    const selected = text.slice(range.startOffset, range.endOffset)
-    const after = text.slice(range.endOffset)
-
-    if (!selected) return false
-
-    const wrapped = doc.createElement(tagName)
-    wrapped.textContent = selected
-
-    const fragment = doc.createDocumentFragment()
-    if (before) fragment.appendChild(doc.createTextNode(before))
-    fragment.appendChild(wrapped)
-    if (after) fragment.appendChild(doc.createTextNode(after))
-
-    textNode.replaceWith(fragment)
-
-    const nextRange = doc.createRange()
-    nextRange.selectNodeContents(wrapped)
-    const selection = doc.defaultView?.getSelection?.()
-    if (selection) {
-      selection.removeAllRanges()
-      selection.addRange(nextRange)
-    }
-
-    return true
-  }
-
-  const getBlock = (node) => {
-    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement
-    return element?.closest(blockSelector) || null
-  }
-
-  const block = getBlock(range.startContainer)
-  if (!block || getBlock(range.endContainer) !== block || !editor.contains(block)) {
-    return false
-  }
-
-  const beforeRange = doc.createRange()
-  beforeRange.selectNodeContents(block)
-  beforeRange.setEnd(range.startContainer, range.startOffset)
-
-  const afterRange = doc.createRange()
-  afterRange.selectNodeContents(block)
-  afterRange.setStart(range.endContainer, range.endOffset)
-
-  const before = beforeRange.cloneContents()
-  const selected = range.cloneContents()
-  const after = afterRange.cloneContents()
-
-  const wrapped = doc.createElement(tagName)
-  for (const attr of Array.from(block.attributes)) {
-    wrapped.setAttribute(attr.name, attr.value)
-  }
-  wrapped.append(selected)
-
-  const replacements = []
-
-  if (before.hasChildNodes()) {
-    const beforeBlock = block.cloneNode(false)
-    beforeBlock.append(before)
-    replacements.push(beforeBlock)
-  }
-
-  replacements.push(wrapped)
-
-  if (after.hasChildNodes()) {
-    const afterBlock = block.cloneNode(false)
-    afterBlock.append(after)
-    replacements.push(afterBlock)
-  }
-
-  const fragment = doc.createDocumentFragment()
-  replacements.forEach((node) => fragment.appendChild(node))
-  block.replaceWith(fragment)
-
-  const nextRange = doc.createRange()
-  nextRange.selectNodeContents(wrapped)
-  const selection = doc.defaultView?.getSelection?.()
-  if (selection) {
-    selection.removeAllRanges()
-    selection.addRange(nextRange)
-  }
-
-  return true
-}
 
 function findComponentWithMethodFromElement(element, methodName) {
   let current = element
@@ -317,7 +203,6 @@ export default {
 
   data() {
     return {
-      defaultFontSize: null,
       openGroups: {},
       selection: {
         restore: false,
@@ -384,6 +269,10 @@ export default {
 
       hasEditorSelection: false,
       layoutPing: 0,
+      lastInRteSelection: null,
+      currentFontSize: 14,
+      lastRteSelectionInlineOnly: null,
+      toolbarDisabled: true,
     }
   },
 
@@ -471,127 +360,42 @@ export default {
   },
 
   mounted() {
-    document.addEventListener('selectionchange', this.setDefaultFontSize)
     this.$nextTick(() => {
       window.addEventListener('resize', this.scheduleDocElDimensionsUpdate)
       this.initResizeObserver()
       this.scheduleDocElDimensionsUpdate()
     })
-    this.saveSnapshot()
-    this.$watch('editorContent', () => {
-      if (this.isUndoing) {
-        this.isUndoing = false
-      }
-      this.saveSnapshot()
-    })
     if (!this.onSubNav) {
       window.addEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
-
-      this._updateEditorSelection = () => {
-        const selectionRange = this.getEditorSelection()
-        const view = $perAdminApp.getView()
-        const lastAnchorClickAt = get(view, '/state/inline/lastAnchorClickAt', 0) || 0
-        const anchorClickHold = lastAnchorClickAt && (Date.now() - lastAnchorClickAt < 250)
-        const hasSelection = !!selectionRange || anchorClickHold
-        this.hasEditorSelection = selectionRange && get(view, '/state/inline/rich')
-        if (selectionRange) {
-          this._savedRange = selectionRange.cloneRange()
-          const editorEl = this.getEditorFrom(selectionRange)
-          if (editorEl) {
-            this.selection.doc = editorEl.ownerDocument
-            this.selection.container = editorEl
-            this.selection.buffer = saveSelection(editorEl, editorEl.ownerDocument)
-            const anchor = this.getAnchorFromRange(selectionRange)
-            this.activeAnchor = anchor || null
-            if (view) set(view, '/state/inline/lastAnchor', anchor || null)
-          }
-        } else if (!this.browser.open && !this.param.cmd) {
-          this.activeAnchor = null
-          if (view) set(view, '/state/inline/lastAnchor', null)
-        }
-        this.layoutPing += 1
-        this.$forceUpdate()
-        window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
-          detail: {
-            hasEditorSelection: hasSelection,
-            doc: this.selection.doc,
-            container: this.selection.container,
-            buffer: this.selection.buffer,
-            savedRange: this._savedRange ? this._savedRange.cloneRange() : null,
-            activeAnchor: this.activeAnchor,
-            source: anchorClickHold ? 'inline-click' : 'selectionchange',
-          },
-        }))
-      }
-      document.addEventListener('selectionchange', this._updateEditorSelection)
-
-      this.$watch('inline', (val) => {
-        if (!val) {
-          this.hasEditorSelection = false
-          this.activeAnchor = null
-          window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
-            detail: {
-              hasEditorSelection: false,
-              doc: null,
-              container: null,
-              buffer: null,
-              savedRange: null,
-              activeAnchor: null,
-            },
-          }))
-        } else {
-          const iframe = document.querySelector('iframe#editview')
-          if (iframe?.contentDocument && !this._iframeSelectionListenerRegistered) {
-            iframe.contentDocument.addEventListener('selectionchange', this._updateEditorSelection)
-            iframe.contentDocument.addEventListener('mousedown', this._closeDropdowns)
-            this._iframeSelectionListenerRegistered = true
-          }
-        }
-      })
-    } else {
-      this._historyHandler = (e) => {
-        this.sharedHistoryIndex = e.detail.historyIndex
-        this.sharedHistoryLength = e.detail.historyLength
-      }
-      window.addEventListener('richtoolbar:history', this._historyHandler)
-
-      this._selectionHandler = (e) => {
-        this.hasEditorSelection = !!e.detail.hasEditorSelection || !!e.detail.activeAnchor
-        this.selection.doc = e.detail.doc || null
-        this.selection.container = e.detail.container || null
-        this.selection.buffer = e.detail.buffer || null
-        this._savedRange = e.detail.savedRange ? e.detail.savedRange.cloneRange() : null
-        const inlineClickAnchor = e.detail.source === 'inline-click' ? e.detail.activeAnchor || null : null
-        if (inlineClickAnchor) {
-          this.activeAnchor = inlineClickAnchor
-          if (this._inlineClickStickyTimer) {
-            clearTimeout(this._inlineClickStickyTimer)
-          }
-          this._inlineClickStickyUntil = Date.now() + 500
-          this._inlineClickStickyTimer = setTimeout(() => {
-            this._inlineClickStickyTimer = null
-            if (this._inlineClickStickyUntil && Date.now() >= this._inlineClickStickyUntil) {
-              this._inlineClickStickyUntil = 0
-            }
-          }, 500)
-        } else {
-          const stickyAnchorActive = this._inlineClickStickyUntil && Date.now() < this._inlineClickStickyUntil
-          this.activeAnchor = e.detail.activeAnchor || (stickyAnchorActive ? this.activeAnchor : null)
-          if (!stickyAnchorActive) {
-            this._inlineClickStickyUntil = 0
-          }
-        }
-        this.layoutPing += 1
-        this.$forceUpdate()
-      }
-      window.addEventListener('richtoolbar:selection', this._selectionHandler)
     }
+
+    document.addEventListener('selectionchange', this.handleSelectionChange)
+    document.querySelector('#editview').contentDocument.addEventListener('selectionchange', this.handleSelectionChange)
     document.addEventListener('mousedown', this._closeDropdowns)
+  },
+
+  destroyed() {
+    document.removeEventListener('selectionchange', this.handleSelectionChange)
+    document.querySelector('#editview').contentDocument.removeEventListener('selectionchange', this.handleSelectionChange)
+  },
+
+  watch: {
+	  toolbarDisabled(newVal) {
+	    console.log('toolbarDisabled:', newVal)
+	  },
+    currentFontSize(newVal) {
+      console.log('fontsize:', newVal)
+    },
+    lastInRteSelection(newVal) {
+      console.log('selection:', newVal)
+    },
+    lastRteSelectionInlineOnly(newVal) {
+    console.log('inline sel:', newVal)
+    },
   },
 
   beforeDestroy() {
     window.removeEventListener('resize', this.scheduleDocElDimensionsUpdate)
-    document.removeEventListener('selectionchange', this.setDefaultFontSize)
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
       this._resizeObserver = null
@@ -605,23 +409,9 @@ export default {
       this._resizeTimeout = null
     }
     window.removeEventListener('inline-richtoolbar:cmd', this.inlineCmdHandler)
-    if (this._historyHandler) {
-      window.removeEventListener('richtoolbar:history', this._historyHandler)
-    }
-    if (this._selectionHandler) {
-      window.removeEventListener('richtoolbar:selection', this._selectionHandler)
-    }
     if (this._inlineClickStickyTimer) {
       clearTimeout(this._inlineClickStickyTimer)
       this._inlineClickStickyTimer = null
-    }
-    if (this._updateEditorSelection) {
-      document.removeEventListener('selectionchange', this._updateEditorSelection)
-      const iframe = document.querySelector('iframe#editview')
-      if (iframe?.contentDocument && this._iframeSelectionListenerRegistered) {
-        iframe.contentDocument.removeEventListener('selectionchange', this._updateEditorSelection)
-        iframe.contentDocument.removeEventListener('mousedown', this._closeDropdowns)
-      }
     }
     document.removeEventListener('mousedown', this._closeDropdowns)
   },
@@ -689,14 +479,72 @@ export default {
   },
 
   methods: {
-    setDefaultFontSize() {
-      const inlineEditingComponent = document.querySelector('#editview')?.contentDocument?.querySelector('.inline-editing')
-      if (inlineEditingComponent) {
-        const fontSizeNr = parseInt(getComputedStyle(inlineEditingComponent).fontSize)
-        if (!isNaN(fontSizeNr)) {
-          this.defaultFontSize = fontSizeNr
-        }
-      }
+  // Sidebar rte handles selection/range storing and passes it to toolbar
+  handleSelectionChange(event) {
+    try{
+    let clonedRange;
+    const doc = event.target.ownerDocument || event.target
+    const inIframe = doc.defaultView.top.document !== doc;
+    const rte = doc.querySelector(".inline-edit.inline-editing")
+    const selection = doc.getSelection()
+    if (selection.rangeCount < 1) {
+      console.warn('debug no ranges', selection)
+      return
+    }
+    const range = doc.getSelection().getRangeAt(0)
+    if (rte) {
+	    const rangeWithinRte = rte.contains(range.startContainer) && rte.contains(range.endContainer)
+	    if (rangeWithinRte) {
+	      this.lastInRteSelection = range.cloneRange()
+	      // for default fontsize, should always get set when clicking rte
+	      if (inIframe) this.lastRteSelectionInlineOnly = range.cloneRange()
+	    }
+    }
+
+    const commonAncestorEl = range.commonAncestorContainer.closest ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement
+    this.toolbarDisabled = !commonAncestorEl.closest('.inline-edit, .richtoolbar')
+    this.pingRichToolbar()
+
+
+    // fontsize
+    const fontSizeSpan = commonAncestorEl.closest('.inline-edit [style*="font-size"]')
+    if (fontSizeSpan) {
+      this.currentFontSize = parseInt(fontSizeSpan.style.fontSize)
+    } else {
+      const getFontSizeFrom =
+        this.lastRteSelectionInlineOnly?.commonAncestorContainer ? (this.lastRteSelectionInlineOnly.commonAncestorContainer.closest ? this.lastRteSelectionInlineOnly.commonAncestorContainer : this.lastRteSelectionInlineOnly.commonAncestorContainer.parentElement).closest('.inline-edit') :
+        document.querySelector('#editview').contentDocument.querySelector('[data-editing-component]') // fallback if rte was only ever touched via sidebar
+      this.currentFontSize = parseInt(window.getComputedStyle(getFontSizeFrom).fontSize)
+    }
+    // console.log('event', {
+    //   inIframe,
+    //   rte,
+    //   rangeWithinRte,
+    //   range,
+    //   lastInRteSelection: this.lastInRteSelection,
+    //   lastRteSelectionInlineOnly: this.lastRteSelectionInlineOnly,
+    //   fontSize: this.currentFontSize,
+    // });
+    } catch (error) {
+      console.error('error handling selection', error)
+    }
+  },
+
+    restoreEditorSelection() {
+      const ownerDocument = this.lastInRteSelection.startContainer.ownerDocument
+      const selection = ownerDocument.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(this.lastInRteSelection)
+    },
+
+    selectElementContents(element) {
+      const doc = element.ownerDocument
+      const range = doc.createRange();
+      range.selectNodeContents(element);
+      const selection = doc.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      console.log('element', element)
     },
 
     initResizeObserver() {
@@ -1004,13 +852,9 @@ export default {
       return h(RichtoolbarFontSize, {
         key,
         props: {
-          defaultFontSize: this.defaultFontSize,
           exec: this.exec,
-          isRangeInEditor: this.isRangeInEditor,
-          isNodeInEditor: this.isNodeInEditor,
-          getDefaultFontSize: this.getDefaultFontSize,
-          getSelection: this.getSelection,
-          getEditorSelection: this.getEditorSelection,
+          lastInRteSelection: this.lastInRteSelection,
+          currentFontSize: this.currentFontSize,
           disabled: !this.hasEditorSelection,
         },
       })
@@ -1330,95 +1174,95 @@ export default {
       }
     },
 
-    inlineCmdHandler(event) {
-      if (this.onSubNav) return
-      if (typeof this[event.detail.cmd] === 'function') {
-        this[event.detail.cmd](event.detail.value)
-      } else {
-        this.exec(event.detail.cmd, event.detail.value || null)
-      }
-    },
+    // inlineCmdHandler(event) {
+    //   if (this.onSubNav) return
+    //   if (typeof this[event.detail.cmd] === 'function') {
+    //     this[event.detail.cmd](event.detail.value)
+    //   } else {
+    //     this.exec(event.detail.cmd, event.detail.value || null)
+    //   }
+    // },
 
-    saveSnapshot() {
-      const content = this.editorContent
-      if (this.historyIndex > -1 && this.historyStack[this.historyIndex] === content) {
-        return
-      }
-      if (this.historyIndex < this.historyStack.length - 1) {
-        this.historyStack = this.historyStack.slice(0, this.historyIndex + 1)
-      }
-      this.historyStack.push(content)
-      this.historyIndex++
-      if (this.historyStack.length > 50) {
-        this.historyStack.shift()
-        this.historyIndex--
-      }
-      if (!this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-          detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-        }))
-      }
-    },
+    // saveSnapshot() {
+    //   const content = this.editorContent
+    //   if (this.historyIndex > -1 && this.historyStack[this.historyIndex] === content) {
+    //     return
+    //   }
+    //   if (this.historyIndex < this.historyStack.length - 1) {
+    //     this.historyStack = this.historyStack.slice(0, this.historyIndex + 1)
+    //   }
+    //   this.historyStack.push(content)
+    //   this.historyIndex++
+    //   if (this.historyStack.length > 50) {
+    //     this.historyStack.shift()
+    //     this.historyIndex--
+    //   }
+    //   if (!this.onSubNav) {
+    //     window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+    //       detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
+    //     }))
+    //   }
+    // },
 
-    undo() {
-      if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
-        return
-      }
-      if (this.historyIndex > 0) {
-        this.isUndoing = true
-        this.historyIndex--
-        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-          detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-        }))
-        const content = this.historyStack[this.historyIndex]
-        const container = this.getInlineContainer()
-        const doc = this.getInlineDoc()
-        const savedSel = container && doc ? saveSelection(container, doc) : null
-        const textEditor = this.$el.closest('.text-editor-wrapper')
-          ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-          : this.$el.nextElementSibling
-        textEditor.innerHTML = content
-        $perAdminApp.action(this, 'textEditorWriteToModel')
-        this.$nextTick(() => {
-          this.isUndoing = false
-          if (savedSel && container && doc) {
-            restoreSelection(container, savedSel, doc)
-          }
-          this.pingRichToolbar()
-        })
-      }
-    },
-
-    redo() {
-      if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
-        return
-      }
-      if (this.historyIndex < this.historyStack.length - 1) {
-        this.isUndoing = true
-        this.historyIndex++
-        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-          detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-        }))
-        const content = this.historyStack[this.historyIndex]
-        const container = this.getInlineContainer()
-        const doc = this.getInlineDoc()
-        const savedSel = container && doc ? saveSelection(container, doc) : null
-        const textEditor = this.$el.closest('.text-editor-wrapper')
-          ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-          : this.$el.nextElementSibling
-        textEditor.innerHTML = content
-        $perAdminApp.action(this, 'textEditorWriteToModel')
-        this.$nextTick(() => {
-          this.isUndoing = false
-          if (savedSel && container && doc) {
-            restoreSelection(container, savedSel, doc)
-          }
-          this.pingRichToolbar()
-        })
-      }
-    },
+//     undo() {
+//       if (this.onSubNav) {
+//         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
+//         return
+//       }
+//       if (this.historyIndex > 0) {
+//         this.isUndoing = true
+//         this.historyIndex--
+//         window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+//           detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
+//         }))
+//         const content = this.historyStack[this.historyIndex]
+//         const container = this.getInlineContainer()
+//         const doc = this.getInlineDoc()
+//         const savedSel = container && doc ? saveSelection(container, doc) : null
+//         const textEditor = this.$el.closest('.text-editor-wrapper')
+//           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
+//           : this.$el.nextElementSibling
+//         textEditor.innerHTML = content
+//         $perAdminApp.action(this, 'textEditorWriteToModel')
+//         this.$nextTick(() => {
+//           this.isUndoing = false
+//           if (savedSel && container && doc) {
+//             restoreSelection(container, savedSel, doc)
+//           }
+//           this.pingRichToolbar()
+//         })
+//       }
+//     },
+// 
+//     redo() {
+//       if (this.onSubNav) {
+//         window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
+//         return
+//       }
+//       if (this.historyIndex < this.historyStack.length - 1) {
+//         this.isUndoing = true
+//         this.historyIndex++
+//         window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+//           detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
+//         }))
+//         const content = this.historyStack[this.historyIndex]
+//         const container = this.getInlineContainer()
+//         const doc = this.getInlineDoc()
+//         const savedSel = container && doc ? saveSelection(container, doc) : null
+//         const textEditor = this.$el.closest('.text-editor-wrapper')
+//           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
+//           : this.$el.nextElementSibling
+//         textEditor.innerHTML = content
+//         $perAdminApp.action(this, 'textEditorWriteToModel')
+//         this.$nextTick(() => {
+//           this.isUndoing = false
+//           if (savedSel && container && doc) {
+//             restoreSelection(container, savedSel, doc)
+//           }
+//           this.pingRichToolbar()
+//         })
+//       }
+//     },
 
     saveToModel(container) {
       const content = container.innerHTML
@@ -1901,12 +1745,8 @@ export default {
 
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`
-      const range = this._savedRange || this.getEditorSelection()
+      const range = this.lastInRteSelection;
       const textEditor = this.getEditorFrom(range)
-      if (!this.isRangeInEditor(range, textEditor)) {
-        console.warn('Selection range outside of Richtext Editor')
-        return
-      }
 
       function setFontSizeOfEl(element, fontSizeStr) {
         element.querySelectorAll('*[style*="font-size"]').forEach(element => {
@@ -1977,28 +1817,30 @@ export default {
       const endOffset = selectionOfNodes.endOffset
       nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
       nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
+      console.log('nodeRanges', nodeRanges)
 
-      if (ownerDoc.querySelector('iframe#editview')) {
-        $perAdminApp.action(this, 'textEditorWriteToModel')
-      } else {
-        $perAdminApp.action(this, 'writeInlineToModel')
-      }
+      this.selectElementContents(nodeRanges[0])
+      // if (ownerDoc.querySelector('iframe#editview')) {
+      //   $perAdminApp.action(this, 'textEditorWriteToModel')
+      // } else {
+      //   $perAdminApp.action(this, 'writeInlineToModel')
+      // }
 
-      textEditor.focus()
-      this.$nextTick(() => {
-        this.$nextTick(() => {
-          const selectionAfter = ownerDoc.getSelection()
-          selectionAfter.removeAllRanges()
-          const newRange = ownerDoc.createRange()
-          const startEl = ownerDoc.querySelector(`[data-start-selection-mark-id="${startSelectionMarkId}"]`)
-          newRange.setStart(startEl, startOffset)
-          delete startEl.dataset.startSelectionMarkId
-          const endEl = ownerDoc.querySelector(`[data-end-selection-mark-id="${endSelectionMarkId}"]`)
-          newRange.setEnd(endEl, endOffset)
-          delete endEl.dataset.endSelectionMarkId
-          selectionAfter.addRange(newRange)
-        })
-      })
+      // textEditor.focus()
+      // this.$nextTick(() => {
+      //   this.$nextTick(() => {
+      //     const selectionAfter = ownerDoc.getSelection()
+      //     selectionAfter.removeAllRanges()
+      //     const newRange = ownerDoc.createRange()
+      //     const startEl = ownerDoc.querySelector(`[data-start-selection-mark-id="${startSelectionMarkId}"]`)
+      //     newRange.setStart(startEl, startOffset)
+      //     delete startEl.dataset.startSelectionMarkId
+      //     const endEl = ownerDoc.querySelector(`[data-end-selection-mark-id="${endSelectionMarkId}"]`)
+      //     newRange.setEnd(endEl, endOffset)
+      //     delete endEl.dataset.endSelectionMarkId
+      //     selectionAfter.addRange(newRange)
+      //   })
+      // })
     },
 
     pingRichToolbar(vm = this) {
@@ -2063,6 +1905,8 @@ export default {
     },
 
     exec(cmd, value = null) {
+	    console.log('exec:', cmd, value)
+	    this.restoreEditorSelection()
       if (Object.keys(this.specialCases).indexOf(cmd) >= 0) {
         this.specialCases[cmd](value)
       } else {

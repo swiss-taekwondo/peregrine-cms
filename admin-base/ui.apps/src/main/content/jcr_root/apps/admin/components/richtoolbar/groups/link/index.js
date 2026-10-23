@@ -12,7 +12,7 @@ export default (vm) => {
     order: 60,
     priority: 70,
     isActive: isATag,
-    isDisabled: () => !vm.hasEditorSelection && !isATag(),
+    isDisabled: () => vm.toolbarDisabled && !isATag(),
     toggleClick: () => { if (!isATag()) vm.exec('link') },
     rules: () => !vm.responsive || !vm.hiddenGroups.link,
     items: [

@@ -7,6 +7,6 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     cmd: 'insertUnorderedList',
     isActive: () => vm.itemIsTag('UL'),
-    isDisabled: () => !vm.hasEditorSelection
+    isDisabled: () => vm.toolbarDisabled
   }
 }

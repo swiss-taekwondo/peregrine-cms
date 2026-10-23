@@ -8,7 +8,7 @@ export default (vm) => {
     rules: () => !vm.responsive || !vm.hiddenGroups['remove format'],
     cmd: 'removeFormat',
     isDisabled: () => {
-      if (!vm.hasEditorSelection) return true
+      if (vm.toolbarDisabled) return true
       const range = vm.getEditorSelection()
       if (!range) return true
       const container = range.startContainer

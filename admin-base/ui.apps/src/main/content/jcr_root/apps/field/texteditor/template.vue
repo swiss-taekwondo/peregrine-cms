@@ -30,9 +30,11 @@
       :show-always-active="false"
       :responsive="false"
       :editorContent="value"
+      :lastInRteSelection="lastInRteSelection"
+      :currentFontSize="currentFontSize"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
     />
-    <div class="text-editor inline-edit"
+    <p class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
        v-html="value"
@@ -41,12 +43,10 @@
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
-       @click="onSelectionChange"
        @dblclick="onDblClick"
        @keydown="onKeyDown"
-       @mouseup="onSelectionChange"
-       @keyup="onSelectionChange">
-       </div>
+    >
+    </p>
   </div>
 </template>
 
@@ -153,6 +153,9 @@ export default {
       doc: document,
       editing: false,
       key: 0,
+      lastInRteSelection: null,
+      currentFontSize: 14,
+      lastRteSelectionInlineOnly: null,
     }
   },
   computed: {
@@ -163,44 +166,45 @@ export default {
 
   mounted() {
     const view = this.view
+    console.log('view', view)
     if (view) set(view, '/state/inline/rich', true)
   },
 
   methods: {
-    formatBlock(tagName) {
-      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
-      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
-
-      const selection = document.getSelection()
-      if (!selection || selection.rangeCount === 0) return false
-
-      const range = selection.getRangeAt(0)
-      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
-        ? range.startContainer.parentElement
-        : range.startContainer
-      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-        || (this.$refs.textEditor && this.$refs.textEditor.matches && this.$refs.textEditor.matches('p, h1, h2, h3, h4, h5, h6') ? this.$refs.textEditor : null)
-        || (this.$refs.textEditor ? this.$refs.textEditor.closest('p, h1, h2, h3, h4, h5, h6') : null)
-      if (!block || !this.$refs.textEditor.contains(block)) return false
-      if (block.tagName === normalizedTagName) return true
-
-      const replacement = document.createElement(normalizedTagName)
-      for (const attr of Array.from(block.attributes)) {
-        replacement.setAttribute(attr.name, attr.value)
-      }
-      while (block.firstChild) {
-        replacement.appendChild(block.firstChild)
-      }
-      block.replaceWith(replacement)
-
-      const nextRange = document.createRange()
-      nextRange.selectNodeContents(replacement)
-      selection.removeAllRanges()
-      selection.addRange(nextRange)
-      this.textEditorWriteToModel()
-      this.$nextTick(() => this.pingToolbar())
-      return true
-    },
+//     formatBlock(tagName) {
+//       const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
+//       if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+// 
+//       const selection = document.getSelection()
+//       if (!selection || selection.rangeCount === 0) return false
+// 
+//       const range = selection.getRangeAt(0)
+//       const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
+//         ? range.startContainer.parentElement
+//         : range.startContainer
+//       const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
+//         || (this.$refs.textEditor && this.$refs.textEditor.matches && this.$refs.textEditor.matches('p, h1, h2, h3, h4, h5, h6') ? this.$refs.textEditor : null)
+//         || (this.$refs.textEditor ? this.$refs.textEditor.closest('p, h1, h2, h3, h4, h5, h6') : null)
+//       if (!block || !this.$refs.textEditor.contains(block)) return false
+//       if (block.tagName === normalizedTagName) return true
+// 
+//       const replacement = document.createElement(normalizedTagName)
+//       for (const attr of Array.from(block.attributes)) {
+//         replacement.setAttribute(attr.name, attr.value)
+//       }
+//       while (block.firstChild) {
+//         replacement.appendChild(block.firstChild)
+//       }
+//       block.replaceWith(replacement)
+// 
+//       const nextRange = document.createRange()
+//       nextRange.selectNodeContents(replacement)
+//       selection.removeAllRanges()
+//       selection.addRange(nextRange)
+//       this.textEditorWriteToModel()
+//       this.$nextTick(() => this.pingToolbar())
+//       return true
+//     },
     onFocusIn() {
       const view = this.view
       if (!view) return
@@ -209,8 +213,8 @@ export default {
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/editorModel', this.model)
       this.editing = true
-      this.syncToolbarSelection()
-      this.pingToolbar()
+      // this.syncToolbarSelection()
+      // this.pingToolbar()
     },
     onKeyDown(event) {
       this.pingToolbar()
@@ -256,36 +260,37 @@ export default {
       this.editing = false
       this.pingToolbar()
     },
-    onSelectionChange() {
-      this.syncToolbarSelection()
-      this.pingToolbar()
-    },
-    syncToolbarSelection(vm = this) {
-      const toolbar = vm.$refs.richtoolbar
-      const container = vm.$refs.textEditor
-      const selection = document.getSelection()
-      if (!toolbar || !container || !selection || selection.rangeCount <= 0) return
-
-      const range = selection.getRangeAt(0)
-      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return
-
-      const anchor = getAnchorFromSelection(selection)
-      toolbar.selection.doc = vm.doc
-      toolbar.selection.container = container
-      toolbar.selection.buffer = saveSelection(container, vm.doc)
-      toolbar._savedRange = range.cloneRange()
-      toolbar.activeAnchor = anchor
-      toolbar.hasEditorSelection = true
-
-      const view = vm.view
-      if (view) {
-        set(view, '/state/inline/lastAnchor', anchor)
-        set(view, '/state/inline/lastContainer', container)
-        set(view, '/state/inline/lastDoc', vm.doc)
-        set(view, '/state/inline/doc', vm.doc)
-      }
-    },
+    // onSelectionChange() {
+    //   this.syncToolbarSelection()
+    //   this.pingToolbar()
+    // },
+//     syncToolbarSelection(vm = this) {
+//       const toolbar = vm.$refs.richtoolbar
+//       const container = vm.$refs.textEditor
+//       const selection = document.getSelection()
+//       if (!toolbar || !container || !selection || selection.rangeCount <= 0) return
+// 
+//       const range = selection.getRangeAt(0)
+//       if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return
+// 
+//       const anchor = getAnchorFromSelection(selection)
+//       toolbar.selection.doc = vm.doc
+//       toolbar.selection.container = container
+//       toolbar.selection.buffer = saveSelection(container, vm.doc)
+//       toolbar._savedRange = range.cloneRange()
+//       toolbar.activeAnchor = anchor
+//       toolbar.hasEditorSelection = true
+// 
+//       const view = vm.view
+//       if (view) {
+//         set(view, '/state/inline/lastAnchor', anchor)
+//         set(view, '/state/inline/lastContainer', container)
+//         set(view, '/state/inline/lastDoc', vm.doc)
+//         set(view, '/state/inline/doc', vm.doc)
+//       }
+//     },
     onInput(event) {
+    console.log('event', event)
       let content = event.target.innerHTML;
       const pVnode = this._vnode.children && this._vnode.children.find(c => c.elm === this.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
@@ -338,14 +343,14 @@ export default {
       this.key = this.key === 'foo' ? 'bar' : 'foo'
       $perAdminApp.action(this, 'pingRichToolbar')
     },
-    insertLink(vm = this) {
-      vm._saveInlineSelectionState()
-      if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertLink()
-    },
-    editLink(vm = this) {
-      vm._saveInlineSelectionState()
-      if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
-    },
+    // insertLink(vm = this) {
+    //   vm._saveInlineSelectionState()
+    //   if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertLink()
+    // },
+    // editLink(vm = this) {
+    //   vm._saveInlineSelectionState()
+    //   if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
+    // },
     removeLink(vm = this) {
       const sel = document.getSelection()
       const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
@@ -359,14 +364,6 @@ export default {
       sel.addRange(range)
       document.execCommand('unlink', false, null)
       vm.textEditorWriteToModel()
-    },
-    _saveInlineSelectionState(vm = this) {
-      const view = $perAdminApp.getView()
-      if (!view) return
-      vm.syncToolbarSelection()
-      set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
-      set(view, '/state/inline/lastDoc', vm.doc)
-      set(view, '/state/inline/doc', vm.doc)
     },
   },
 }
