@@ -104,6 +104,11 @@ public interface Replication {
     List<Resource> replicate(Collection<Resource> resourceList)
         throws ReplicationException;
 
+    /** Path returned by {@link #replicate(Collection)} for a copied source resource. */
+    default String getReplicatedPath(final Resource source) {
+        return source.getPath();
+    }
+
     default String storeFile(Resource parent, String name, String content)
             throws ReplicationException {
         return null;

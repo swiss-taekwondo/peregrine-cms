@@ -1,11 +1,11 @@
 package com.peregrine.admin.resource;
 
-import static com.peregrine.commons.util.PerConstants.JCR_CONTENT;
 import static com.peregrine.commons.util.PerConstants.JCR_TITLE;
 import static com.peregrine.commons.util.PerConstants.SLASH;
 
 import com.peregrine.commons.util.PerUtil;
 import com.peregrine.reference.ReferenceLister;
+import com.peregrine.reference.ReferencePathMatcher;
 import java.util.List;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -68,15 +68,14 @@ public class ResourceRelocationService
             throw new IllegalArgumentException(TO_PARENT_RESOURCE_MUST_BE_SPECIFIED);
         }
         ResourceResolver resourceResolver = from.getResourceResolver();
+        final String oldPath = from.getPath();
         answer = resourceResolver.move(from.getPath(), toParent.getPath());
         if(references != null) {
             // Update the references
             for(com.peregrine.reference.Reference reference : references) {
                 Resource propertyResource = reference.getPropertyResource();
-                ModifiableValueMap properties = PerUtil.getModifiableProperties(propertyResource);
-                if(properties.containsKey(reference.getPropertyName())) {
-                    properties.put(reference.getPropertyName(), answer.getPath());
-                }
+                ModifiableValueMap properties = PerUtil.getModifiableProperties(propertyResource, false);
+                updateReferenceProperty(properties, reference.getPropertyName(), oldPath, answer.getPath());
             }
         }
         return answer;
@@ -168,18 +167,38 @@ public class ResourceRelocationService
         }
         Resource answer = parent.getChild(newName);
         // Update the references
-        for(com.peregrine.reference.Reference reference : references) {
-            Resource propertyResource = reference.getPropertyResource();
-            if(propertyResource.getChild(JCR_CONTENT) != null) {
-                properties = PerUtil.getModifiableProperties(propertyResource, true);
-            }
-            else {
+        if (references != null) {
+            for(com.peregrine.reference.Reference reference : references) {
+                Resource propertyResource = reference.getPropertyResource();
                 properties = PerUtil.getModifiableProperties(propertyResource, false);
-            }
-            if(properties != null && properties.containsKey(reference.getPropertyName())) {
-                properties.put(reference.getPropertyName(), answer.getPath());
+                updateReferenceProperty(properties, reference.getPropertyName(), fromPath, answer.getPath());
             }
         }
         return answer;
+    }
+
+    static Object replaceReferenceValue(final Object value, final String oldPath, final String newPath) {
+        if (value instanceof String) {
+            return ReferencePathMatcher.replace((String) value, oldPath, newPath);
+        }
+        if (value instanceof String[]) {
+            final String[] original = (String[]) value;
+            final String[] replaced = original.clone();
+            boolean changed = false;
+            for (int i = 0; i < replaced.length; i++) {
+                replaced[i] = ReferencePathMatcher.replace(replaced[i], oldPath, newPath);
+                changed |= !java.util.Objects.equals(original[i], replaced[i]);
+            }
+            return changed ? replaced : original;
+        }
+        return value;
+    }
+
+    private static void updateReferenceProperty(final ModifiableValueMap properties, final String name,
+            final String oldPath, final String newPath) {
+        if (properties == null || !properties.containsKey(name)) return;
+        final Object oldValue = properties.get(name);
+        final Object newValue = replaceReferenceValue(oldValue, oldPath, newPath);
+        if (newValue != oldValue && !newValue.equals(oldValue)) properties.put(name, newValue);
     }
 }

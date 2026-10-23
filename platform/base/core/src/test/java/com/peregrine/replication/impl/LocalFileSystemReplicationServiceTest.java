@@ -16,7 +16,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,15 +49,15 @@ public final class LocalFileSystemReplicationServiceTest extends SlingResourcesT
     }
 
     @Test
-    public void replicate() throws Replication.ReplicationException {
+    public void missingRenderIsNotReturnedAsReplicated() throws Replication.ReplicationException {
         final var result = model.replicate(
                 resources.stream()
                 .map(m -> (Resource)m)
                 .collect(Collectors.toList())
         );
-        assertTrue(result.contains(repo.getContent()));
-        assertTrue(result.contains(parent));
-        assertTrue(result.contains(page));
+        assertFalse(result.contains(repo.getContent()));
+        assertFalse(result.contains(parent));
+        assertFalse(result.contains(page));
     }
 
 }

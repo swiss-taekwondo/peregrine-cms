@@ -722,7 +722,7 @@ function stateActionImpl(name, target, skipWait) {
           .catch((error) => {
             if (!skipWait) exitWaitState();
             notifyUserImpl('error', error);
-            reject();
+            reject(error);
           });
       } catch (error) {
         if (!skipWait) exitWaitState();

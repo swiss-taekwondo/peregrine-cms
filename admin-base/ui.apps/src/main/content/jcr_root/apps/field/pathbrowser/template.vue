@@ -150,6 +150,7 @@ export default {
            getBlankMediaTextTarget() {
              const targets = this.getMediaTextTargets()
              return targets.find((name) => {
+               if (name === 'alt' && (this.model.customImageAltText === true || this.model.customImageAltText === 'true')) return false
                return String(this.model[name] || '').trim() === ''
              }) || null
            },
@@ -168,6 +169,7 @@ export default {
              const fallbackText = String(fallbackMediaText(normalizedPath) || '').trim()
              if (!defaultText && !fallbackText) return
              for (const targetField of this.getMediaTextTargetsWithValues()) {
+               if (targetField === 'alt' && (this.model.customImageAltText === true || this.model.customImageAltText === 'true')) continue
                const currentText = String(this.model[targetField] || '').trim()
                if (currentText && (currentText === defaultText || currentText === fallbackText)) {
                  this.$set(this.model, targetField, '')

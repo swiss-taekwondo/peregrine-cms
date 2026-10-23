@@ -353,6 +353,11 @@ public class LocalReplicationService
         return getTargetPath(resource.getPath());
     }
 
+    @Override
+    public String getReplicatedPath(final Resource source) {
+        return getTargetPath(source);
+    }
+
     private String getTargetPath(final String path) {
         if (StringUtils.startsWith(path, localSourceWithSlash)) {
             return StringUtils.replaceFirst(path, localSource, localTarget);

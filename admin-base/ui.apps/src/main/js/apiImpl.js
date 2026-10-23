@@ -1744,10 +1744,25 @@ class PerAdminImpl {
       delete nodeData['lastModified']
       delete nodeData['lastModifiedBy']
       formData.append('content', json(nodeData))
-      updateWithForm('/admin/updateResource.json' + node.path + '/jcr:content',
-          formData)
-          .then(() => resolve())
-          .catch(reject)
+      window.fetch(API_BASE + '/admin/updateResource.json' + node.path + '/jcr:content', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      }).then(async (response) => {
+        const responseText = await response.text()
+        let responseData = responseText
+        try {
+          responseData = responseText ? JSON.parse(responseText) : {}
+        } catch (parseError) {
+          // Preserve the raw response when the server returns a non-JSON error page.
+        }
+        if (!response.ok) {
+          const error = new Error((responseData && responseData.message) || response.statusText || 'Asset save failed')
+          error.response = {status: response.status, data: responseData}
+          throw error
+        }
+        resolve(responseData)
+      }).catch(reject)
     })
   }
 

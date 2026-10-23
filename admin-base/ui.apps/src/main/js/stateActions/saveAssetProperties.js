@@ -30,8 +30,6 @@ export default function(me, target) {
     log.fine(target)
 
     return new Promise( (resolve, reject) => {
-        me.getApi().saveAssetProperties(target).then( () => {
-            resolve()
-        })
+        me.getApi().saveAssetProperties(target).then(resolve).catch(reject)
     })
 }

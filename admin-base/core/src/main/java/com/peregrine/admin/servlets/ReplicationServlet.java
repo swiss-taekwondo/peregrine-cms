@@ -35,6 +35,7 @@ import com.peregrine.replication.PerReplicable;
 import com.peregrine.replication.Replication;
 import com.peregrine.replication.Replication.ReplicationException;
 import com.peregrine.replication.ReplicationUtil;
+import com.peregrine.replication.ReplicationWebhookService;
 import com.peregrine.replication.ReplicationsContainerWithDefault;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -86,7 +87,7 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
  *      curl -X POST "http://localhost:8080/perapi/admin/repl.json/content/themeclean" -H  "accept: application/json" -H  "content-type: application/x-www-form-urlencoded" -d "name=defaultRepl&quot;deep=false"
  */
 @Component(
-    service = Servlet.class,
+    service = { Servlet.class, ReplicationWebhookService.class },
     property = {
         SERVICE_DESCRIPTION + EQUALS + PER_PREFIX + "Replication Servlet",
         SERVICE_VENDOR + EQUALS + PER_VENDOR,
@@ -96,7 +97,7 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
 )
 @Designate(ocd = ReplicationServlet.Configuration.class)
 @SuppressWarnings("serial")
-public final class ReplicationServlet extends ReplicationServletBase {
+public final class ReplicationServlet extends ReplicationServletBase implements ReplicationWebhookService {
     @ObjectClassDefinition(
             name = "Peregrine: Replication Servlet",
             description = "Replicates resources via Sling renderers"
@@ -368,6 +369,16 @@ public final class ReplicationServlet extends ReplicationServletBase {
                 }
             }
         }
+    }
+
+    @Override
+    public void beforePublish(final String tenant, final String[] paths) throws ReplicationException {
+        callWebhook(prePublishWebhookMap.get(tenant), paths, "pre-publish", true);
+    }
+
+    @Override
+    public void afterPublish(final String tenant, final String[] paths) throws ReplicationException {
+        callWebhook(postPublishWebhookMap.get(tenant), paths, "post-publish", true);
     }
 
     @Activate
