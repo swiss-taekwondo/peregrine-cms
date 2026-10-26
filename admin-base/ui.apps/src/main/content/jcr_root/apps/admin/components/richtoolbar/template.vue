@@ -44,6 +44,8 @@ import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
+import {createSelectionMethods} from './selectionHandling.js'
+import { createButtonCommandMethods } from './btnCommands.js'
 
 function renderIcon(h, icon, lib) {
   if (!icon) return null
@@ -104,41 +106,6 @@ function getBtnTitle(btn, vm) {
   return shortcut ? `${baseTitle} (${shortcut})` : baseTitle
 }
 
-function isSidebarTextEditor(container) {
-  return !!(container?.classList?.contains('text-editor'))
-}
-
-function getDeepestLastTextNode(node) {
-  if (!node) return null
-  const doc = node.ownerDocument || document
-  const walker = doc.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
-    acceptNode(textNode) {
-      return textNode.nodeValue && textNode.nodeValue.length > 0
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_SKIP
-    },
-  })
-  let last = null
-  while (walker.nextNode()) {
-    last = walker.currentNode
-  }
-  return last
-}
-
-const blockSelector = 'p, h1, h2, h3, h4, h5, h6, div:not([contenteditable="true"]'
-
-
-function findComponentWithMethodFromElement(element, methodName) {
-  let current = element
-  while (current) {
-    const vm = current.__vue__
-    if (vm && typeof vm[methodName] === 'function') {
-      return vm
-    }
-    current = current.parentElement
-  }
-  return null
-}
 
 function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdown = null) {
   const isActive = btn.isActive ? btn.isActive() : false
@@ -170,7 +137,9 @@ function renderBtn(h, btn, vm, keyPrefix, index, inDropdown = false, closeDropdo
           if (inDropdown) e.stopPropagation()
           if (isDisabled) return
           if (closeDropdown) closeDropdown()
-          if (btn.click) btn.click(); else vm.exec(btn.cmd)
+          // All buttons just dispatch a custom event to command the sidebar toolbar to execute the command. To avoid any behaviour differences between subnav / sidebar toolbars.
+          // Custom click handlers should follow this as well!
+          if (btn.click) btn.click(); else window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: btn.cmd } }))
         },
       },
     }, children)
@@ -266,6 +235,7 @@ export default {
 
       layoutPing: 0,
       lastInRteSelection: null,
+      lastSelectedRte: null,
       currentFontSize: 14,
       lastRteSelectionInlineOnly: null,
       toolbarDisabled: true,
@@ -335,24 +305,12 @@ export default {
     roots() {
       return $perAdminApp.getNodeFromViewOrNull('/state/tenant/roots')
     },
-    specialCases() {
-      return {
-        formatBlock: this.formatBlock,
-        link: this.insertLink,
-        insertImage: this.insertImage,
-        editImage: this.editImage,
-        editIcon: this.editIcon,
-        preview: this.togglePreview,
-        previewInNewTab: this.previewInNewTab,
-        updateFontSize: this.updateFontSize,
-        undo: this.undo,
-        redo: this.redo,
-        superscript: this.toggleSuperscript,
-        subscript: this.toggleSubscript,
-        insertOrderedList: () => this.toggleList('insertOrderedList'),
-        insertUnorderedList: () => this.toggleList('insertUnorderedList'),
-      }
-    },
+    
+    
+  },
+
+  created() {
+    this.buttonCommands = createButtonCommandMethods(this)
   },
 
   mounted() {
@@ -361,12 +319,31 @@ export default {
       this.initResizeObserver()
       this.scheduleDocElDimensionsUpdate()
     })
+    // Only sidebar toolbar executes commands!
     if (!this.onSubNav) {
-      window.addEventListener('richtoolbar:cmd', this.inlineCmdHandler)
+      window.addEventListener('richtoolbar:cmd', this.rteCommandHandler)
+      // const interval = setInterval(() => {
+      //   console.log('interval range:', this.lastInRteSelection?.commonAncestorContainer)
+      // }, 100)
+      // window.addEventListener('keyup', (e) => {
+      //   if (e.key === 's') {
+      //   clearInterval(interval)
+      //   }
+      // })
     }
 
     document.addEventListener('selectionchange', this.handleSelectionChange)
-    document.querySelector('#editview').contentDocument.addEventListener('selectionchange', this.handleSelectionChange)
+    const editIframe = document.querySelector('#editview');
+    const attachListener = () => {
+      const doc = editIframe.contentDocument;
+      if (doc?.readyState === 'complete') {
+        doc.addEventListener('selectionchange', this.handleSelectionChange);
+        console.log('editIframe', editIframe)
+      }
+    };
+    editIframe.addEventListener('load', attachListener);
+    attachListener();
+
     document.addEventListener('mousedown', this._closeDropdowns)
   },
 
@@ -404,7 +381,7 @@ export default {
       clearTimeout(this._resizeTimeout)
       this._resizeTimeout = null
     }
-    window.removeEventListener('richtoolbar:cmd', this.inlineCmdHandler)
+    window.removeEventListener('richtoolbar:cmd', this.rteCommandHandler)
     if (this._inlineClickStickyTimer) {
       clearTimeout(this._inlineClickStickyTimer)
       this._inlineClickStickyTimer = null
@@ -475,73 +452,7 @@ export default {
   },
 
   methods: {
-  // Sidebar rte handles selection/range storing and passes it to toolbar
-  handleSelectionChange(event) {
-    try{
-    let clonedRange;
-    const doc = event.target.ownerDocument || event.target
-    const inIframe = doc.defaultView.top.document !== doc;
-    const rte = doc.querySelector(".inline-edit.inline-editing")
-    const selection = doc.getSelection()
-    if (selection.rangeCount < 1) {
-      console.warn('debug no ranges', selection)
-      return
-    }
-    const range = doc.getSelection().getRangeAt(0)
-    if (rte) {
-	    const rangeWithinRte = rte.contains(range.startContainer) && rte.contains(range.endContainer)
-	    if (rangeWithinRte) {
-	      this.lastInRteSelection = range.cloneRange()
-	      // for default fontsize, should always get set when clicking rte
-	      if (inIframe) this.lastRteSelectionInlineOnly = range.cloneRange()
-	    }
-    }
-
-    const commonAncestorEl = range.commonAncestorContainer.closest ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement
-    this.toolbarDisabled = !commonAncestorEl.closest('.inline-edit, .richtoolbar')
-    this.pingRichToolbar()
-
-
-    // fontsize
-    const fontSizeSpan = commonAncestorEl.closest('.inline-edit [style*="font-size"]')
-    if (fontSizeSpan) {
-      this.currentFontSize = parseInt(fontSizeSpan.style.fontSize)
-    } else {
-      const getFontSizeFrom =
-        this.lastRteSelectionInlineOnly?.commonAncestorContainer ? (this.lastRteSelectionInlineOnly.commonAncestorContainer.closest ? this.lastRteSelectionInlineOnly.commonAncestorContainer : this.lastRteSelectionInlineOnly.commonAncestorContainer.parentElement).closest('.inline-edit') :
-        document.querySelector('#editview').contentDocument.querySelector('[data-editing-component]') // fallback if rte was only ever touched via sidebar
-      this.currentFontSize = parseInt(window.getComputedStyle(getFontSizeFrom).fontSize)
-    }
-    // console.log('event', {
-    //   inIframe,
-    //   rte,
-    //   rangeWithinRte,
-    //   range,
-    //   lastInRteSelection: this.lastInRteSelection,
-    //   lastRteSelectionInlineOnly: this.lastRteSelectionInlineOnly,
-    //   fontSize: this.currentFontSize,
-    // });
-    } catch (error) {
-      console.error('error handling selection', error)
-    }
-  },
-
-    restoreEditorSelection() {
-      const ownerDocument = this.lastInRteSelection.startContainer.ownerDocument
-      const selection = ownerDocument.getSelection()
-      selection.removeAllRanges()
-      selection.addRange(this.lastInRteSelection)
-    },
-
-    selectElementContents(element) {
-      const doc = element.ownerDocument
-      const range = doc.createRange();
-      range.selectNodeContents(element);
-      const selection = doc.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      console.log('element', element)
-    },
+    ...createSelectionMethods(),
 
     initResizeObserver() {
       if (typeof ResizeObserver === 'undefined' || !this.$el) return
@@ -1170,95 +1081,22 @@ export default {
       }
     },
 
-    inlineCmdHandler(event) {
+    rteCommandHandler(event) {
+      console.log('command:', event.detail.cmd, event.detail.value, event)
       if (this.onSubNav) return
       if (typeof this[event.detail.cmd] === 'function') {
         this[event.detail.cmd](event.detail.value)
-      } else {
-        this.exec(event.detail.cmd, event.detail.value || null)
-      }
+      } else if (this.buttonCommands?.[event.detail.cmd]) {
+        this.buttonCommands[event.detail.cmd](event.detail.value)
+			} else {
+				const selectionOwnerDoc = this.lastInRteSelection.commonAncestorContainer.ownerDocument
+				selectionOwnerDoc.execCommand(event.detail.cmd, event.detail.showUi || null, event.detail.value || null)
+			}
     },
 
-    // saveSnapshot() {
-    //   const content = this.editorContent
-    //   if (this.historyIndex > -1 && this.historyStack[this.historyIndex] === content) {
-    //     return
-    //   }
-    //   if (this.historyIndex < this.historyStack.length - 1) {
-    //     this.historyStack = this.historyStack.slice(0, this.historyIndex + 1)
-    //   }
-    //   this.historyStack.push(content)
-    //   this.historyIndex++
-    //   if (this.historyStack.length > 50) {
-    //     this.historyStack.shift()
-    //     this.historyIndex--
-    //   }
-    //   if (!this.onSubNav) {
-    //     window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-    //       detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-    //     }))
-    //   }
-    // },
-
-//     undo() {
-//       if (this.onSubNav) {
-//         window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'undo' } }))
-//         return
-//       }
-//       if (this.historyIndex > 0) {
-//         this.isUndoing = true
-//         this.historyIndex--
-//         window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-//           detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-//         }))
-//         const content = this.historyStack[this.historyIndex]
-//         const container = this.getInlineContainer()
-//         const doc = this.getInlineDoc()
-//         const savedSel = container && doc ? saveSelection(container, doc) : null
-//         const textEditor = this.$el.closest('.text-editor-wrapper')
-//           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-//           : this.$el.nextElementSibling
-//         textEditor.innerHTML = content
-//         $perAdminApp.action(this, 'textEditorWriteToModel')
-//         this.$nextTick(() => {
-//           this.isUndoing = false
-//           if (savedSel && container && doc) {
-//             restoreSelection(container, savedSel, doc)
-//           }
-//           this.pingRichToolbar()
-//         })
-//       }
-//     },
-// 
-//     redo() {
-//       if (this.onSubNav) {
-//         window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'redo' } }))
-//         return
-//       }
-//       if (this.historyIndex < this.historyStack.length - 1) {
-//         this.isUndoing = true
-//         this.historyIndex++
-//         window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-//           detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-//         }))
-//         const content = this.historyStack[this.historyIndex]
-//         const container = this.getInlineContainer()
-//         const doc = this.getInlineDoc()
-//         const savedSel = container && doc ? saveSelection(container, doc) : null
-//         const textEditor = this.$el.closest('.text-editor-wrapper')
-//           ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-//           : this.$el.nextElementSibling
-//         textEditor.innerHTML = content
-//         $perAdminApp.action(this, 'textEditorWriteToModel')
-//         this.$nextTick(() => {
-//           this.isUndoing = false
-//           if (savedSel && container && doc) {
-//             restoreSelection(container, savedSel, doc)
-//           }
-//           this.pingRichToolbar()
-//         })
-//       }
-//     },
+    triggerInput() {
+      this.lastSelectedRte.dispatchEvent(new Event('input'))
+    },
 
     saveToModel(container) {
       const content = container.innerHTML
@@ -1320,236 +1158,6 @@ export default {
       return false
     },
 
-    toggleScriptTag(tagName, cmd) {
-      if (window.__savedDoc) {
-        window.__savedSel = null
-        window.__savedDoc = null
-        return
-      }
-
-      let doc = this.getInlineDoc()
-      let container = this.getInlineContainer()
-
-      if (!doc || !container) {
-        doc = this.getLastDoc()
-        container = this.getLastContainer()
-      }
-
-      if (!doc || !container) return
-
-      const isEditor = isSidebarTextEditor(container)
-
-      const savedSel = saveSelection(container, doc)
-
-      if (!isEditor && doc.execCommand) {
-        doc.execCommand(cmd, false, null)
-        if (savedSel) {
-          restoreSelection(container, savedSel, doc)
-        }
-        this.saveToModel(container)
-        return
-      }
-
-      if (!savedSel) return
-
-      const win = doc.defaultView || window
-      const sel = win.getSelection()
-      if (!sel || sel.rangeCount === 0) return
-
-      const range = sel.getRangeAt(0)
-      const toEl = node => node && (node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
-      const startEl = toEl(range.startContainer)
-      const endEl = toEl(range.endContainer)
-      const existingTag = (startEl && startEl.closest(tagName)) || (endEl && endEl.closest(tagName))
-
-      if (existingTag) {
-        const parent = existingTag.parentNode
-        while (existingTag.firstChild) {
-          parent.insertBefore(existingTag.firstChild, existingTag)
-        }
-        parent.removeChild(existingTag)
-      } else {
-        try {
-          const wrapper = doc.createElement(tagName)
-          range.surroundContents(wrapper)
-        } catch (e) {
-          const fragment = range.extractContents()
-          const wrapper = doc.createElement(tagName)
-          wrapper.appendChild(fragment)
-          range.insertNode(wrapper)
-        }
-      }
-
-      const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
-      if (freshContainer) {
-        const ownerComponent = findComponentWithMethodFromElement(freshContainer, 'textEditorWriteToModel')
-        const foundEditor = !!ownerComponent
-        if (ownerComponent) {
-          ownerComponent.textEditorWriteToModel(ownerComponent)
-        }
-
-        if (!foundEditor) {
-          this.saveToModel(freshContainer)
-        }
-
-        if (isEditor) {
-          const selection = doc.defaultView?.getSelection?.()
-          if (selection && selection.rangeCount > 0) {
-            this._savedRange = selection.getRangeAt(0).cloneRange()
-          }
-          this.selection.doc = doc
-          this.selection.container = freshContainer
-          this.selection.buffer = saveSelection(freshContainer, doc)
-          if (typeof freshContainer.focus === 'function') {
-            freshContainer.focus()
-          }
-        } else if (savedSel) {
-          restoreSelection(freshContainer, savedSel, doc)
-        }
-      }
-    },
-
-    toggleSuperscript() {
-      this.toggleScriptTag('SUP', 'superscript')
-    },
-
-    toggleSubscript() {
-      this.toggleScriptTag('SUB', 'subscript')
-    },
-
-    toggleList(cmd) {
-      if (window.__savedDoc) {
-        window.__savedSel = null
-        window.__savedDoc = null
-        return
-      }
-
-      let doc = this.getInlineDoc()
-      let container = this.getInlineContainer()
-
-      if (!doc || !container) {
-        doc = this.getLastDoc()
-        container = this.getLastContainer()
-      }
-
-      if (!doc || !container) return
-
-      const isEditor = isSidebarTextEditor(container)
-      const bufferedSel = this.selection.buffer || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-      const liveSel = saveSelection(container, doc)
-      const savedSel = isEditor ? (bufferedSel || liveSel) : (liveSel || bufferedSel)
-      const preSelection = doc.defaultView?.getSelection?.() || null
-      const preRange = preSelection && preSelection.rangeCount > 0 ? preSelection.getRangeAt(0).cloneRange() : null
-
-      if (preSelection && preRange && !preRange.collapsed) {
-        const startNode = preRange.startContainer
-        if (startNode.nodeType === Node.TEXT_NODE && preRange.startOffset === startNode.textContent.length) {
-          const walker = doc.createTreeWalker(container, NodeFilter.SHOW_ALL)
-          walker.currentNode = startNode
-          let nextNode = walker.nextNode()
-
-          while (nextNode && nextNode.nodeName === 'BR') {
-            nextNode = walker.nextNode()
-          }
-
-          if (nextNode) {
-            const adjustedRange = preRange.cloneRange()
-            adjustedRange.setStart(nextNode, 0)
-            preSelection.removeAllRanges()
-            preSelection.addRange(adjustedRange)
-          }
-        }
-      }
-
-      const collapsedSidebarRange = isEditor && preRange && preRange.collapsed ? preRange : null
-      const collapsedInlineRange = !isEditor && preRange && preRange.collapsed ? preRange : null
-
-      if (isEditor && this._savedRange && doc.defaultView) {
-        const selection = doc.defaultView.getSelection()
-        if (selection) {
-          selection.removeAllRanges()
-          selection.addRange(this._savedRange.cloneRange())
-        }
-      }
-
-      if (!isEditor && doc.execCommand) {
-        doc.execCommand(cmd, false, null)
-        const selection = doc.defaultView?.getSelection?.()
-        if (selection && collapsedInlineRange && selection.rangeCount > 0) {
-          const currentRange = selection.getRangeAt(0)
-          const currentNode = currentRange.startContainer?.nodeType === Node.TEXT_NODE
-            ? currentRange.startContainer.parentElement
-            : currentRange.startContainer
-          const currentListItem = currentNode?.closest?.('li')
-          const targetTextNode = getDeepestLastTextNode(currentListItem)
-          if (currentListItem && targetTextNode) {
-            const caretRange = doc.createRange()
-            caretRange.setStart(targetTextNode, targetTextNode.textContent.length)
-            caretRange.collapse(true)
-            selection.removeAllRanges()
-            selection.addRange(caretRange)
-          }
-        }
-        const postExecSelection = saveSelection(container, doc)
-        const postExecRangeSelection = collapsedInlineRange ? null : saveDomRangeSelection(container, doc)
-        window.__labambaInlineRestoreOnce = {
-          reason: cmd,
-          container: container,
-          selection: postExecSelection,
-          rangeSelection: postExecRangeSelection,
-        }
-        this.saveToModel(container)
-        return
-      }
-
-      doc.execCommand(cmd, false, null)
-
-      const freshContainer = this.getInlineContainer() || this.getLastContainer() || container
-      if (freshContainer) {
-        const ownerComponent = findComponentWithMethodFromElement(freshContainer, 'textEditorWriteToModel')
-        const foundEditor = !!ownerComponent
-        if (ownerComponent) {
-          ownerComponent.textEditorWriteToModel(ownerComponent)
-        }
-
-        if (!foundEditor) {
-          this.saveToModel(freshContainer)
-        }
-
-        if (isEditor) {
-          const selection = doc.defaultView?.getSelection?.()
-          if (selection && collapsedSidebarRange && selection.rangeCount > 0) {
-            const currentRange = selection.getRangeAt(0)
-            const currentNode = currentRange.startContainer?.nodeType === Node.TEXT_NODE
-              ? currentRange.startContainer.parentElement
-              : currentRange.startContainer
-            const currentListItem = currentNode?.closest?.('li')
-            const targetTextNode = getDeepestLastTextNode(currentListItem)
-            if (currentListItem && targetTextNode) {
-              const caretRange = doc.createRange()
-              caretRange.setStart(targetTextNode, targetTextNode.textContent.length)
-              caretRange.collapse(true)
-              selection.removeAllRanges()
-              selection.addRange(caretRange)
-            }
-          }
-          if (selection && selection.rangeCount > 0) {
-            this._savedRange = selection.getRangeAt(0).cloneRange()
-          }
-          this.selection.doc = doc
-          this.selection.container = freshContainer
-          this.selection.buffer = saveSelection(freshContainer, doc)
-          if (typeof freshContainer.focus === 'function') {
-            freshContainer.focus()
-          }
-          const focusedSelection = doc.defaultView?.getSelection?.()
-          if (focusedSelection && this._savedRange) {
-            focusedSelection.removeAllRanges()
-            focusedSelection.addRange(this._savedRange.cloneRange())
-          }
-        }
-      }
-    },
 
     getDefaultFontSize() {
       const range = this.getEditorSelection()
@@ -1652,62 +1260,6 @@ export default {
       return getEditorFromEl?.closest('.inline-edit[contenteditable="true"], .text-editor') || null
     },
 
-    formatBlock(tagName) {
-      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
-      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
-
-      const savedRange = this._savedRange
-      let range = savedRange || this.getEditorSelection()
-      let textEditor = range ? this.getEditorFrom(range) : null
-
-      if (!range && this.selection?.container && this.selection?.buffer) {
-        const doc = this.selection.doc || this.selection.container.ownerDocument
-        restoreSelection(this.selection.container, this.selection.buffer, doc)
-        range = this.getEditorSelection()
-        textEditor = range ? this.getEditorFrom(range) : null
-      }
-
-      if (!range || !textEditor) return false
-      if (!this.isRangeInEditor(range, textEditor)) {
-        if (this.selection?.container && this.selection?.buffer) {
-          const doc = this.selection.doc || this.selection.container.ownerDocument
-          restoreSelection(this.selection.container, this.selection.buffer, doc)
-          range = this.getEditorSelection()
-          textEditor = range ? this.getEditorFrom(range) : null
-        }
-        if (!range || !textEditor || !this.isRangeInEditor(range, textEditor)) return false
-      }
-      if (!range.collapsed) {
-        if (!wrapSelectedRangeInBlock(range, textEditor, normalizedTagName)) return false
-        this.writeEditorToModel(textEditor)
-        textEditor.dispatchEvent(new Event('input'))
-        this.pingRichToolbar()
-        return true
-      }
-
-      const blocks = getSelectedBlocksFromRange(range, textEditor)
-      if (!blocks.length) return false
-      if (blocks.every((block) => block.tagName === normalizedTagName)) return true
-
-      for (const block of blocks) {
-        const replacement = textEditor.ownerDocument.createElement(normalizedTagName)
-
-        for (const attr of Array.from(block.attributes)) {
-          replacement.setAttribute(attr.name, attr.value)
-        }
-
-        while (block.firstChild) {
-          replacement.appendChild(block.firstChild)
-        }
-      
-        block.replaceWith(replacement)
-      }
-
-      this.writeEditorToModel(textEditor)
-      textEditor.dispatchEvent(new Event('input'))
-      this.pingRichToolbar()
-      return true
-    },
 
     isRangeInEditor(range, editor = null) {
       if (!range) return false
@@ -1730,114 +1282,7 @@ export default {
       return textEditor.contains(node)
     },
 
-    selectNodes(nodeArray) {
-      const selection = nodeArray[0].ownerDocument.getSelection()
-      const reselectRange = nodeArray[0].ownerDocument.createRange()
-      reselectRange.setStart(nodeArray[0], 0)
-      reselectRange.setEnd(nodeArray[nodeArray.length - 1], nodeArray[nodeArray.length - 1].childNodes.length)
-      selection.removeAllRanges()
-      selection.addRange(reselectRange)
-    },
 
-    updateFontSize(newSize) {
-      const fontSize = `${newSize}px`
-      const range = this.lastInRteSelection;
-      const textEditor = this.getEditorFrom(range)
-
-      function setFontSizeOfEl(element, fontSizeStr) {
-        element.querySelectorAll('*[style*="font-size"]').forEach(element => {
-          if (element.tagName === 'SPAN') {
-            element.replaceWith(...element.childNodes)
-          } else {
-            element.style.removeProperty('font-size')
-          }
-        })
-        element.style.fontSize = fontSizeStr
-      }
-
-      const noHighlight = range.endContainer.isEqualNode(range.startContainer) && range.endOffset === range.startOffset
-      if (noHighlight) {
-        const parentQuery = 'p, ul, ol, h1, h2, h3, h4, h5, h6'
-        const fontSizeParent = (range.startContainer.contentEditable === 'true' && range.startContainer?.children?.length > 0)
-          ? range.startContainer.children[0]
-          : typeof range.startContainer.closest === 'function'
-            ? range.startContainer.closest(parentQuery)
-            : range.startContainer.parentElement.closest(parentQuery)
-        if (!textEditor.contains(fontSizeParent)) {
-          console.warn('Attempting to change fontsize of paragraph outside of richtext editor', fontSizeParent, range.startContainer)
-          return
-        }
-        setFontSizeOfEl(fontSizeParent, fontSize)
-        fontSizeParent.style.fontSize = fontSize
-        textEditor.dispatchEvent(new Event('input'))
-        return
-      }
-
-      if (range.startContainer.nodeType === Node.TEXT_NODE) {
-        const newText = range.startContainer.splitText(range.startOffset)
-        range.setStart(newText, 0)
-      }
-      if (range.endContainer.nodeType === Node.TEXT_NODE) {
-        range.endContainer.splitText(range.endOffset)
-        range.setEnd(range.endContainer, range.endContainer.length)
-      }
-
-      const onlySingleNode = range.startContainer.isEqualNode(range.endContainer)
-      if (onlySingleNode) {
-        if (range.startContainer.nodeType === Node.TEXT_NODE) {
-          const span = document.createElement('span')
-          span.style.fontSize = fontSize
-          range.surroundContents(span)
-          this.selectNodes([span])
-          textEditor.dispatchEvent(new Event('input'))
-        } else {
-          setFontSizeOfEl(range.startContainer, fontSize)
-        }
-      }
-
-      const nodeRanges = this.wrapTextNodesInRange(range, fontSize)
-
-      textEditor.querySelectorAll('span[style*="font-size"]:has(> span[style*="font-size"])').forEach(span => {
-        if (span.childNodes.length === 1) {
-          span.replaceWith(span.childNodes[0])
-        }
-      })
-
-      this.selectNodes(nodeRanges)
-      const ownerDoc = nodeRanges[0].ownerDocument
-      const selectionOfNodes = ownerDoc.getSelection().getRangeAt(0)
-
-      const startSelectionMarkId = crypto.randomUUID()
-      const startOffset = selectionOfNodes.startOffset
-      const endSelectionMarkId = crypto.randomUUID()
-      const endOffset = selectionOfNodes.endOffset
-      nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
-      nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
-      console.log('nodeRanges', nodeRanges)
-
-      this.selectElementContents(nodeRanges[0])
-      // if (ownerDoc.querySelector('iframe#editview')) {
-      //   $perAdminApp.action(this, 'textEditorWriteToModel')
-      // } else {
-      //   $perAdminApp.action(this, 'writeInlineToModel')
-      // }
-
-      // textEditor.focus()
-      // this.$nextTick(() => {
-      //   this.$nextTick(() => {
-      //     const selectionAfter = ownerDoc.getSelection()
-      //     selectionAfter.removeAllRanges()
-      //     const newRange = ownerDoc.createRange()
-      //     const startEl = ownerDoc.querySelector(`[data-start-selection-mark-id="${startSelectionMarkId}"]`)
-      //     newRange.setStart(startEl, startOffset)
-      //     delete startEl.dataset.startSelectionMarkId
-      //     const endEl = ownerDoc.querySelector(`[data-end-selection-mark-id="${endSelectionMarkId}"]`)
-      //     newRange.setEnd(endEl, endOffset)
-      //     delete endEl.dataset.endSelectionMarkId
-      //     selectionAfter.addRange(newRange)
-      //   })
-      // })
-    },
 
     pingRichToolbar(vm = this) {
       vm.$emit('ping')
@@ -1903,12 +1348,13 @@ export default {
     exec(cmd, value = null) {
 	    console.log('exec:', cmd, value)
 	    this.restoreEditorSelection()
-      if (Object.keys(this.specialCases).indexOf(cmd) >= 0) {
-        this.specialCases[cmd](value)
+      if (Object.keys(this.buttonCommands).indexOf(cmd) >= 0) {
+        this.buttonCommands[cmd](value)
       } else {
         this.execCmd(cmd, value)
       }
-      this.pingRichToolbar()
+      // this.pingRichToolbar()
+      
     },
 
     link() {
@@ -2010,45 +1456,6 @@ export default {
       return el ? el.closest('a') : null
     },
 
-    insertLink() {
-      if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'insertLink' } }))
-        return
-      }
-      const doc = this.getInlineDoc() || this.getLastDoc()
-      const container = this.getInlineContainer() || this.getLastContainer()
-      if (!doc || !container) {
-        return
-      }
-
-      const startPath = this.roots.pages
-      this.param.cmd = 'insertLink'
-      this.param.anchor = null
-      this.browser.header = this.$i18n('Insert Link')
-      this.browser.path.current = startPath
-      this.browser.path.selected = null
-      this.browser.withLinkTab = true
-      this.browser.newWindow = false
-      this.browser.rel = true
-      this.browser.linkTitle = ''
-      this.browser.type = PathBrowser.Type.PAGE
-      this.selection.doc = doc
-      this.selection.container = container
-
-      const win = doc.defaultView || window
-      const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
-      const liveRange = liveSel && liveSel.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
-      if (!liveRange) {
-        return
-      }
-      this._savedRange = liveRange
-
-      const savedSel = saveSelection(container, doc)
-        || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-      this.selection.buffer = savedSel
-      this.selection.restore = false
-      this.startBrowsing(startPath)
-    },
 
     editLink() {
       if (this.onSubNav) {
@@ -2218,69 +1625,6 @@ export default {
       })
     },
 
-    insertImage() {
-      let container = null
-      let doc = null
-
-      const inlineContainer = this.getInlineContainer()
-      const inlineDoc = this.getInlineDoc()
-      if (inlineContainer && inlineDoc) {
-        container = inlineContainer
-        doc = inlineDoc
-      }
-
-      if (!container) {
-        const lastContainer = this.getLastContainer()
-        const lastDoc = this.getLastDoc()
-        if (lastContainer && lastDoc) {
-          container = lastContainer
-          doc = lastDoc
-        }
-      }
-
-      if (!container) {
-        const wrapper = this.$el?.closest('.text-editor-wrapper')
-        if (wrapper) {
-          container = wrapper.querySelector('.text-editor')
-          if (!doc) doc = document
-        }
-      }
-
-      if (!container) {
-        container = document.querySelector('.text-editor')
-        if (!doc) doc = document
-      }
-
-      if (!container) {
-        return
-      }
-
-      if (!doc) doc = container.ownerDocument
-
-      this.param.cmd = 'insertImage'
-      this.browser.header = this.$i18n('Insert Image')
-      this.browser.path.current = this.roots.assets
-      this.browser.withLinkTab = true
-      this.browser.newWindow = undefined
-      this.browser.type = PathBrowser.Type.ASSET
-      this.browser.path.suffix = ''
-      this.browser.img.width = null
-      this.browser.img.height = null
-      this.browser.img.objectFit = null
-      this.browser.path.selected = '';
-      this.selection.doc = doc
-      this.selection.container = container
-
-      const win = doc.defaultView || window
-      const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
-      const liveRange = liveSel?.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
-      this._savedRange = liveRange
-
-      const savedSel = saveSelection(container, doc) || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-      this.selection.buffer = savedSel
-      this.selection.restore = false
-      this.startBrowsing()
-    },
 
     async getDefaultMediaText(path = '') {
       const rootData = this.$root && this.$root.$data
@@ -2288,36 +1632,6 @@ export default {
       return resolveMediaText(path, adminNodes)
     },
 
-    async editImage(vm = this, target) {
-      const title = target.getAttribute('title')
-      const src = target.getAttribute('src')
-      const defaultText = title || target.getAttribute('alt') || await vm.getDefaultMediaText(src)
-      const fallbackText = fallbackMediaText(src)
-      const srcArr = src.split('/')
-      const img = {
-        width: target.style.width ? parseInt(target.style.width) : null,
-        height: target.style.height ? parseInt(target.style.height) : null,
-        objectFit: target.style.objectFit || null,
-      }
-      vm.param.cmd = 'editImage'
-      vm.selection.restore = false
-      vm.browser.header = vm.$i18n('Edit Image')
-      vm.browser.path.selected = srcArr.join('/')
-      srcArr.pop()
-      vm.browser.path.current = srcArr.join('/')
-      vm.browser.withLinkTab = true
-      vm.browser.newWindow = undefined
-      vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.linkTitle = defaultText
-      vm.browser.mediaSourcePath = src
-      vm.browser.mediaSourceText = defaultText || ''
-      vm.browser.mediaSourceFallback = fallbackText
-      vm.browser.element = target
-      vm.browser.img.width = img.width
-      vm.browser.img.height = img.height
-      vm.browser.img.objectFit = img.objectFit
-      vm.startBrowsing()
-    },
 
     insertIcon(imgPath) {
       const doc = this.selection.doc || this.getInlineDoc() || this.getLastDoc() || document
@@ -2335,48 +1649,12 @@ export default {
       this.getEditorFrom(range).dispatchEvent(new Event('input'))
     },
 
-    async editIcon(vm = this, target) {
-      const alt = target.getAttribute('alt') || await vm.getDefaultMediaText(target.getAttribute('src') || '')
-      const src = target.getAttribute('src') || ''
-      const img = {
-        width: target.style.width ? parseInt(target.style.width) : 20,
-        height: target.style.height ? parseInt(target.style.height) : 20,
-        objectFit: target.style.objectFit || null,
-      }
-      vm.param.cmd = 'editIcon'
-      vm.browser.header = vm.$i18n('Edit Icon')
-      vm.browser.withLinkTab = false
-      vm.browser.withImageTab = true
-      vm.browser.path.selected = src
-      vm.browser.path.current = src
-      vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.altText = alt
-      vm.browser.linkTitle = undefined
-      vm.browser.newWindow = undefined
-      vm.browser.element = target
-      vm.browser.img.width = img.width
-      vm.browser.img.height = img.height
-      vm.browser.img.objectFit = img.objectFit
-      vm.saveSelection()
-      vm.selection.restore = true
-      vm.startBrowsing(src.substring(0, src.lastIndexOf('/')))
-    },
 
     setViewport(viewport) {
       set($perAdminApp.getView(), '/state/tools/workspace/view', viewport)
     },
 
-    togglePreview() {
-      const view = $perAdminApp.getView()
-      const current = get(view, '/state/tools/workspace/preview', null)
-      $perAdminApp.stateAction('editPreview', current ? null : 'preview')
-    },
 
-    previewInNewTab() {
-      const view = $perAdminApp.getView()
-      const page = get(view, '/pageView/path', null)
-      window.open(page + '.html', 'viewer')
-    },
 
     itemIsTag(tagName) {
       if (tagName.toUpperCase() === 'A') {

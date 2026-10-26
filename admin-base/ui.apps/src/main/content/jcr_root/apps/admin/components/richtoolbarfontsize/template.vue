@@ -4,7 +4,7 @@
       <icon icon="remove" :lib="iconLib" />
     </button>
 
-    <div class="inputWrapper" @focusin="onFocusIn" @focusout="onFocusOut">
+    <div class="inputWrapper" >
       <input
         v-bind:value="inputValue"
         @input="onInput"
@@ -123,6 +123,7 @@ export default {
       if (e.key === "Enter" || e.key === "Tab") {
         this.$refs.inputRef.parentElement.blur();
         this.$refs.inputRef.blur();
+        this.applyFontSize();
       }
     },
 
@@ -130,12 +131,6 @@ export default {
       this.inputValue = sizePreset;
       this.applyFontSize();
     },
-
-    // save/load selection between manual inputs
-    onFocusOut(e) {
-    },
-    onFocusIn(e) {
-    }
   }
 };
 </script>
