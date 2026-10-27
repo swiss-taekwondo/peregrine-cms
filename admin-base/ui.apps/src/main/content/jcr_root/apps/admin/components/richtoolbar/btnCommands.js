@@ -288,12 +288,21 @@ export function createButtonCommandMethods(vm) {
     const onlySingleNode = range.startContainer.isEqualNode(range.endContainer)
     console.log('onlySingleNode', onlySingleNode)
     if (onlySingleNode) {
-      if (range.startContainer.nodeType === Node.TEXT_NODE) {
+      // const isOnlyChildTextNodeOfExistingFontSizeSpan = range.startContainer.parentElement.childNodes.length === 1 && range.startContainer.parentElement.nodeName === 'SPAN'
+      const isOnlyChildTextNodeOfExistingFontSizeSpan = false;
+      if (range.startContainer.nodeType === Node.TEXT_NODE && !isOnlyChildTextNodeOfExistingFontSizeSpan) {
         const span = document.createElement('span')
         span.style.fontSize = fontSize
         range.surroundContents(span)
         vm.triggerInput()
         vm.selectNodes([span])
+        vm.$nextTick(() => {
+	        vm.$nextTick(() => {
+	           vm.reconstructSelectionRelativeToRte()
+	        })
+        })
+      // } else if (isOnlyChildTextNodeOfExistingFontSizeSpan) {
+      //   setFontSizeOfEl(range.startContainer.parentElement, fontSize)
       } else {
         setFontSizeOfEl(range.startContainer, fontSize)
       }
@@ -319,6 +328,9 @@ export function createButtonCommandMethods(vm) {
     nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
     nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
     console.log('nodeRanges', nodeRanges)
+    vm.$nextTick(() => {
+      vm.reconstructSelectionRelativeToRte()
+    })
 
     
     // vm.selectElementContents(nodeRanges[0])

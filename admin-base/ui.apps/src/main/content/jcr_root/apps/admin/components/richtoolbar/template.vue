@@ -234,10 +234,12 @@ export default {
       sharedHistoryLength: 0,
 
       layoutPing: 0,
+      // selection/range state
       lastInRteSelection: null,
       lastSelectedRte: null,
       currentFontSize: 14,
       lastRteSelectionInlineOnly: null,
+      lastInRteSelectionRelativeToRte: null,
       toolbarDisabled: true,
     }
   },

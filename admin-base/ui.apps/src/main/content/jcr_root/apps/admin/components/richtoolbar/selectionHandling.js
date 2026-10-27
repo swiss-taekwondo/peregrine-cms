@@ -1,3 +1,10 @@
+const getOffset = (doc, rte, node, offset) => {
+  const prefix = doc.createRange()
+  prefix.selectNodeContents(rte)
+  prefix.setEnd(node, offset)
+  return prefix.toString().length
+}
+
 export function createSelectionMethods() {
   return {
   // Sidebar rte handles selection/range storing and passes it to toolbar
@@ -17,6 +24,10 @@ export function createSelectionMethods() {
 
     if (rte) {
       this.lastInRteSelection = range.cloneRange()
+      this.lastInRteSelectionRelativeToRte = {
+        start: getOffset(doc, rte, range.startContainer, range.startOffset),
+        end: getOffset(doc, rte, range.endContainer, range.endOffset),
+      }
       // for default fontsize, should always get set when clicking rte
       if (inIframe) this.lastRteSelectionInlineOnly = range.cloneRange()
       this.lastSelectedRte = rte;
@@ -74,14 +85,57 @@ export function createSelectionMethods() {
       reselectRange.setEnd(nodeArray[nodeArray.length - 1], nodeArray[nodeArray.length - 1].childNodes.length)
       selection.removeAllRanges()
       selection.addRange(reselectRange.cloneRange())
-      // nodeArray[0].ownerDocument.dispatchEvent(new Event('selectionchange'))
-      
-      setTimeout(() => {
-      
       nodeArray[0].ownerDocument.dispatchEvent(new Event('selectionchange'))
-      console.log('reselectRange', reselectRange, reselectRange.commonAncestorContainer, reselectRange.startOffset, reselectRange.endOffset, nodeArray[0].ownerDocument.getSelection().getRangeAt(0).commonAncestorContainer)
-      
-      }, 0)
+    },
+
+    // Updating inline content triggers a state update which causes inline RTE to re-render, deleting previous nodes and populating with new ones set by innerHTML
+    // We store some selection data relative to the RTE parent so we can restore that if needed using this.
+    reconstructSelectionRelativeToRte() {
+	    const saved = this.lastInRteSelectionRelativeToRte
+	    const rte = this.lastSelectedRte
+	    const doc = rte.ownerDocument
+	    
+	    if (rte && saved) {
+	      const pointAt = (targetOffset, isStart) => {
+	        const walker = doc.createTreeWalker(rte, NodeFilter.SHOW_TEXT)
+	        let remaining = targetOffset
+	        let node
+	    
+	        while ((node = walker.nextNode())) {
+						if (isStart) {
+	            if (remaining < node.length) {
+	              return { node, offset: remaining }
+	            }
+						} else {
+              if (remaining <= node.length) {
+                return { node, offset: remaining }
+              }
+						}
+	          remaining -= node.length
+	        }
+	    
+	        return { node: rte, offset: rte.childNodes.length }
+	      }
+	    
+	      const start = pointAt(saved.start, true)
+	      const end = pointAt(saved.end)
+	      const restoredRange = doc.createRange()
+	    
+				const shouldSelectParentElement = start.node.isEqualNode(end.node) && start.node.nodeType === Node.TEXT_NODE && start.node.parentElement.childNodes.length === 1
+				if (shouldSelectParentElement) {
+          restoredRange.setStart(start.node.parentElement, 0)
+          restoredRange.setEnd(end.node.parentElement, 1)
+				} else {
+	        restoredRange.setStart(start.node, start.offset)
+	        restoredRange.setEnd(end.node, end.offset)
+				}
+	    
+	      const selection = doc.getSelection()
+	      selection.removeAllRanges()
+	      selection.addRange(restoredRange)
+        doc.dispatchEvent(new Event('selectionchange'))
+        console.log('restored relative range')
+	    }
     },
 
   }

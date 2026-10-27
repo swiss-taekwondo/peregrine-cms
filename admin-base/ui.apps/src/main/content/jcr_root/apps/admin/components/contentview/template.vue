@@ -554,9 +554,9 @@ export default {
       } else {
         content = vm.target.innerText
       }
-    console.log('writeInlineToModel', content, vm.target)
+    console.log('writeInlineToModel', content, vm.target, vm)
     // TODO: updates self, breaks selection
-    return;
+    // return;
       const dataInline = vm.targetInline.split('.').slice(1)
       dataInline.reverse()
       let parentProp = vm.node
@@ -564,6 +564,8 @@ export default {
         parentProp = parentProp[dataInline.pop()]
       }
       const keyStr = dataInline.pop()
+      console.log('parentProp[keyStr]', parentProp[keyStr])
+      console.log('keyStr', keyStr)
       parentProp[keyStr] = content;
     },
 
@@ -581,13 +583,14 @@ export default {
     },
 
     onInlineEdit(event) {
-    console.log('onlinlineedit', event)
+    console.log('onInlineEdit', event, this)
       if (!this.inlineEdit.firstTime.includes(event.target)) {
         this.inlineEdit.firstTime.push(event.target)
       }
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
+      console.log('onInlineEdit:eventPath', eventPath)
 
       if (!eventPath) {
         this.toast.missingEventPath = $perAdminApp.toast(Error.MISSING_EVENT_PATH,
@@ -596,7 +599,7 @@ export default {
       }
 
       const vnode = this.findVnode(this.component.__vue__, eventPath)
-      const attr = this.isRich ? 'innerHTML' : 'innerText'
+      console.log('onInlineEdit:vnode', vnode)
       if (vnode.data.domProps) {
         if (this.isRich) {
           vnode.data.domProps.innerHTML = this.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
