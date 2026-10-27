@@ -356,16 +356,16 @@ export default {
 
   watch: {
 	  toolbarDisabled(newVal) {
-	    console.log('toolbarDisabled:', newVal)
+	    // console.log('toolbarDisabled:', newVal)
 	  },
     currentFontSize(newVal) {
-      if (this.onSubNav) console.log('fontsize:', newVal)
+      // if (this.onSubNav) console.log('fontsize:', newVal)
     },
     lastInRteSelection(newVal) {
-      console.log('selection:', newVal)
+      // console.log('selection:', newVal)
     },
     lastRteSelectionInlineOnly(newVal) {
-    console.log('inline sel:', newVal)
+    // console.log('inline sel:', newVal)
     },
   },
 

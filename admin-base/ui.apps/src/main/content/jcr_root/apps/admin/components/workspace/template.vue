@@ -170,6 +170,8 @@ export default {
             if (originalStr[i] !== currentStr[i]) { diffIdx = i; break; }
           }
         }
+      // debug, remove
+      return this.openEditor(target)
       if (!originalData || !currentNode || originalStr === currentStr) {
         return this.openEditor(target)
       }

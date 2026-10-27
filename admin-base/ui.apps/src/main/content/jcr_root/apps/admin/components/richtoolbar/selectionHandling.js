@@ -11,14 +11,14 @@ export function createSelectionMethods() {
   handleSelectionChange(event) {
     try{
     const doc = event.target.ownerDocument || event.target
-    const inIframe = doc.defaultView.top.document !== doc;
+    const inIframe = doc.defaultView.parent.document !== doc && !doc.defaultView.parent.Cypress;
     const selection = doc.getSelection()
     if (selection.rangeCount < 1) {
-      console.warn('debug no ranges', selection)
+      // console.warn('debug no ranges', selection)
       return
     }
     const range = doc.getSelection().getRangeAt(0)
-    console.log('handleselectionchange', range.commonAncestorContainer, range.startOffset, range.endOffset, this.lastInRteSelection?.commonAncestorContainer, this.lastInRteSelection?.startOffset, this.lastInRteSelection?.endOffset)
+    // console.log('handleselectionchange', range.commonAncestorContainer, range.startOffset, range.endOffset, this.lastInRteSelection?.commonAncestorContainer, this.lastInRteSelection?.startOffset, this.lastInRteSelection?.endOffset)
     const commonAncestorEl = range.commonAncestorContainer.closest ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement
     const rte = commonAncestorEl.closest('.inline-edit')
 
@@ -36,16 +36,17 @@ export function createSelectionMethods() {
       const fontSizeSpan = commonAncestorEl.closest('.inline-edit [style*="font-size"]')
       if (fontSizeSpan) {
         this.currentFontSize = parseInt(fontSizeSpan.style.fontSize)
-        console.log('fontsizespan:', this.currentFontSize)
+        // console.log('fontsizespan:', this.currentFontSize)
       } else {
         const getFontSizeFrom =
           this.lastRteSelectionInlineOnly?.commonAncestorContainer ? (this.lastRteSelectionInlineOnly.commonAncestorContainer.closest ? this.lastRteSelectionInlineOnly.commonAncestorContainer : this.lastRteSelectionInlineOnly.commonAncestorContainer.parentElement).closest('.inline-edit') :
-          document.querySelector('#editview').contentDocument.querySelector('[data-editing-component]') // fallback if rte was only ever touched via sidebar
+          document.querySelector('#editview').contentDocument.querySelector('[data-editing-component] [contenteditable="true"][data-per-inline$=".text"]') || document.querySelector('#editview').contentDocument.querySelector('[data-editing-component]') // fallback if rte was only ever touched via sidebar
+        // console.log('getFontSizeFrom', getFontSizeFrom)
         this.currentFontSize = parseInt(window.getComputedStyle(getFontSizeFrom).fontSize)
-        console.log('fontsize base:', this.currentFontSize)
+        // console.log('fontsize base:', this.currentFontSize)
       }
     } else {
-      console.warn('handleselectionchange: no rte')
+      // console.warn('handleselectionchange: no rte')
     }
 
     this.toolbarDisabled = !commonAncestorEl.closest('.inline-edit, .richtoolbar')
@@ -94,6 +95,7 @@ export function createSelectionMethods() {
 	    const saved = this.lastInRteSelectionRelativeToRte
 	    const rte = this.lastSelectedRte
 	    const doc = rte.ownerDocument
+			const inIframe = doc.defaultView.parent.document !== doc && !doc.defaultView.parent.Cypress;
 	    
 	    if (rte && saved) {
 	      const pointAt = (targetOffset, isStart) => {
@@ -133,6 +135,7 @@ export function createSelectionMethods() {
 	      const selection = doc.getSelection()
 	      selection.removeAllRanges()
 	      selection.addRange(restoredRange)
+				if (inIframe) document.querySelector('#editview').focus()
         doc.dispatchEvent(new Event('selectionchange'))
         console.log('restored relative range')
 	    }

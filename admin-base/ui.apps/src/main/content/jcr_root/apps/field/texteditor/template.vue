@@ -168,6 +168,7 @@ export default {
     const view = this.view
     console.log('view', view)
     if (view) set(view, '/state/inline/rich', true)
+    document.execCommand('defaultParagraphSeparator', false, 'p')
   },
 
   methods: {

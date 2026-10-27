@@ -480,6 +480,7 @@ export default {
     },
 
     unselect(vm) {
+    console.log('unselect', vm.target)
       vm.target = null
       vm.editable.class = null
       vm.autoSave = false
@@ -550,7 +551,7 @@ export default {
     writeInlineToModel(vm = this) {
       let content = ''
       if (vm.isRich) {
-        content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
+        content = vm.target.innerHTML
       } else {
         content = vm.target.innerText
       }
@@ -558,33 +559,21 @@ export default {
     // TODO: updates self, breaks selection
     // return;
       const dataInline = vm.targetInline.split('.').slice(1)
+      console.log('dataInline', dataInline, vm.targetInline)
       dataInline.reverse()
       let parentProp = vm.node
       while (dataInline.length > 1) {
         parentProp = parentProp[dataInline.pop()]
       }
       const keyStr = dataInline.pop()
-      console.log('parentProp[keyStr]', parentProp[keyStr])
-      console.log('keyStr', keyStr)
       parentProp[keyStr] = content;
     },
 
-    writeElementToModel(vm = this, element) {
-    console.log('writeElementToModel', element)
-      let content = element.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
-      const dataInline = (element.getAttribute('data-per-inline') || '').split('.').slice(1)
-      dataInline.reverse()
-      let parentProp = vm.node
-      while (dataInline.length > 1) {
-        parentProp = parentProp[dataInline.pop()]
-      }
-      const keyStr = dataInline.pop()
-      if (keyStr) parentProp[keyStr] = content
-    },
-
     onInlineEdit(event) {
+    event.preventDefault()
     console.log('onInlineEdit', event, this)
       if (!this.inlineEdit.firstTime.includes(event.target)) {
+        console.log('fistTime:', event.target)
         this.inlineEdit.firstTime.push(event.target)
       }
 
@@ -614,6 +603,47 @@ export default {
       this.reWrapEditable()
     },
 
+    onInlineKeyDown(event) {
+      const key = event.key;
+    console.log('onInlineKeyDown', key)
+      const shift = event.shiftKey
+      const alt = event.altKey
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+
+      if (ctrlOrCmd) {
+        if (key === "a") this.onInlineSelectAll(event)
+        if (key === "b") this.sendRichToolbarCommand(event, "bold")
+        if (key === "i") this.sendRichToolbarCommand(event, "italic")
+        if (key === "u") this.sendRichToolbarCommand(event, "underline")
+        if (key === "z") this.sendRichToolbarCommand(event, "undo")
+        if (key === "y") this.sendRichToolbarCommand(event, "redo")
+      }
+      if (ctrlOrCmd && alt) {
+        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p")
+        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1")
+        if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2")
+        if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3")
+        if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4")
+        if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5")
+        if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6")
+      }
+    },
+
+    sendRichToolbarCommand(event, cmd, value) {
+      event.preventDefault()
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd, value } }))
+    },
+
+    onInlineSelectAll(event) {
+      event.preventDefault()
+      let range, selection
+      selection = this.iframe.win.getSelection()
+      range = this.iframe.doc.createRange()
+      range.selectNodeContents(event.target)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    },
+
     refreshEditor(vm) {
       vm.$refs.editview.contentWindow.location.reload()
     },
@@ -635,6 +665,7 @@ export default {
     },
 
     onInlineFocus(event) {
+    console.log('oninlinefocus', event.target, event)
       event.target.classList.add('inline-editing')
       if (isChromeBrowser() && event.target.innerHTML) {
         event.target.innerHTML = event.target.innerHTML.trim()
@@ -648,6 +679,7 @@ export default {
       set(this.view, '/state/inline/doc', this.iframe.doc)
       const modelPropName = this.getCurrentModelPropName()
       this.dynWatchers.some((w, index) => {
+        console.log('dynwatchers.some', w.modelPropName)
         if (w.modelPropName === modelPropName) {
           w.unwatch()
           this.dynWatchers.splice(index, 1)
@@ -702,6 +734,21 @@ export default {
       }
       this.iframe.doc.execCommand('defaultParagraphSeparator', false, 'p')
       window.dispatchEvent(new CustomEvent('peregrine:iframe-loaded', { detail: { iframeEl: this.$refs.editview } }))
+      // Debug
+      const styleEl = this.iframe.doc.createElement("style");
+      styleEl.textContent = `
+        * {
+          caret-shape: block;
+          caret-animation: manual;
+          animation: caret-block 2s step-end infinite;
+        }
+        
+        @keyframes caret-block {
+           0% { caret-color: #00d2ff; }
+          50% { caret-color: #ffa6b9; }
+        }
+      `;
+      (this.iframe.doc.head).appendChild(styleEl);
     },
 
     onIframeClick(ev) {
@@ -914,7 +961,7 @@ export default {
         el.addEventListener('focus', this.onInlineFocus)
         el.addEventListener('focusout', this.onInlineFocusOut)
         el.addEventListener('keydown', this.onInlineKeyDown)
-        el.addEventListener('keyup', this.onInlineKeyUp)
+        // el.addEventListener('keyup', this.onInlineKeyUp)
         el.addEventListener('dblclick', this.onInlineDblClick)
         el.setAttribute('contenteditable', this.previewMode !== 'preview' + '')
       })

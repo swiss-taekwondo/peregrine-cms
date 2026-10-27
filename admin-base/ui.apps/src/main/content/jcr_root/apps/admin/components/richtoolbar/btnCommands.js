@@ -273,6 +273,11 @@ export function createButtonCommandMethods(vm) {
       setFontSizeOfEl(fontSizeParent, fontSize)
       fontSizeParent.style.fontSize = fontSize
       vm.triggerInput()
+      vm.$nextTick(() => {
+	        vm.$nextTick(() => {
+	           vm.reconstructSelectionRelativeToRte()
+	        })
+      })
       return
     }
 
@@ -286,9 +291,7 @@ export function createButtonCommandMethods(vm) {
     }
 
     const onlySingleNode = range.startContainer.isEqualNode(range.endContainer)
-    console.log('onlySingleNode', onlySingleNode)
     if (onlySingleNode) {
-      // const isOnlyChildTextNodeOfExistingFontSizeSpan = range.startContainer.parentElement.childNodes.length === 1 && range.startContainer.parentElement.nodeName === 'SPAN'
       const isOnlyChildTextNodeOfExistingFontSizeSpan = false;
       if (range.startContainer.nodeType === Node.TEXT_NODE && !isOnlyChildTextNodeOfExistingFontSizeSpan) {
         const span = document.createElement('span')
@@ -301,8 +304,6 @@ export function createButtonCommandMethods(vm) {
 	           vm.reconstructSelectionRelativeToRte()
 	        })
         })
-      // } else if (isOnlyChildTextNodeOfExistingFontSizeSpan) {
-      //   setFontSizeOfEl(range.startContainer.parentElement, fontSize)
       } else {
         setFontSizeOfEl(range.startContainer, fontSize)
       }
@@ -318,44 +319,11 @@ export function createButtonCommandMethods(vm) {
     })
 
     vm.selectNodes(nodeRanges)
-    const ownerDoc = nodeRanges[0].ownerDocument
-    const selectionOfNodes = ownerDoc.getSelection().getRangeAt(0)
-
-    const startSelectionMarkId = crypto.randomUUID()
-    const startOffset = selectionOfNodes.startOffset
-    const endSelectionMarkId = crypto.randomUUID()
-    const endOffset = selectionOfNodes.endOffset
-    nodeRanges[0].dataset.startSelectionMarkId = startSelectionMarkId
-    nodeRanges[nodeRanges.length - 1].dataset.endSelectionMarkId = endSelectionMarkId
-    console.log('nodeRanges', nodeRanges)
     vm.$nextTick(() => {
-      vm.reconstructSelectionRelativeToRte()
+      vm.$nextTick(() => {
+          vm.reconstructSelectionRelativeToRte()
+      })
     })
-
-    
-    // vm.selectElementContents(nodeRanges[0])
-    // vm.triggerInput()
-    // if (ownerDoc.querySelector('iframe#editview')) {
-    //   $perAdminApp.action(this, 'textEditorWriteToModel')
-    // } else {
-    //   $perAdminApp.action(this, 'writeInlineToModel')
-    // }
-
-    // textEditor.focus()
-    // vm.$nextTick(() => {
-    //   vm.$nextTick(() => {
-    //     const selectionAfter = ownerDoc.getSelection()
-    //     selectionAfter.removeAllRanges()
-    //     const newRange = ownerDoc.createRange()
-    //     const startEl = ownerDoc.querySelector(`[data-start-selection-mark-id="${startSelectionMarkId}"]`)
-    //     newRange.setStart(startEl, startOffset)
-    //     delete startEl.dataset.startSelectionMarkId
-    //     const endEl = ownerDoc.querySelector(`[data-end-selection-mark-id="${endSelectionMarkId}"]`)
-    //     newRange.setEnd(endEl, endOffset)
-    //     delete endEl.dataset.endSelectionMarkId
-    //     selectionAfter.addRange(newRange)
-    //   })
-    // })
   },
 
       undo() {
