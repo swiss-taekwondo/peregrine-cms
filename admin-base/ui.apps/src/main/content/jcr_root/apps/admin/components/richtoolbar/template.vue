@@ -40,7 +40,6 @@ import {
 } from './groups'
 import {get, restoreSelection, saveSelection, saveDomRangeSelection, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
-import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
@@ -125,21 +124,121 @@ function getDeepestLastTextNode(node) {
   return last
 }
 
-function getSelectedBlockFromRange(range, editor) {
-  if (!range || !editor) return null
-  const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
-    ? range.startContainer.parentElement
-    : range.startContainer
-  const exactText = range.toString().trim()
-  return (
-    (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-    || (exactText
-      ? Array.from(editor.querySelectorAll('p, h1, h2, h3, h4, h5, h6')).find(
-        (element) => (element.textContent || '').trim() === exactText,
-      ) || null
-      : null)
-    || (editor.matches && editor.matches('p, h1, h2, h3, h4, h5, h6') ? editor : null)
-  )
+const blockSelector = 'p, h1, h2, h3, h4, h5, h6, div:not([contenteditable="true"]'
+function getSelectedBlocksFromRange(range, editor) {
+  if (!range || !editor) return []
+
+  // A caret formats the block containing it.
+  if (range.collapsed) {
+    const container = range.startContainer
+    const element = container.nodeType === Node.ELEMENT_NODE
+      ? container
+      : container.parentElement
+    const block = element?.closest(blockSelector)
+
+    return block && editor.contains(block) ? [block] : []
+  }
+
+  // A text selection formats every block it intersects.
+  return Array.from(editor.querySelectorAll(blockSelector))
+    .filter((block) => range.intersectsNode(block))
+}
+
+function wrapSelectedRangeInBlock(range, editor, tagName) {
+  if (range.collapsed) return false
+  const doc = editor.ownerDocument
+  // Handle a selection within a text node directly under contenteditable.
+  const textNode = range.startContainer
+  if (
+    textNode.nodeType === Node.TEXT_NODE &&
+    textNode === range.endContainer &&
+    textNode.parentNode === editor
+  ) {
+    const text = textNode.nodeValue || ''
+    const before = text.slice(0, range.startOffset)
+    const selected = text.slice(range.startOffset, range.endOffset)
+    const after = text.slice(range.endOffset)
+
+    if (!selected) return false
+
+    const wrapped = doc.createElement(tagName)
+    wrapped.textContent = selected
+
+    const fragment = doc.createDocumentFragment()
+    if (before) fragment.appendChild(doc.createTextNode(before))
+    fragment.appendChild(wrapped)
+    if (after) fragment.appendChild(doc.createTextNode(after))
+
+    textNode.replaceWith(fragment)
+
+    const nextRange = doc.createRange()
+    nextRange.selectNodeContents(wrapped)
+    const selection = doc.defaultView?.getSelection?.()
+    if (selection) {
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+    }
+
+    return true
+  }
+
+  const getBlock = (node) => {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement
+    return element?.closest(blockSelector) || null
+  }
+
+  const block = getBlock(range.startContainer)
+  if (!block || getBlock(range.endContainer) !== block || !editor.contains(block)) {
+    return false
+  }
+
+  const beforeRange = doc.createRange()
+  beforeRange.selectNodeContents(block)
+  beforeRange.setEnd(range.startContainer, range.startOffset)
+
+  const afterRange = doc.createRange()
+  afterRange.selectNodeContents(block)
+  afterRange.setStart(range.endContainer, range.endOffset)
+
+  const before = beforeRange.cloneContents()
+  const selected = range.cloneContents()
+  const after = afterRange.cloneContents()
+
+  const wrapped = doc.createElement(tagName)
+  for (const attr of Array.from(block.attributes)) {
+    wrapped.setAttribute(attr.name, attr.value)
+  }
+  wrapped.append(selected)
+
+  const replacements = []
+
+  if (before.hasChildNodes()) {
+    const beforeBlock = block.cloneNode(false)
+    beforeBlock.append(before)
+    replacements.push(beforeBlock)
+  }
+
+  replacements.push(wrapped)
+
+  if (after.hasChildNodes()) {
+    const afterBlock = block.cloneNode(false)
+    afterBlock.append(after)
+    replacements.push(afterBlock)
+  }
+
+  const fragment = doc.createDocumentFragment()
+  replacements.forEach((node) => fragment.appendChild(node))
+  block.replaceWith(fragment)
+
+  const nextRange = doc.createRange()
+  nextRange.selectNodeContents(wrapped)
+  const selection = doc.defaultView?.getSelection?.()
+  if (selection) {
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+  }
+
+  return true
 }
 
 function findComponentWithMethodFromElement(element, methodName) {
@@ -242,10 +341,6 @@ export default {
         withImageTab: false,
         newWindow: false,
         linkTitle: '',
-        altText: undefined,
-        mediaSourcePath: '',
-        mediaSourceText: '',
-        mediaSourceFallback: '',
         path: {
           current: '',
           selected: null,
@@ -559,8 +654,6 @@ export default {
           newWindow: this.browser.newWindow,
           linkTitle: this.browser.linkTitle,
           setLinkTitle: this.setBrowserLinkTitle,
-          altText: this.browser.altText,
-          setAltText: this.setBrowserAltText,
           currentPath: this.browser.path.current,
           setCurrentPath: this.setBrowserPathCurrent,
           selectedPath: this.browser.path.selected,
@@ -1233,7 +1326,7 @@ export default {
     inlineCmdHandler(event) {
       if (this.onSubNav) return
       if (typeof this[event.detail.cmd] === 'function') {
-        this[event.detail.cmd]()
+        this[event.detail.cmd](event.detail.value)
       } else {
         this.exec(event.detail.cmd, event.detail.value || null)
       }
@@ -1737,35 +1830,32 @@ export default {
         }
         if (!range || !textEditor || !this.isRangeInEditor(range, textEditor)) return false
       }
+      if (!range.collapsed) {
+        if (!wrapSelectedRangeInBlock(range, textEditor, normalizedTagName)) return false
+        this.writeEditorToModel(textEditor)
+        textEditor.dispatchEvent(new Event('input'))
+        this.pingRichToolbar()
+        return true
+      }
 
-      const block = getSelectedBlockFromRange(range, textEditor)
-      let resolvedBlock = block
-      if (!resolvedBlock && this.selection?.container && this.selection?.buffer) {
-        const doc = this.selection.doc || this.selection.container.ownerDocument
-        restoreSelection(this.selection.container, this.selection.buffer, doc)
-        range = this.getEditorSelection()
-        textEditor = range ? this.getEditorFrom(range) : null
-        resolvedBlock = range && textEditor ? getSelectedBlockFromRange(range, textEditor) : null
-      }
-      if (!resolvedBlock) return false
-      if (resolvedBlock.tagName === normalizedTagName) return true
+      const blocks = getSelectedBlocksFromRange(range, textEditor)
+      if (!blocks.length) return false
+      if (blocks.every((block) => block.tagName === normalizedTagName)) return true
 
-      const replacement = textEditor.ownerDocument.createElement(normalizedTagName)
-      for (const attr of Array.from(resolvedBlock.attributes)) {
-        replacement.setAttribute(attr.name, attr.value)
-      }
-      while (resolvedBlock.firstChild) {
-        replacement.appendChild(resolvedBlock.firstChild)
-      }
-      resolvedBlock.replaceWith(replacement)
+      for (const block of blocks) {
+        const replacement = textEditor.ownerDocument.createElement(normalizedTagName)
 
-      const nextRange = textEditor.ownerDocument.createRange()
-      nextRange.selectNodeContents(replacement)
-      const selection = textEditor.ownerDocument.defaultView?.getSelection?.()
-      if (selection) {
-        selection.removeAllRanges()
-        selection.addRange(nextRange)
+        for (const attr of Array.from(block.attributes)) {
+          replacement.setAttribute(attr.name, attr.value)
+        }
+
+        while (block.firstChild) {
+          replacement.appendChild(block.firstChild)
+        }
+
+        block.replaceWith(replacement)
       }
+
       this.writeEditorToModel(textEditor)
       textEditor.dispatchEvent(new Event('input'))
       this.pingRichToolbar()
@@ -2119,7 +2209,7 @@ export default {
         return
       }
       let anchor = this.getActiveAnchor()
-      
+
       if (anchor && (!this.getInlineDoc() || !this.getLastDoc())) {
         const anchorDoc = anchor.ownerDocument
         if (anchorDoc) {
@@ -2178,7 +2268,7 @@ export default {
         try {
           const url = new URL(href)
           if (url.hostname === window.location.hostname) {
-            resolvedHref = url.pathname
+            resolvedHref = url.pathname + url.search + url.hash
           }
         } catch (e) { /* Do nothing */ }
       }
@@ -2188,13 +2278,17 @@ export default {
         this.browser.path.selected = resolvedHref
         startPath = this.roots.pages || '/'
       } else {
-        let hrefPath = resolvedHref.replace(/\.html$/, '')
+        // Normalize only the repository path; keep query strings and fragments verbatim.
+        const suffixIndex = resolvedHref.search(/[?#]/)
+        const pathname = suffixIndex < 0 ? resolvedHref : resolvedHref.slice(0, suffixIndex)
+        const suffix = suffixIndex < 0 ? '' : resolvedHref.slice(suffixIndex)
+        let hrefPath = pathname.replace(/\.html$/, '')
         if (!hrefPath.startsWith('/content/')) {
           hrefPath = (this.roots.pages || '') + hrefPath
         }
         const lastSlash = hrefPath.lastIndexOf('/')
         startPath = lastSlash > 0 ? hrefPath.substring(0, lastSlash) : (this.roots.pages || '/')
-        this.browser.path.selected = hrefPath
+        this.browser.path.selected = hrefPath + suffix
       }
       this.browser.path.current = startPath
       this.startBrowsing(startPath)
@@ -2341,17 +2435,9 @@ export default {
       this.startBrowsing()
     },
 
-    async getDefaultMediaText(path = '') {
-      const rootData = this.$root && this.$root.$data
-      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
-      return resolveMediaText(path, adminNodes)
-    },
-
-    async editImage(vm = this, target) {
+    editImage(vm = this, target) {
       const title = target.getAttribute('title')
       const src = target.getAttribute('src')
-      const defaultText = title || target.getAttribute('alt') || await vm.getDefaultMediaText(src)
-      const fallbackText = fallbackMediaText(src)
       const srcArr = src.split('/')
       const img = {
         width: target.style.width ? parseInt(target.style.width) : null,
@@ -2367,10 +2453,7 @@ export default {
       vm.browser.withLinkTab = true
       vm.browser.newWindow = undefined
       vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.linkTitle = defaultText
-      vm.browser.mediaSourcePath = src
-      vm.browser.mediaSourceText = defaultText || ''
-      vm.browser.mediaSourceFallback = fallbackText
+      vm.browser.linkTitle = title
       vm.browser.element = target
       vm.browser.img.width = img.width
       vm.browser.img.height = img.height
@@ -2394,8 +2477,7 @@ export default {
       this.getEditorFrom(range).dispatchEvent(new Event('input'))
     },
 
-    async editIcon(vm = this, target) {
-      const alt = target.getAttribute('alt') || await vm.getDefaultMediaText(target.getAttribute('src') || '')
+    editIcon(vm = this, target) {
       const src = target.getAttribute('src') || ''
       const img = {
         width: target.style.width ? parseInt(target.style.width) : 20,
@@ -2409,7 +2491,6 @@ export default {
       vm.browser.path.selected = src
       vm.browser.path.current = src
       vm.browser.type = PathBrowser.Type.ASSET
-      vm.browser.altText = alt
       vm.browser.linkTitle = undefined
       vm.browser.newWindow = undefined
       vm.browser.element = target
@@ -2480,9 +2561,6 @@ export default {
       this.browser.open = false
       this.browser.withImageTab = false
       this.param.anchor = null
-      this.browser.mediaSourcePath = ''
-      this.browser.mediaSourceText = ''
-      this.browser.mediaSourceFallback = ''
       if (this.selection.restore) {
         this.restoreSelection()
         this.selection.restore = false
@@ -2501,7 +2579,7 @@ export default {
           this.onLinkSelect()
           return
         } else if (['insertImage', 'editImage', 'editIcon'].includes(this.param.cmd)) {
-          this.onImageSelect().catch((err) => console.error(err))
+          this.onImageSelect()
           return
         }
 
@@ -2542,8 +2620,12 @@ export default {
       }
 
       const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
-      if (href.startsWith('/') && isPageType && !href.includes('.html')) {
-        href += '.html'
+      if (href.startsWith('/') && isPageType) {
+        const url = new URL(href, "https://placeholder.invalid");
+        if (!url.pathname.endsWith('.html')) {
+          url.pathname += ".html";
+        }
+        href = url.pathname + url.search + url.hash;
       }
 
       const applyLinkAttributes = (link) => {
@@ -2647,31 +2729,30 @@ export default {
       }
     },
 
-    async onImageSelect() {
+    onImageSelect() {
       if (this.param.cmd === 'editIcon') {
         const imgEl = this.browser.element
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        imgEl.setAttribute('alt', this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected) || '')
         imgEl.setAttribute('style', styles.join(';'))
         const container = imgEl.closest('[data-per-inline]')
         if (container) $perAdminApp.action(this, 'writeElementToModel', container)
+        const editor = imgEl.closest('[contenteditable="true"]')
+        if (editor) editor.dispatchEvent(new Event('input'))
         this.browser.element = null
-        this.browser.altText = undefined
         this.browser.withImageTab = false
         return
       }
       if (this.param.cmd === 'editImage') {
         const imgEl = this.browser.element
-        const linkTitle = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
+        const linkTitle = this.browser.linkTitle
         const styles = []
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
         imgEl.setAttribute('src', this.browser.path.selected)
-        imgEl.setAttribute('alt', linkTitle || '')
         imgEl.setAttribute('title', linkTitle || '')
         imgEl.setAttribute('style', styles.join(';'))
         if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
@@ -2680,9 +2761,6 @@ export default {
         const editor = imgEl.closest('[contenteditable="true"]')
         if (editor) editor.dispatchEvent(new Event('input'))
         this.browser.element = null
-        this.browser.mediaSourcePath = ''
-        this.browser.mediaSourceText = ''
-        this.browser.mediaSourceFallback = ''
       } else {
         // insertImage
         const sel = window.getSelection()
@@ -2692,12 +2770,10 @@ export default {
         if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
         if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
         if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
 
         const img = document.createElement('img')
         img.setAttribute('src', this.browser.path.selected)
-        img.setAttribute('alt', mediaText || '')
-        img.setAttribute('title', mediaText || '')
+        img.setAttribute('title', this.browser.linkTitle || '')
         if (styles.length) {
           img.setAttribute('style', styles.join(';'))
         }
@@ -2713,9 +2789,6 @@ export default {
         if (editor) editor.dispatchEvent(new Event('input'))
 
       }
-      this.browser.mediaSourcePath = ''
-      this.browser.mediaSourceText = ''
-      this.browser.mediaSourceFallback = ''
     },
 
     setBrowserPathCurrent(path) {
@@ -2724,12 +2797,6 @@ export default {
 
     setBrowserPathSelected(path) {
       this.browser.path.selected = path
-      if (this.param.cmd === 'editImage' && path && path !== this.browser.mediaSourcePath) {
-        const current = String(this.browser.linkTitle || '').trim()
-        if (!current || current === this.browser.mediaSourceText || current === this.browser.mediaSourceFallback) {
-          this.browser.linkTitle = ''
-        }
-      }
     },
 
     setBrowserResourceType(type) {
@@ -2746,10 +2813,6 @@ export default {
 
     setBrowserLinkTitle(event) {
       this.browser.linkTitle = event.target.value
-    },
-
-    setBrowserAltText(event) {
-      this.browser.altText = event.target.value
     },
 
     getSelection(index = null) {

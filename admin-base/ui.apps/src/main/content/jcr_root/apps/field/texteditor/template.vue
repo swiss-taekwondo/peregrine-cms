@@ -52,7 +52,7 @@
 
 <script>
 import {Key} from '../../../../../js/constants'
-import {restoreSelection, saveSelection, set} from '../../../../../js/utils'
+import { saveSelection, set } from '../../../../../js/utils'
 import Richtoolbar from '../../admin/components/richtoolbar/template.vue'
 import DOMPurify from 'dompurify'
 
@@ -201,7 +201,7 @@ export default {
       this.$nextTick(() => this.pingToolbar())
       return true
     },
-    onFocusIn(event) {
+    onFocusIn() {
       const view = this.view
       if (!view) return
       set(view, '/state/inline/rich', true)
@@ -221,11 +221,7 @@ export default {
       if (headingDigit !== null) {
         event.preventDefault()
         const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
-        if (!this.formatBlock(value)) {
-          document.execCommand('formatBlock', false, `<${value}>`)
-          this.textEditorWriteToModel()
-          this.$nextTick(() => this.pingToolbar())
-        }
+        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
       } else if (key === Key.B && ctrlOrCmd) {
         // override and dispatchevent here for more predictable outcomes and avoid contenteditable default keybinds when we have custom functionality.
         event.preventDefault()
@@ -290,10 +286,40 @@ export default {
       }
     },
     onInput(event) {
-      const content = event.target.innerHTML;
+      let content = event.target.innerHTML;
       const pVnode = this._vnode.children && this._vnode.children.find(c => c.elm === this.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
+
+      const textCheckDiv = document.createElement('div')
+      textCheckDiv.innerHTML = DOMPurify.sanitize(content, domPurifyConfig)
+      // Replace links with no href or only whitespace with their content
+      textCheckDiv.querySelectorAll('a').forEach((el) => {
+        if (!el.getAttribute('href') || (!el.textContent.trim() && !el.querySelector('img'))) {
+          console.log("replacing invalid link with it's content:", el)
+          el.replaceWith(...el.childNodes)
+        }
+      })
+      // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
+      // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
+      // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
+      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) {
+        content = '';
+      } else {
+        content = textCheckDiv.innerHTML
+      }
+
+      // The browser seems to keep some kind of context when deleting all text from contenteditable, inserting a span with fontsize into the element oninput.
+      // Focusing another input prevents this.
       this.value = content
+      if (!this.value) {
+        const target = event.target
+        const contentEditableContextFixInput = document.createElement('input')
+        target.after(contentEditableContextFixInput)
+
+        contentEditableContextFixInput.focus()
+        target.focus()
+        contentEditableContextFixInput.remove()
+      }
       this.textEditorWriteToModel()
       this.pingToolbar()
     },
@@ -337,34 +363,11 @@ export default {
     _saveInlineSelectionState(vm = this) {
       const view = $perAdminApp.getView()
       if (!view) return
-      const sel = document.getSelection()
       vm.syncToolbarSelection()
       set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
       set(view, '/state/inline/lastDoc', vm.doc)
       set(view, '/state/inline/doc', vm.doc)
     },
   },
-  watch: {
-    value() {
-      if (!this.value) return
-      const textCheckDiv = document.createElement('div')
-      textCheckDiv.innerHTML = DOMPurify.sanitize(this.value, domPurifyConfig)
-      // Replace links with no href or only whitespace with their content
-      textCheckDiv.querySelectorAll('a').forEach((el) => {
-        if (!el.getAttribute('href') || (!el.textContent.trim() && !el.querySelector('img'))) {
-          console.log("replacing invalid link with it's content:", el)
-          el.replaceWith(...el.childNodes)
-        }
-      })
-      // removing all text usually results in the left over elements like empty <p> tags or a <br> tags.
-      // make sure to treat this as empty but if images and lists are present, treat it as non-empty.
-      // as a side effect, this requires text to exist before being able to set Headings, super/sub-script.
-      if (!textCheckDiv.textContent.trim() && !textCheckDiv.querySelector('img, ul, ol')) {
-        this.value = '';
-      } else {
-        this.value = textCheckDiv.innerHTML
-      }
-    }
-  }
 }
 </script>

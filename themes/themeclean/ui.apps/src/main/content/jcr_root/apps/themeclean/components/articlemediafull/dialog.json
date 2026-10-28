@@ -56,7 +56,6 @@
       "placeholder": "imagesrc",
       "label": "Image Source",
       "model": "imagesrc",
-      "defaultAltFromAsset": true,
       "visible": "model.mediatype == 'image'"
     },
     {
@@ -65,7 +64,6 @@
       "placeholder": "mediaalttext",
       "label": "Media Alt Text",
       "model": "mediaalttext",
-      "defaultFrom": "imagesrc",
       "visible": "model.mediatype == 'image'"
     },
     {
@@ -160,8 +158,7 @@
       "placeholder": "bgimage",
       "label": "Background Image",
       "model": "bgimage",
-      "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'",
-      "defaultAltFromAsset": true
+      "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'"
     },
     {
       "type": "input",
@@ -169,7 +166,6 @@
       "placeholder": "bgimagealttext",
       "label": "Background Image Alt Text",
       "model": "bgimagealttext",
-      "defaultFrom": "bgimage",
       "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'"
     },
     {

@@ -101,8 +101,7 @@
           "browserRoot": "/content/themeclean/assets",
           "placeholder": "imagepath",
           "label": "Image Source",
-          "model": "imagepath",
-          "defaultAltFromAsset": true
+          "model": "imagepath"
         },
         {
           "type": "input",
@@ -123,8 +122,7 @@
           "inputType": "text",
           "placeholder": "alt",
           "label": "Image Alt Text",
-          "model": "alt",
-          "defaultFrom": "imagepath"
+          "model": "alt"
         }
       ],
       "placeholder": "slides",
@@ -207,8 +205,7 @@
       "placeholder": "bgimage",
       "label": "Background Image",
       "model": "bgimage",
-      "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'",
-      "defaultAltFromAsset": true
+      "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'"
     },
     {
       "type": "input",
@@ -216,7 +213,6 @@
       "placeholder": "bgimagealttext",
       "label": "Background Image Alt Text",
       "model": "bgimagealttext",
-      "defaultFrom": "bgimage",
       "visible": "model.backgroundtype == 'image' and model.custombackground == 'true'"
     },
     {

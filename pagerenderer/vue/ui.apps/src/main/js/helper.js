@@ -19,7 +19,11 @@ const helpers = {
         let absoluteUrl = new RegExp('^(?:[a-z]+:)?//', 'i');   //Matches absolute URLs
         let file = new RegExp(/\.\w+$/, 'i')                    //Matches URL ending with a file extension
         if( absoluteUrl.test(path) === false ) {
-            return file.test(path) ? path : `${path}.html`
+            // Add .html to the path, keeping any query or hash.
+            const suffixIndex = path.search(/[?#]/)
+            const pathname = suffixIndex < 0 ? path : path.slice(0, suffixIndex)
+            const suffix = suffixIndex < 0 ? '' : path.slice(suffixIndex)
+            return file.test(pathname) ? path : `${pathname}.html${suffix}`
         }
         else return path
     }

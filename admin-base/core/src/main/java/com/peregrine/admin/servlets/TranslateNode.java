@@ -25,30 +25,17 @@ package com.peregrine.admin.servlets;
  * #L%
  */
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.peregrine.admin.resource.GeminiGeneration;
 import com.peregrine.commons.servlets.AbstractBaseServlet;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Modified;
-import org.osgi.service.metatype.annotations.AttributeDefinition;
-import org.osgi.service.metatype.annotations.Designate;
-import org.osgi.service.metatype.annotations.ObjectClassDefinition;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.jcr.*;
 import javax.servlet.Servlet;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,51 +61,17 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
  *    ui.apps/src/main/content/jcr_root/perapi/definitions/admin.yaml
  */
 @Component(
-    service = Servlet.class,
-    property = {
-        SERVICE_DESCRIPTION + EQUALS + PER_PREFIX + "translate node at servlet",
-        SERVICE_VENDOR + EQUALS + PER_VENDOR,
-        SLING_SERVLET_METHODS + EQUALS + POST,
-        SLING_SERVLET_METHODS + EQUALS + GET,
-        SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_TRANSLATE
-    }
+        service = Servlet.class,
+        property = {
+                SERVICE_DESCRIPTION + EQUALS + PER_PREFIX + "translate node at servlet",
+                SERVICE_VENDOR + EQUALS + PER_VENDOR,
+                SLING_SERVLET_METHODS + EQUALS + POST,
+                SLING_SERVLET_METHODS + EQUALS + GET,
+                SLING_SERVLET_RESOURCE_TYPES + EQUALS + RESOURCE_TYPE_TRANSLATE
+        }
 )
-@Designate(ocd = TranslateNode.Configuration.class)
 @SuppressWarnings("serial")
 public class TranslateNode extends AbstractBaseServlet {
-    @ObjectClassDefinition(
-            name = "Peregrine: Translate Node Servlet",
-            description = "Translates Node via Experiences"
-    )
-    @interface Configuration {
-        @AttributeDefinition(
-                name = "Gemini API Key",
-                description = "Gemini API Key to generate AI translations",
-                required = true
-        )
-        String gemini_api_key() default "";
-
-        @AttributeDefinition(
-                name = "Gemini Model",
-                description = "Gemini Model to use for AI translations",
-                required = false
-        )
-        String gemini_model() default "";
-
-        @AttributeDefinition(
-                name = "Gemini Prompt",
-                description = "Gemini Prompt details to generate AI translations",
-                required = false
-        )
-        String gemini_prompt() default "";
-
-        @AttributeDefinition(
-                name = "Language Map",
-                description = "Language Map Configuration. Format: ISO 639-1 language code = language name",
-                required = true
-        )
-        String[] language_map();
-    }
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -132,30 +85,21 @@ public class TranslateNode extends AbstractBaseServlet {
     private static final String LANGUAGE_ERROR = "Language missing or not supported";
     private static final String PROPERTIES_MISSING = "Properties missing";
     private static final String NO_PROPERTIES_FOUND = "No properties found";
-    private static final String GEMINI_API_KEY_MISSING = "Gemini API Key missing";
-    private static final String GEMINI_MODEL_MISSING = "Gemini Model missing";
+    private static final String GEMINI_API_ERROR = "Gemini API failed to translate";
 
     private static final Pattern PATH_PATTERN = Pattern.compile("^/content/([a-z0-9_]+)/(pages|templates|objects|assets)(/.*)?$");
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    private String geminiAPIKey;
-    private String geminiModel;
-    private String geminiPrompt;
-    private Map<String, String> languageMap;
+    @Reference
+    private GeminiGeneration geminiGeneration;
 
     @Override
     protected Response handleRequest(Request request) throws IOException {
-        // Handle GET request to expose the language map
         if ("GET".equalsIgnoreCase(request.getRequest().getMethod())) {
             JsonResponse jsonResponse = new JsonResponse();
-            jsonResponse.writeAttribute("translationConfigured", languageMap != null && !languageMap.isEmpty()
-                    && geminiAPIKey != null && !geminiAPIKey.trim().isEmpty()
-                    && geminiModel != null && !geminiModel.trim().isEmpty()
-                    && geminiPrompt != null && !geminiPrompt.trim().isEmpty());
+            jsonResponse.writeAttribute("translationConfigured", geminiGeneration.isTranslationConfigured());
             jsonResponse.writeObject("languageMap");
 
-            // Iterate over the private memory map and write it to the JSON response
+            Map<String, String> languageMap = geminiGeneration.getLanguageMap();
             if (languageMap != null) {
                 for (Map.Entry<String, String> entry : languageMap.entrySet()) {
                     jsonResponse.writeAttribute(entry.getKey(), entry.getValue());
@@ -182,7 +126,8 @@ public class TranslateNode extends AbstractBaseServlet {
 
             // Get language parameters
             String language = request.getParameter(LANG);
-            if (isEmpty(language) || languageMap.get(language) == null) {
+            Map<String, String> languageMap = geminiGeneration.getLanguageMap();
+            if (isEmpty(language) || languageMap == null || languageMap.get(language) == null) {
                 return new ErrorResponse()
                         .setHttpErrorCode(SC_BAD_REQUEST)
                         .setErrorMessage(LANGUAGE_ERROR);
@@ -273,9 +218,8 @@ public class TranslateNode extends AbstractBaseServlet {
                     if (!isEmpty(value)) {
                         if (propertiesToTranslate.containsKey(value)) {
                             propertiesToTranslate.get(value).add(propertyName);
-                        }
-                        else {
-                            propertiesToTranslate.put(property.getString(), new HashSet<>(Arrays.asList(propertyName)));
+                        } else {
+                            propertiesToTranslate.put(value, new HashSet<>(Arrays.asList(propertyName)));
                         }
                     }
                 }
@@ -283,82 +227,23 @@ public class TranslateNode extends AbstractBaseServlet {
 
             // Values to translate passed to Gemini are unique to limit input tokens
             Set<String> keySet = propertiesToTranslate.keySet();
-            valuesToTranslate = keySet.toArray(new String[keySet.size()]);
-
-            // Holds the translations (either provided by Gemini or by request)
+            valuesToTranslate = keySet.toArray(new String[0]);
             String[] translations;
+
             if (defaultTranslations != null && defaultTranslations.length > 0) {
                 translations = defaultTranslations;
-            }
-            else {
-                if (isEmpty(geminiAPIKey)) {
-                    return new ErrorResponse()
-                            .setHttpErrorCode(SC_BAD_REQUEST)
-                            .setErrorMessage(GEMINI_API_KEY_MISSING);
+            } else {
+                if (!geminiGeneration.isTranslationConfigured()) {
+                    return new ErrorResponse().setHttpErrorCode(SC_BAD_REQUEST).setErrorMessage("Translation service is not fully configured");
                 }
-
-                if (isEmpty(geminiModel)) {
-                    return new ErrorResponse()
-                            .setHttpErrorCode(SC_BAD_REQUEST)
-                            .setErrorMessage(GEMINI_MODEL_MISSING);
+                try {
+                    translations = geminiGeneration.translateValues(valuesToTranslate, language);
+                } catch (Exception e) {
+                    logger.error("Error calling Gemini generation service", e);
+                    return new ErrorResponse().setHttpErrorCode(SC_BAD_REQUEST).setErrorMessage(GEMINI_API_ERROR);
                 }
-
-                // Generate Gemini request body
-                ObjectNode payload = objectMapper.createObjectNode();
-
-                ObjectNode generationConfig = payload.putObject("generationConfig");
-                // Request is faster if thinking is disabled
-                generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
-                // Return a JSON array with translated values to limit output tokens
-                generationConfig.put("responseMimeType", "application/json");
-                // TODO this caused infinite line breaks or tabs until max token is reached randomly with Gemini Flash 2.5
-                generationConfig.putObject("responseSchema")
-                        .put("type", "array")
-                        .putObject("items")
-                        .put("type", "string");
-
-                ArrayNode contents = payload.putArray("contents");
-                ObjectNode contentItem = contents.addObject();
-                contentItem.put("role", "user");
-                ArrayNode parts = contentItem.putArray("parts");
-
-                // Prompt
-                String prompt = "Translate the array in \""+ languageMap.get(language) +"\": "+ objectMapper.writeValueAsString(valuesToTranslate) +"\\nReturn the translations as array of strings.If a translation is not possible,use empty string." + geminiPrompt;
-                logger.info("Gemini Prompt: " + prompt);
-                parts.addObject().put("text", prompt);
-
-                String requestBody = objectMapper.writeValueAsString(payload);
-
-                // Gemini request
-                HttpRequest geminiRequest = HttpRequest.newBuilder()
-                        .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/"+ geminiModel +":generateContent"))
-                        .header("x-goog-api-key", geminiAPIKey)
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                        .build();
-
-                HttpClient httpClient = HttpClient.newHttpClient();
-                HttpResponse<String> httpResponse = httpClient.send(geminiRequest, HttpResponse.BodyHandlers.ofString());;
-
-                if (httpResponse.statusCode() != 200) {
-                    return new ErrorResponse()
-                            .setHttpErrorCode(SC_BAD_REQUEST)
-                            .setErrorMessage(httpResponse.body());
-                }
-
-                // Parse Gemini translation response
-                JsonNode responseNode = objectMapper.readTree(httpResponse.body());
-                String translationsJsonString = responseNode
-                        .path("candidates").path(0)
-                        .path("content").path("parts").path(0)
-                        .path("text").asText();
-
-                logger.info("Gemini Response: " + translationsJsonString);
-
-                translations = objectMapper.readValue(translationsJsonString, new TypeReference<>() {});
             }
 
-            // Create translation experiences nodes
             Node experiencesNode = getOrCreateChildNode(resourceResolver, nodeToTranslate, EXPERIENCES);
             Node languageNode = getOrCreateChildNode(resourceResolver, experiencesNode, LANG_PREFIX + language);
 
@@ -399,8 +284,8 @@ public class TranslateNode extends AbstractBaseServlet {
             }
             response.writeClose();
             return response;
-        }
-        catch (RepositoryException | InterruptedException | MismatchedInputException e) {
+
+        } catch (RepositoryException e) {
             return new ErrorResponse()
                     .setHttpErrorCode(SC_BAD_REQUEST)
                     .setErrorMessage(e.getMessage())
@@ -437,29 +322,6 @@ public class TranslateNode extends AbstractBaseServlet {
             if (!isNull(rootNode)) {
                 rootNode.setProperty(PER_TRANSLATED_AT, timestamp);
                 rootNode.setProperty(PER_TRANSLATED_BY, resourceResolver.getUserID());
-            }
-        }
-    }
-
-    @Activate
-    @SuppressWarnings("unused")
-    void activate(TranslateNode.Configuration configuration) { setup(configuration); }
-
-    @Modified
-    @SuppressWarnings("unused")
-    void modified(TranslateNode.Configuration configuration) { setup(configuration); }
-
-    private void setup(TranslateNode.Configuration configuration) {
-        geminiAPIKey = configuration.gemini_api_key();
-        geminiModel = configuration.gemini_model();
-        geminiPrompt = configuration.gemini_prompt();
-
-        languageMap = new HashMap<>();
-        String[] languages = configuration.language_map();
-        for (String language : languages) {
-            String[] tokens = language.split("=");
-            if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
-                languageMap.put(tokens[0], tokens[1]);
             }
         }
     }

@@ -46,7 +46,7 @@
             @drop.stop.prevent="onDrop($event, index, item)"
             @click.stop.prevent="onSetActiveItem(index)">
           <i class="material-icons">drag_handle</i>
-          <span v-if="schema.multifield">{{ itemName(item, index) }}</span>
+          <span v-if="schema.multifield" :title="itemName(item, index)">{{ itemName(item, index) }}</span>
           <input
               v-else
               ref="input"
@@ -177,16 +177,22 @@ export default {
       this.$forceUpdate()
     },
     onRemoveItem(item, index) {
-      this.value = this.value.filter((item, i) => i !== index)
       if (this.schema.multifield) {
         if (item.hasOwnProperty('path')) {
-          let _deleted = $perAdminApp.getNodeFromViewWithDefault('/state/tools/_deleted', {})
           let copy = JSON.parse(JSON.stringify(item))
           copy._opDelete = true
-          if (!_deleted[this.schema.model]) _deleted[this.schema.model] = []
-          _deleted[this.schema.model].push(copy)
+          if (!this.model._deletedCollections) {
+            Vue.set(this.model, '_deletedCollections', {})
+          }
+          if (!this.model._deletedCollections[this.schema.model]) {
+            Vue.set(this.model._deletedCollections, this.schema.model, [])
+          }
+          this.model._deletedCollections[this.schema.model].push(copy)
         }
+        this.value = this.value.filter((item, i) => i !== index)
         this.activeItem = null
+      } else {
+        this.value = this.value.filter((item, i) => i !== index)
       }
     },
     onSetActiveItem(index) {

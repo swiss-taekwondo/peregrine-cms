@@ -69,7 +69,7 @@
 
 <script>
 import {IconLib, PathBrowser} from '../../../../../js/constants'
-import {fallbackMediaText, isImagePath, normalizeAssetPath, resolveMediaText} from '../../js/mediaText'
+import {isImagePath} from '../../../../../js/utils'
 import {getBasePath} from '../../../../../js/mixins'
 
 import PathBrowserComponent from '../../admin/components/pathbrowser/template.vue'
@@ -111,14 +111,6 @@ export default {
       created() {
           this.browserRoot = this.getBasePath() + this.browserRoot
           this.currentPath = this.getBasePath() + this.currentPath
-      },
-      mounted() {
-          this.syncMediaText(this.value)
-      },
-      watch: {
-          value(newValue) {
-              this.syncMediaText(newValue)
-          }
       },
       methods: {
            isImagePath,
@@ -193,10 +185,8 @@ export default {
                 this.isOpen = false
             },
             async onSelect() {
-                await this.clearInheritedMediaText(this.value)
-                this.value = normalizeAssetPath(this.selectedPath)
-                await this.syncMediaText(this.selectedPath)
-                this.$emit('select', this.selectedPath);
+                this.value = this.selectedPath
+                this.$emit('select', this.selectedPath)
                 this.isOpen = false
             },
             setCurrentPath(path){
@@ -206,9 +196,7 @@ export default {
                 this.selectedPath = path
             },
             isValidPath(path, root){
-                const normalizedPath = normalizeAssetPath(path)
-                const normalizedRoot = normalizeAssetPath(root)
-                return normalizedPath && normalizedPath !== normalizedRoot && normalizedPath.includes(normalizedRoot)
+                return path && path !== root && path.includes(root)
             },
             browse() {
                 // root path is used to limit top lever directory of path browser
@@ -222,7 +210,7 @@ export default {
                 if(!type) {
                     root === `${this.getBasePath()}/pages` ? type = PathBrowser.Type.PAGE : type = PathBrowser.Type.ASSET
                 }
-                let selectedPath = normalizeAssetPath(this.value)
+                let selectedPath = this.value
                 // current path is the active directory in the path browser
                 let currentPath
                 // if a selected path is valid, currentPath becomes the selected path's parent
@@ -234,7 +222,7 @@ export default {
                 this.browserRoot = root
                 this.browserType = type
                 this.currentPath = currentPath
-                this.selectedPath = selectedPath
+                this.selectedPath = this.value
 
       let options = this.schema.browserOptions
       if (options && options.withLink !== null && options.withLink !== undefined) {
@@ -250,7 +238,6 @@ export default {
       })
             },
             async remove() {
-              await this.clearInheritedMediaText(this.value)
               this.value = "";
             },
     toggleNewWindow() {

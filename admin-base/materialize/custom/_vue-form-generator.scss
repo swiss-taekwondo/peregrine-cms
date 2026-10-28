@@ -555,7 +555,7 @@
                             background: none;
                             border: none;
                             background-color: transparent;
-                        } 
+                        }
 
                         a {
                             color: #2b6cb0
@@ -606,6 +606,7 @@
                         box-shadow: none;
                         border: none;
                         clear: both;
+                        overflow: hidden;
                         > li {
                             position: relative;
                             .collapsible-header {
@@ -686,6 +687,9 @@
                                     height: 3rem;
                                     width: 100%;
                                     padding: 0 0.75rem;
+                                    text-overflow: ellipsis;
+                                    white-space: nowrap;
+                                    overflow: hidden;
                                 }
                             }
                         }
