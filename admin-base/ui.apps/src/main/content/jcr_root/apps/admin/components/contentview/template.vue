@@ -721,6 +721,7 @@ export default {
 
     onInlineDblClick(event) {
       if (event.target.tagName === 'IMG') {
+        // TODO: Fix edit icon on dblclick or remove. It doesn't play nicely with pathbrowser.
         const action = event.target.classList.contains('peregrine-icon') ? 'editIcon' : 'editImage'
         $perAdminApp.action(this, action, event.target)
       }

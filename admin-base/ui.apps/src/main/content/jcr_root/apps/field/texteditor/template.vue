@@ -30,8 +30,7 @@
       :show-always-active="false"
       :responsive="false"
       :editorContent="value"
-      :lastInRteSelection="lastInRteSelection"
-      :currentFontSize="currentFontSize"
+      :setEditorContent="setValue"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
     />
     <p class="text-editor inline-edit"
@@ -153,9 +152,6 @@ export default {
       doc: document,
       editing: false,
       key: 0,
-      lastInRteSelection: null,
-      currentFontSize: 14,
-      lastRteSelectionInlineOnly: null,
     }
   },
   computed: {
@@ -178,6 +174,9 @@ export default {
   },
 
   methods: {
+    setValue(newValue) {
+      this.value = newValue;
+    },
     onFocusIn() {
       const view = this.view
       if (!view) return

@@ -162,6 +162,9 @@ export default {
       type: String,
       default: '',
     },
+    setEditorContent: {
+      type: Function,
+    },
     onSubNav: {
       type: Boolean,
       default: false,
@@ -227,12 +230,13 @@ export default {
       responsiveMenuGroupKey: null,
       responsiveMenuFilter: '',
 
-      historyStack: [],
-      historyIndex: -1,
-      isUndoing: false,
+//       historyStack: [],
+//       historyIndex: -1,
+//       isUndoing: false,
+// 
+//       sharedHistoryIndex: -1,
+//       sharedHistoryLength: 0,
 
-      sharedHistoryIndex: -1,
-      sharedHistoryLength: 0,
 
       layoutPing: 0,
       // selection/range state
@@ -242,6 +246,13 @@ export default {
       lastRteSelectionInlineOnly: null,
       lastInRteSelectionRelativeToRte: null,
       toolbarDisabled: true,
+
+      // History
+      undoStack: [],
+      undoStackLength: 0,
+      redoStack: [],
+      redoStackLength: 0,
+      performingUndoRedo: false,
     }
   },
 
@@ -329,6 +340,15 @@ export default {
       //   clearInterval(interval)
       //   }
       // })
+      this.$watch('editorContent', (newValue, oldValue) => {
+        if (!this.performingUndoRedo) {
+          this.undoStack.push(oldValue)
+          this.redoStack = [];
+        }
+        this.updateUndoRedoStackLengths()
+      })
+    } else {
+      window.addEventListener('richtoolbar:undoRedoStackLength', this.undoRedoStackLengthMessageHandler)
     }
 
     document.addEventListener('selectionchange', this.handleSelectionChange)
@@ -363,6 +383,12 @@ export default {
     },
     lastRteSelectionInlineOnly(newVal) {
     // console.log('inline sel:', newVal)
+    },
+    undoStack(newVal) {
+      console.log('undoStack', newVal)
+    },
+    redoStack(newVal) {
+      console.log('redoStack', newVal)
     },
   },
 
@@ -454,6 +480,20 @@ export default {
     ...createSelectionMethods(),
     ...createButtonCommandMethods(),
     ...createPathbrowserCommandMethods(),
+
+    updateUndoRedoStackLengths() {
+      this.undoStackLength = this.undoStack.length;
+      this.redoStackLength = this.redoStack.length;
+      if (!this.onSubNav) window.dispatchEvent(new CustomEvent('richtoolbar:undoRedoStackLength', { detail: {
+        undoStackLength: this.undoStackLength,
+        redoStackLength: this.redoStackLength,
+      } }))
+    },
+    undoRedoStackLengthMessageHandler(event) {
+      this.undoStackLength = event.detail.undoStackLength
+      this.redoStackLength = event.detail.redoStackLength
+    },
+
 
     initResizeObserver() {
       if (typeof ResizeObserver === 'undefined' || !this.$el) return

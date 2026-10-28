@@ -244,6 +244,7 @@ export function createButtonCommandMethods() {
       }
     })
 
+    this.triggerInput()
     this.selectNodes(nodeRanges)
     this.$nextTick(() => {
       this.$nextTick(() => {
@@ -253,54 +254,37 @@ export function createButtonCommandMethods() {
   },
 
   undo() {
-    if (this.historyIndex > 0) {
-      this.isUndoing = true
-      this.historyIndex--
-      window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-        detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-      }))
-      const content = this.historyStack[this.historyIndex]
-      const container = this.getInlineContainer()
-      const doc = this.getInlineDoc()
-      const savedSel = container && doc ? saveSelection(container, doc) : null
-      const textEditor = this.$el.closest('.text-editor-wrapper')
-        ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-        : this.$el.nextElementSibling
-      textEditor.innerHTML = content
-      $perAdminApp.action(this, 'textEditorWriteToModel')
+    if (!this.performingUndoRedo && this.undoStack.length) {
+      this.performingUndoRedo = true
+      this.redoStack.push(this.editorContent)
+      const content = this.undoStack.pop();
+      if (!content) {
+        return console.warn('Failed to undo, no content')
+      }
+      this.setEditorContent(content)
       this.$nextTick(() => {
-        this.isUndoing = false
-        if (savedSel && container && doc) {
-          // restoreSelection(container, savedSel, doc)
-        }
-        this.pingRichToolbar()
+        this.performingUndoRedo = false
+        $perAdminApp.action(this, 'textEditorWriteToModel')
       })
+
+      return
     }
   },
 
   redo() {
-    if (this.historyIndex < this.historyStack.length - 1) {
-      this.isUndoing = true
-      this.historyIndex++
-      window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-        detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
-      }))
-      const content = this.historyStack[this.historyIndex]
-      const container = this.getInlineContainer()
-      const doc = this.getInlineDoc()
-      const savedSel = container && doc ? saveSelection(container, doc) : null
-      const textEditor = this.$el.closest('.text-editor-wrapper')
-        ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-        : this.$el.nextElementSibling
-      textEditor.innerHTML = content
+  if (!this.performingUndoRedo && this.redoStack.length) {
+    this.performingUndoRedo = true
+    this.undoStack.push(this.editorContent)
+    const content = this.redoStack.pop()
+    if (!content) {
+      return console.warn('Failed to redo, no content')
+    }
+    this.setEditorContent(content)
+    this.$nextTick(() => {
+      this.performingUndoRedo = false
       $perAdminApp.action(this, 'textEditorWriteToModel')
-      this.$nextTick(() => {
-        this.isUndoing = false
-        if (savedSel && container && doc) {
-          // restoreSelection(container, savedSel, doc)
-        }
-        this.pingRichToolbar()
-      })
+    })
+
     }
   },
 
