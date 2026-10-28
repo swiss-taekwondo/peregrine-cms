@@ -164,6 +164,12 @@ export default {
     },
   },
 
+  watch: {
+    value(newValue, oldValue) {
+      console.log('texteditor:', newValue, oldValue)
+    },
+  },
+
   mounted() {
     const view = this.view
     console.log('view', view)
@@ -172,40 +178,6 @@ export default {
   },
 
   methods: {
-//     formatBlock(tagName) {
-//       const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
-//       if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
-// 
-//       const selection = document.getSelection()
-//       if (!selection || selection.rangeCount === 0) return false
-// 
-//       const range = selection.getRangeAt(0)
-//       const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
-//         ? range.startContainer.parentElement
-//         : range.startContainer
-//       const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-//         || (this.$refs.textEditor && this.$refs.textEditor.matches && this.$refs.textEditor.matches('p, h1, h2, h3, h4, h5, h6') ? this.$refs.textEditor : null)
-//         || (this.$refs.textEditor ? this.$refs.textEditor.closest('p, h1, h2, h3, h4, h5, h6') : null)
-//       if (!block || !this.$refs.textEditor.contains(block)) return false
-//       if (block.tagName === normalizedTagName) return true
-// 
-//       const replacement = document.createElement(normalizedTagName)
-//       for (const attr of Array.from(block.attributes)) {
-//         replacement.setAttribute(attr.name, attr.value)
-//       }
-//       while (block.firstChild) {
-//         replacement.appendChild(block.firstChild)
-//       }
-//       block.replaceWith(replacement)
-// 
-//       const nextRange = document.createRange()
-//       nextRange.selectNodeContents(replacement)
-//       selection.removeAllRanges()
-//       selection.addRange(nextRange)
-//       this.textEditorWriteToModel()
-//       this.$nextTick(() => this.pingToolbar())
-//       return true
-//     },
     onFocusIn() {
       const view = this.view
       if (!view) return
@@ -214,11 +186,8 @@ export default {
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/editorModel', this.model)
       this.editing = true
-      // this.syncToolbarSelection()
-      // this.pingToolbar()
     },
     onKeyDown(event) {
-      this.pingToolbar()
       const key = event.which
       const ctrlOrCmd = event.ctrlKey || event.metaKey
       const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event) : null
@@ -228,7 +197,6 @@ export default {
         const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
         window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
       } else if (key === Key.B && ctrlOrCmd) {
-        // override and dispatchevent here for more predictable outcomes and avoid contenteditable default keybinds when we have custom functionality.
         event.preventDefault()
         window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'bold' } }))
       } else if (key === Key.I && ctrlOrCmd) {
@@ -259,37 +227,8 @@ export default {
       set(view, '/state/inline/doc', null)
       set(view, '/state/inline/editorModel', null)
       this.editing = false
-      this.pingToolbar()
     },
-    // onSelectionChange() {
-    //   this.syncToolbarSelection()
-    //   this.pingToolbar()
-    // },
-//     syncToolbarSelection(vm = this) {
-//       const toolbar = vm.$refs.richtoolbar
-//       const container = vm.$refs.textEditor
-//       const selection = document.getSelection()
-//       if (!toolbar || !container || !selection || selection.rangeCount <= 0) return
-// 
-//       const range = selection.getRangeAt(0)
-//       if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return
-// 
-//       const anchor = getAnchorFromSelection(selection)
-//       toolbar.selection.doc = vm.doc
-//       toolbar.selection.container = container
-//       toolbar.selection.buffer = saveSelection(container, vm.doc)
-//       toolbar._savedRange = range.cloneRange()
-//       toolbar.activeAnchor = anchor
-//       toolbar.hasEditorSelection = true
-// 
-//       const view = vm.view
-//       if (view) {
-//         set(view, '/state/inline/lastAnchor', anchor)
-//         set(view, '/state/inline/lastContainer', container)
-//         set(view, '/state/inline/lastDoc', vm.doc)
-//         set(view, '/state/inline/doc', vm.doc)
-//       }
-//     },
+
     onInput(event) {
     console.log('event', event)
       let content = event.target.innerHTML;
@@ -327,7 +266,6 @@ export default {
         contentEditableContextFixInput.remove()
       }
       this.textEditorWriteToModel()
-      this.pingToolbar()
     },
     onDblClick(event) {
       if (event.target.tagName === 'IMG') {
@@ -339,32 +277,6 @@ export default {
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
-    },
-    pingToolbar() {
-      this.key = this.key === 'foo' ? 'bar' : 'foo'
-      $perAdminApp.action(this, 'pingRichToolbar')
-    },
-    // insertLink(vm = this) {
-    //   vm._saveInlineSelectionState()
-    //   if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertLink()
-    // },
-    // editLink(vm = this) {
-    //   vm._saveInlineSelectionState()
-    //   if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
-    // },
-    removeLink(vm = this) {
-      const sel = document.getSelection()
-      const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
-      const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
-      const anchor = el ? el.closest('a') : null
-      if (!anchor) return
-
-      const range = document.createRange()
-      range.selectNodeContents(anchor)
-      sel.removeAllRanges()
-      sel.addRange(range)
-      document.execCommand('unlink', false, null)
-      vm.textEditorWriteToModel()
     },
   },
 }

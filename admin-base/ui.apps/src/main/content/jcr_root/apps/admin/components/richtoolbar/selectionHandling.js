@@ -123,14 +123,15 @@ export function createSelectionMethods() {
 	      const end = pointAt(saved.end)
 	      const restoredRange = doc.createRange()
 	    
-				const shouldSelectParentElement = start.node.isEqualNode(end.node) && start.node.nodeType === Node.TEXT_NODE && start.node.parentElement.childNodes.length === 1
-				if (shouldSelectParentElement) {
-          restoredRange.setStart(start.node.parentElement, 0)
-          restoredRange.setEnd(end.node.parentElement, 1)
-				} else {
+				// const shouldSelectParentElement = start.node.isEqualNode(end.node) && start.node.nodeType === Node.TEXT_NODE && start.node.parentElement.childNodes.length === 1
+				// console.log('shouldSelectParentElement', shouldSelectParentElement)
+				// if (shouldSelectParentElement) {
+    //       restoredRange.setStart(start.node.parentElement, 0)
+    //       restoredRange.setEnd(end.node.parentElement, 1)
+				// } else {
+				// }
 	        restoredRange.setStart(start.node, start.offset)
 	        restoredRange.setEnd(end.node, end.offset)
-				}
 	    
 	      const selection = doc.getSelection()
 	      selection.removeAllRanges()
@@ -140,6 +141,39 @@ export function createSelectionMethods() {
         console.log('restored relative range')
 	    }
     },
+
+    rangeMatchesSelector(selector) {
+      const range = this.lastInRteSelection;
+      if (!range) return null;
+      const doc = range.startContainer.ownerDocument ||
+        range.startContainer;
+      const walker = doc.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT
+      );
+      const findMatch = node => {
+        let element = node.nodeType === 1 ? node : node.parentElement;
+        while (element) {
+          if (element.matches(selector)) return element;
+          if (element.matches('.inline-edit')) break;
+          element = element.parentElement;
+        }
+        return null;
+      };
+      if (range.collapsed) return findMatch(range.startContainer);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (range.intersectsNode(node)) {
+          const match = findMatch(node);
+          if (match) return match;
+        }
+      }
+      return null;
+    }
+
+
+
+
 
   }
 }

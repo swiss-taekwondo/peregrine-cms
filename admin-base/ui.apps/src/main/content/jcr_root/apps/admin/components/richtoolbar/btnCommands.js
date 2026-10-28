@@ -1,3 +1,98 @@
+function wrapSelectedRangeInBlock(range, editor, tagName) {
+  if (range.collapsed) return false
+  const doc = editor.ownerDocument
+  // Handle a selection within a text node directly under contenteditable.
+  const textNode = range.startContainer
+  if (
+    textNode.nodeType === Node.TEXT_NODE &&
+    textNode === range.endContainer &&
+    textNode.parentNode === editor
+  ) {
+    const text = textNode.nodeValue || ''
+    const before = text.slice(0, range.startOffset)
+    const selected = text.slice(range.startOffset, range.endOffset)
+    const after = text.slice(range.endOffset)
+    if (!selected) return false
+    const wrapped = doc.createElement(tagName)
+    wrapped.textContent = selected
+    const fragment = doc.createDocumentFragment()
+    if (before) fragment.appendChild(doc.createTextNode(before))
+    fragment.appendChild(wrapped)
+    if (after) fragment.appendChild(doc.createTextNode(after))
+    textNode.replaceWith(fragment)
+    const nextRange = doc.createRange()
+    nextRange.selectNodeContents(wrapped)
+    const selection = doc.defaultView?.getSelection?.()
+    if (selection) {
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+    }
+    return true
+  }
+  const getBlock = (node) => {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement
+    return element?.closest(blockSelector) || null
+  }
+  const block = getBlock(range.startContainer)
+  if (!block || getBlock(range.endContainer) !== block || !editor.contains(block)) {
+    return false
+  }
+  const beforeRange = doc.createRange()
+  beforeRange.selectNodeContents(block)
+  beforeRange.setEnd(range.startContainer, range.startOffset)
+  const afterRange = doc.createRange()
+  afterRange.selectNodeContents(block)
+  afterRange.setStart(range.endContainer, range.endOffset)
+  const before = beforeRange.cloneContents()
+  const selected = range.cloneContents()
+  const after = afterRange.cloneContents()
+  const wrapped = doc.createElement(tagName)
+  for (const attr of Array.from(block.attributes)) {
+    wrapped.setAttribute(attr.name, attr.value)
+  }
+  wrapped.append(selected)
+  const replacements = []
+  if (before.hasChildNodes()) {
+    const beforeBlock = block.cloneNode(false)
+    beforeBlock.append(before)
+    replacements.push(beforeBlock)
+  }
+  replacements.push(wrapped)
+  if (after.hasChildNodes()) {
+    const afterBlock = block.cloneNode(false)
+    afterBlock.append(after)
+    replacements.push(afterBlock)
+  }
+  const fragment = doc.createDocumentFragment()
+  replacements.forEach((node) => fragment.appendChild(node))
+  block.replaceWith(fragment)
+  const nextRange = doc.createRange()
+  nextRange.selectNodeContents(wrapped)
+  const selection = doc.defaultView?.getSelection?.()
+  if (selection) {
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+  }
+  return true
+}
+
+const blockSelector = 'p, h1, h2, h3, h4, h5, h6, div:not([contenteditable="true"]'
+function getSelectedBlocksFromRange(range, editor) {
+  if (!range || !editor) return []
+  // A caret formats the block containing it.
+  if (range.collapsed) {
+    const container = range.startContainer
+    const element = container.nodeType === Node.ELEMENT_NODE
+      ? container
+      : container.parentElement
+    const block = element?.closest(blockSelector)
+    return block && editor.contains(block) ? [block] : []
+  }
+  // A text selection formats every block it intersects.
+  return Array.from(editor.querySelectorAll(blockSelector))
+    .filter((block) => range.intersectsNode(block))
+}
+
 
 export function createButtonCommandMethods(vm) {
   return {
@@ -5,33 +100,18 @@ export function createButtonCommandMethods(vm) {
   formatBlock(tagName) {
     const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
     if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
+    const range = vm.lastInRteSelection;
+    const textEditor = vm.lastSelectedRte;
 
-    const savedRange = vm._savedRange
-    let range = savedRange || vm.getEditorSelection()
-    let textEditor = range ? vm.getEditorFrom(range) : null
-
-    if (!range && vm.selection?.container && vm.selection?.buffer) {
-      const doc = vm.selection.doc || vm.selection.container.ownerDocument
-      restoreSelection(vm.selection.container, vm.selection.buffer, doc)
-      range = vm.getEditorSelection()
-      textEditor = range ? vm.getEditorFrom(range) : null
-    }
-
-    if (!range || !textEditor) return false
-    if (!vm.isRangeInEditor(range, textEditor)) {
-      if (vm.selection?.container && vm.selection?.buffer) {
-        const doc = vm.selection.doc || vm.selection.container.ownerDocument
-        restoreSelection(vm.selection.container, vm.selection.buffer, doc)
-        range = vm.getEditorSelection()
-        textEditor = range ? vm.getEditorFrom(range) : null
-      }
-      if (!range || !textEditor || !vm.isRangeInEditor(range, textEditor)) return false
-    }
     if (!range.collapsed) {
       if (!wrapSelectedRangeInBlock(range, textEditor, normalizedTagName)) return false
-      vm.writeEditorToModel(textEditor)
-      textEditor.dispatchEvent(new Event('input'))
-      vm.pingRichToolbar()
+      vm.triggerInput()
+      vm.$nextTick(() => {
+	        vm.$nextTick(() => {
+	           vm.reconstructSelectionRelativeToRte()
+	        })
+      })
+      
       return true
     }
 
@@ -53,192 +133,36 @@ export function createButtonCommandMethods(vm) {
       block.replaceWith(replacement)
     }
 
-    vm.writeEditorToModel(textEditor)
-    textEditor.dispatchEvent(new Event('input'))
-    vm.pingRichToolbar()
+    vm.triggerInput()
+    vm.$nextTick(() => {
+      vm.$nextTick(() => {
+        vm.reconstructSelectionRelativeToRte()
+      })
+    })
     return true
   },
 
-  insertLink() {
-    if (vm.onSubNav) {
-      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'insertLink' } }))
-      return
-    }
-    const doc = vm.getInlineDoc() || vm.getLastDoc()
-    const container = vm.getInlineContainer() || vm.getLastContainer()
-    if (!doc || !container) {
-      return
-    }
-
-    const startPath = vm.roots.pages
-    vm.param.cmd = 'insertLink'
-    vm.param.anchor = null
-    vm.browser.header = vm.$i18n('Insert Link')
-    vm.browser.path.current = startPath
-    vm.browser.path.selected = null
-    vm.browser.withLinkTab = true
-    vm.browser.newWindow = false
-    vm.browser.rel = true
-    vm.browser.linkTitle = ''
-    vm.browser.type = PathBrowser.Type.PAGE
-    vm.selection.doc = doc
-    vm.selection.container = container
-
-    const win = doc.defaultView || window
-    const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
-    const liveRange = liveSel && liveSel.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
-    if (!liveRange) {
-      return
-    }
-    vm._savedRange = liveRange
-
-    const savedSel = saveSelection(container, doc)
-      || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-    vm.selection.buffer = savedSel
-    vm.selection.restore = false
-    vm.startBrowsing(startPath)
-  },
 
 
-  insertImage() {
-    let container = null
-    let doc = null
-
-    const inlineContainer = vm.getInlineContainer()
-    const inlineDoc = vm.getInlineDoc()
-    if (inlineContainer && inlineDoc) {
-      container = inlineContainer
-      doc = inlineDoc
-    }
-
-    if (!container) {
-      const lastContainer = vm.getLastContainer()
-      const lastDoc = vm.getLastDoc()
-      if (lastContainer && lastDoc) {
-        container = lastContainer
-        doc = lastDoc
-      }
-    }
-
-    if (!container) {
-      const wrapper = vm.$el?.closest('.text-editor-wrapper')
-      if (wrapper) {
-        container = wrapper.querySelector('.text-editor')
-        if (!doc) doc = document
-      }
-    }
-
-    if (!container) {
-      container = document.querySelector('.text-editor')
-      if (!doc) doc = document
-    }
-
-    if (!container) {
-      return
-    }
-
-    if (!doc) doc = container.ownerDocument
-
-    vm.param.cmd = 'insertImage'
-    vm.browser.header = vm.$i18n('Insert Image')
-    vm.browser.path.current = vm.roots.assets
-    vm.browser.withLinkTab = true
-    vm.browser.newWindow = undefined
-    vm.browser.type = PathBrowser.Type.ASSET
-    vm.browser.path.suffix = ''
-    vm.browser.img.width = null
-    vm.browser.img.height = null
-    vm.browser.img.objectFit = null
-    vm.browser.path.selected = '';
-    vm.selection.doc = doc
-    vm.selection.container = container
-
-    const win = doc.defaultView || window
-    const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
-    const liveRange = liveSel?.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
-    vm._savedRange = liveRange
-
-    const savedSel = saveSelection(container, doc) || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-    vm.selection.buffer = savedSel
-    vm.selection.restore = false
-    vm.startBrowsing()
-  },
 
 
-  async editImage(target) {
-    const title = target.getAttribute('title')
-    const src = target.getAttribute('src')
-    const defaultText = title || target.getAttribute('alt') || await vm.getDefaultMediaText(src)
-    const fallbackText = fallbackMediaText(src)
-    const srcArr = src.split('/')
-    const img = {
-      width: target.style.width ? parseInt(target.style.width) : null,
-      height: target.style.height ? parseInt(target.style.height) : null,
-      objectFit: target.style.objectFit || null,
-    }
-    vm.param.cmd = 'editImage'
-    vm.selection.restore = false
-    vm.browser.header = vm.$i18n('Edit Image')
-    vm.browser.path.selected = srcArr.join('/')
-    srcArr.pop()
-    vm.browser.path.current = srcArr.join('/')
-    vm.browser.withLinkTab = true
-    vm.browser.newWindow = undefined
-    vm.browser.type = PathBrowser.Type.ASSET
-    vm.browser.linkTitle = defaultText
-    vm.browser.mediaSourcePath = src
-    vm.browser.mediaSourceText = defaultText || ''
-    vm.browser.mediaSourceFallback = fallbackText
-    vm.browser.element = target
-    vm.browser.img.width = img.width
-    vm.browser.img.height = img.height
-    vm.browser.img.objectFit = img.objectFit
-    vm.startBrowsing()
-  },
 
 
-  async editIcon(target) {
-    const alt = target.getAttribute('alt') || await vm.getDefaultMediaText(target.getAttribute('src') || '')
-    const src = target.getAttribute('src') || ''
-    const img = {
-      width: target.style.width ? parseInt(target.style.width) : 20,
-      height: target.style.height ? parseInt(target.style.height) : 20,
-      objectFit: target.style.objectFit || null,
-    }
-    vm.param.cmd = 'editIcon'
-    vm.browser.header = vm.$i18n('Edit Icon')
-    vm.browser.withLinkTab = false
-    vm.browser.withImageTab = true
-    vm.browser.path.selected = src
-    vm.browser.path.current = src
-    vm.browser.type = PathBrowser.Type.ASSET
-    vm.browser.altText = alt
-    vm.browser.linkTitle = undefined
-    vm.browser.newWindow = undefined
-    vm.browser.element = target
-    vm.browser.img.width = img.width
-    vm.browser.img.height = img.height
-    vm.browser.img.objectFit = img.objectFit
-    vm.saveSelection()
-    vm.selection.restore = true
-    vm.startBrowsing(src.substring(0, src.lastIndexOf('/')))
-  },
 
 
-  // is this used?
+  // subnav
   togglePreview() {
     const view = $perAdminApp.getView()
     const current = get(view, '/state/tools/workspace/preview', null)
     $perAdminApp.stateAction('editPreview', current ? null : 'preview')
   },
 
-  // is this used?
+  // subnav
   previewInNewTab() {
     const view = $perAdminApp.getView()
     const page = get(view, '/pageView/path', null)
     window.open(page + '.html', 'viewer')
   },
-
 
   updateFontSize(newSize) {
     const fontSize = `${newSize}px`
@@ -292,7 +216,8 @@ export function createButtonCommandMethods(vm) {
 
     const onlySingleNode = range.startContainer.isEqualNode(range.endContainer)
     if (onlySingleNode) {
-      const isOnlyChildTextNodeOfExistingFontSizeSpan = false;
+      const isOnlyChildTextNodeOfExistingFontSizeSpan = range.startContainer.parentElement.childNodes.length === 1 && range.startContainer.parentElement.nodeName === 'SPAN'
+      console.log('isOnlyChildTextNodeOfExistingFontSizeSpan', isOnlyChildTextNodeOfExistingFontSizeSpan, range.cloneRange())
       if (range.startContainer.nodeType === Node.TEXT_NODE && !isOnlyChildTextNodeOfExistingFontSizeSpan) {
         const span = document.createElement('span')
         span.style.fontSize = fontSize
@@ -306,6 +231,7 @@ export function createButtonCommandMethods(vm) {
         })
       } else {
         setFontSizeOfEl(range.startContainer, fontSize)
+        vm.triggerInput()
       }
       return
     }
@@ -326,65 +252,57 @@ export function createButtonCommandMethods(vm) {
     })
   },
 
-      undo() {
-        if (vm.onSubNav) {
-          window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'undo' } }))
-          return
+  undo() {
+    if (vm.historyIndex > 0) {
+      vm.isUndoing = true
+      vm.historyIndex--
+      window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+        detail: { historyIndex: vm.historyIndex, historyLength: vm.historyStack.length },
+      }))
+      const content = vm.historyStack[vm.historyIndex]
+      const container = vm.getInlineContainer()
+      const doc = vm.getInlineDoc()
+      const savedSel = container && doc ? saveSelection(container, doc) : null
+      const textEditor = vm.$el.closest('.text-editor-wrapper')
+        ? vm.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
+        : vm.$el.nextElementSibling
+      textEditor.innerHTML = content
+      $perAdminApp.action(this, 'textEditorWriteToModel')
+      vm.$nextTick(() => {
+        vm.isUndoing = false
+        if (savedSel && container && doc) {
+          // restoreSelection(container, savedSel, doc)
         }
-        if (vm.historyIndex > 0) {
-          vm.isUndoing = true
-          vm.historyIndex--
-          window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-            detail: { historyIndex: vm.historyIndex, historyLength: vm.historyStack.length },
-          }))
-          const content = vm.historyStack[vm.historyIndex]
-          const container = vm.getInlineContainer()
-          const doc = vm.getInlineDoc()
-          const savedSel = container && doc ? saveSelection(container, doc) : null
-          const textEditor = vm.$el.closest('.text-editor-wrapper')
-            ? vm.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-            : vm.$el.nextElementSibling
-          textEditor.innerHTML = content
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-          vm.$nextTick(() => {
-            vm.isUndoing = false
-            if (savedSel && container && doc) {
-              // restoreSelection(container, savedSel, doc)
-            }
-            vm.pingRichToolbar()
-          })
-        }
-      },
+        vm.pingRichToolbar()
+      })
+    }
+  },
 
-    redo() {
-      if (vm.onSubNav) {
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'redo' } }))
-        return
-      }
-      if (vm.historyIndex < vm.historyStack.length - 1) {
-        vm.isUndoing = true
-        vm.historyIndex++
-        window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-          detail: { historyIndex: vm.historyIndex, historyLength: vm.historyStack.length },
-        }))
-        const content = vm.historyStack[vm.historyIndex]
-        const container = vm.getInlineContainer()
-        const doc = vm.getInlineDoc()
-        const savedSel = container && doc ? saveSelection(container, doc) : null
-        const textEditor = vm.$el.closest('.text-editor-wrapper')
-          ? vm.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-          : vm.$el.nextElementSibling
-        textEditor.innerHTML = content
-        $perAdminApp.action(this, 'textEditorWriteToModel')
-        vm.$nextTick(() => {
-          vm.isUndoing = false
-          if (savedSel && container && doc) {
-            // restoreSelection(container, savedSel, doc)
-          }
-          vm.pingRichToolbar()
-        })
-      }
-    },
+  redo() {
+    if (vm.historyIndex < vm.historyStack.length - 1) {
+      vm.isUndoing = true
+      vm.historyIndex++
+      window.dispatchEvent(new CustomEvent('richtoolbar:history', {
+        detail: { historyIndex: vm.historyIndex, historyLength: vm.historyStack.length },
+      }))
+      const content = vm.historyStack[vm.historyIndex]
+      const container = vm.getInlineContainer()
+      const doc = vm.getInlineDoc()
+      const savedSel = container && doc ? saveSelection(container, doc) : null
+      const textEditor = vm.$el.closest('.text-editor-wrapper')
+        ? vm.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
+        : vm.$el.nextElementSibling
+      textEditor.innerHTML = content
+      $perAdminApp.action(this, 'textEditorWriteToModel')
+      vm.$nextTick(() => {
+        vm.isUndoing = false
+        if (savedSel && container && doc) {
+          // restoreSelection(container, savedSel, doc)
+        }
+        vm.pingRichToolbar()
+      })
+    }
+  },
 
 
 

@@ -46,6 +46,7 @@ import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
 import {createSelectionMethods} from './selectionHandling.js'
 import { createButtonCommandMethods } from './btnCommands.js'
+import { createPathbrowserCommandMethods } from "./pathbrowserCommands.js"
 
 function renderIcon(h, icon, lib) {
   if (!icon) return null
@@ -312,7 +313,10 @@ export default {
   },
 
   created() {
-    this.buttonCommands = createButtonCommandMethods(this)
+    this.buttonCommands = {
+      ...createButtonCommandMethods(this),
+      ...createPathbrowserCommandMethods(this),
+    };
   },
 
   mounted() {
@@ -442,7 +446,7 @@ export default {
           'update-img-width': v => { this.browser.img.width = v },
           'update-img-height': v => { this.browser.img.height = v },
           'update-img-objectFit': v => { this.browser.img.objectFit = v },
-          select: this.onBrowserSelect,
+          select: this.buttonCommands.onBrowserSelect,
         },
       }))
     }
@@ -1098,68 +1102,8 @@ export default {
 
     triggerInput() {
       this.lastSelectedRte.dispatchEvent(new Event('input'))
+      console.log('lastSelectedRte', this.lastSelectedRte)
     },
-
-    saveToModel(container) {
-      const content = container.innerHTML
-
-      const dataInline = container.getAttribute('data-per-inline')
-
-      if (dataInline) {
-        const view = $perAdminApp.getView()
-        if (!view || !view.pageView || !view.pageView.page) return false
-
-        const editorPath = $perAdminApp.getNodeFromView('/state/editor/path')
-        const pageNode = view.pageView.page
-
-        let parentProp
-        if (editorPath) {
-          parentProp = $perAdminApp.findNodeFromPath(pageNode, editorPath)
-        }
-
-        if (!parentProp) {
-          const pathParts = dataInline.split('.').slice(1)
-          pathParts.reverse()
-          parentProp = pageNode
-          while (pathParts.length > 1) {
-            parentProp = parentProp[pathParts.pop()]
-          }
-        }
-
-        const keyStr = dataInline.split('.').pop()
-        if (parentProp && keyStr) {
-          parentProp[keyStr] = content
-          return true
-        }
-      }
-
-      const editorModel = $perAdminApp.getNodeFromViewOrNull('/state/inline/editorModel')
-      if (editorModel) {
-        editorModel.text = content
-        return true
-      }
-
-      return false
-    },
-
-    writeEditorToModel(textEditor) {
-      const wrapper = textEditor?.closest?.('.text-editor-wrapper')
-      let comp = textEditor?.__vue__ || wrapper?.__vue__ || this.$parent
-
-      while (comp) {
-        if (typeof comp.textEditorWriteToModel === 'function') {
-          comp.textEditorWriteToModel(comp)
-          return true
-        }
-        comp = comp.$parent
-      }
-
-      if (textEditor && this.saveToModel(textEditor)) return true
-
-      $perAdminApp.action(this, 'textEditorWriteToModel')
-      return false
-    },
-
 
     getDefaultFontSize() {
       const range = this.getEditorSelection()
@@ -1359,14 +1303,6 @@ export default {
       
     },
 
-    link() {
-      if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'link' } }))
-        return
-      }
-      this.insertLink()
-    },
-
     getLastAnchor() {
       return $perAdminApp.getNodeFromViewOrNull('/state/inline/lastAnchor')
     },
@@ -1459,173 +1395,7 @@ export default {
     },
 
 
-    editLink() {
-      if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'editLink' } }))
-        return
-      }
-      let anchor = this.getActiveAnchor()
-      
-      if (anchor && (!this.getInlineDoc() || !this.getLastDoc())) {
-        const anchorDoc = anchor.ownerDocument
-        if (anchorDoc) {
-          set($perAdminApp.getView(), '/state/inline/lastDoc', anchorDoc)
-          set($perAdminApp.getView(), '/state/inline/lastContainer', anchor.closest('.inline-edit'))
-        }
-      }
-      if (!anchor) {
-        return
-      }
 
-      let doc = this.getInlineDoc() || this.getLastDoc()
-      let container = this.getInlineContainer() || this.getLastContainer()
-
-      if (!doc || !container) {
-        doc = anchor.ownerDocument
-        container = anchor.closest('.inline-edit')
-      }
-
-      if (!doc || !container) return
-
-      const href = anchor.getAttribute('href') || ''
-      const title = anchor.getAttribute('title') || ''
-      const target = anchor.getAttribute('target') || ''
-      const rel = anchor.getAttribute('rel') || ''
-
-      this.selection.content = anchor.innerHTML
-      this.selection.doc = doc
-      this.selection.container = container
-      this.selection.buffer = saveSelection(container, doc)
-        || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-      this.selection.restore = true
-
-      const view = $perAdminApp.getView()
-      if (view) {
-        const state = view.state || (view.state = {})
-        const inline = state.inline || (state.inline = {})
-        inline.lastAnchor = anchor
-        inline.lastContainer = container
-        inline.lastDoc = doc
-      }
-
-      this.param.cmd = 'editLink'
-      this.param.anchor = anchor
-      this.browser.header = this.$i18n('Edit Link')
-      this.browser.withLinkTab = true
-      this.browser.newWindow = target === '_blank'
-      this.browser.rel = rel.includes('noopener')
-      this.browser.linkTitle = title
-      this.browser.type = PathBrowser.Type.PAGE
-
-      let startPath
-      let resolvedHref = href
-
-      if (/^https?:\/\//.test(href)) {
-        try {
-          const url = new URL(href)
-          if (url.hostname === window.location.hostname) {
-            resolvedHref = url.pathname + url.search + url.hash
-          }
-        } catch (e) { /* Do nothing */ }
-      }
-
-      const isExternal = /^https?:\/\//.test(resolvedHref)
-      if (isExternal) {
-        this.browser.path.selected = resolvedHref
-        startPath = this.roots.pages || '/'
-      } else {
-        // Normalize only the repository path; keep query strings and fragments verbatim.
-        const suffixIndex = resolvedHref.search(/[?#]/)
-        const pathname = suffixIndex < 0 ? resolvedHref : resolvedHref.slice(0, suffixIndex)
-        const suffix = suffixIndex < 0 ? '' : resolvedHref.slice(suffixIndex)
-        let hrefPath = pathname.replace(/\.html$/, '')
-        if (!hrefPath.startsWith('/content/')) {
-          hrefPath = (this.roots.pages || '') + hrefPath
-        }
-        const lastSlash = hrefPath.lastIndexOf('/')
-        startPath = lastSlash > 0 ? hrefPath.substring(0, lastSlash) : (this.roots.pages || '/')
-        this.browser.path.selected = hrefPath + suffix
-      }
-      this.browser.path.current = startPath
-      this.startBrowsing(startPath)
-    },
-
-    removeLink() {
-      if (this.onSubNav) {
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'removeLink' } }))
-        return
-      }
-      let anchor = this.getActiveAnchor()
-
-      if (!anchor) {
-        const inlineDoc = this.getInlineDoc()
-        if (inlineDoc && inlineDoc.defaultView) {
-          const sel = inlineDoc.defaultView.getSelection()
-          if (sel && sel.rangeCount > 0) {
-            const node = sel.anchorNode
-            if (node) {
-              const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node
-              anchor = el ? el.closest('a') : null
-            }
-          }
-        }
-      }
-
-      if (!anchor || !anchor.parentNode) {
-        const container = this.getLastContainer()
-        if (container) {
-          const allAnchors = container.getElementsByTagName('a')
-          if (allAnchors.length > 0) {
-            anchor = allAnchors[0]
-          }
-        }
-      }
-
-      if (!anchor || !anchor.parentNode) {
-        return
-      }
-
-      let doc = this.getInlineDoc() || this.getLastDoc()
-      let container = this.getInlineContainer() || this.getLastContainer()
-
-      if (!doc || !container) {
-        doc = anchor.ownerDocument
-        container = anchor.closest('.inline-edit')
-      }
-
-      if (!doc || !container) {
-        return
-      }
-
-      this.$nextTick(() => {
-        const win = doc.defaultView || window
-        const sel = win.getSelection ? win.getSelection() : null
-        if (!sel) return
-
-        const range = doc.createRange()
-        range.selectNodeContents(anchor)
-        sel.removeAllRanges()
-        sel.addRange(range)
-        doc.execCommand('unlink', false, null)
-
-        const content = container.innerHTML
-        const dataInline = container.getAttribute('data-per-inline')
-
-        if (dataInline) {
-          const view = $perAdminApp.getView()
-          if (view && view.pageView && view.pageView.page) {
-            const pathParts = dataInline.split('.').slice(1)
-            pathParts.reverse()
-            let parentProp = view.pageView.page
-            while (pathParts.length > 1) {
-              parentProp = parentProp[pathParts.pop()]
-            }
-            const keyStr = pathParts.pop()
-            parentProp[keyStr] = content
-          }
-        }
-      })
-    },
 
 
     async getDefaultMediaText(path = '') {
@@ -1710,167 +1480,7 @@ export default {
       }
     },
 
-    onBrowserSelect() {
-      this.browser.open = false
 
-      if (this.selection.restore) {
-        this.restoreSelection()
-      }
-
-      this.$nextTick(() => {
-        if (['editLink', 'insertLink'].includes(this.param.cmd)) {
-          this.onLinkSelect()
-          return
-        } else if (['insertImage', 'editImage', 'editIcon'].includes(this.param.cmd)) {
-          this.onImageSelect().catch((err) => console.error(err))
-          return
-        }
-
-        this.execCmd(this.param.cmd, this.param.value)
-        this.param.cmd = null
-        this.param.value = null
-        this.param.anchor = null
-        this.browser.path.selected = null
-        this.browser.linkTitle = null
-        this.browser.img.width = null
-        this.browser.img.height = null
-        this.pingRichToolbar()
-
-        if (this.selection.restore) {
-          this.$nextTick(() => {
-            this.restoreSelection()
-            this.selection.restore = false
-          })
-        }
-      })
-    },
-
-    onLinkSelect() {
-      const typeLC = this.browser.type?.toLowerCase()
-      const isAssetOrFile = typeLC === PathBrowser.Type.ASSET || typeLC === 'file'
-      let href = this.browser.path.selected || ''
-      if (!href.trim()) {
-        console.warn('no href specified in onLinkSelect')
-        $perAdminApp.toast("Invalid link", "warn", 3000)
-        return
-      }
-      try {
-        new URL(href, window.location.origin)
-      } catch (e) {
-        console.warn('invalid href specified in onLinkSelect', href, e)
-        $perAdminApp.toast("Invalid link", "warn", 3000)
-        return
-      }
-
-      const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
-      if (href.startsWith('/') && isPageType) {
-        const url = new URL(href, "https://placeholder.invalid");
-        if (!url.pathname.endsWith('.html')) {
-          url.pathname += ".html";
-        }
-        href = url.pathname + url.search + url.hash;
-      }
-
-      const applyLinkAttributes = (link) => {
-        link.setAttribute('href', href)
-        if (this.browser.linkTitle) {
-          link.setAttribute('title', this.browser.linkTitle)
-        } else {
-          link.removeAttribute('title')
-        }
-        if (isAssetOrFile) {
-          link.setAttribute('download', '')
-          link.removeAttribute('target')
-          link.removeAttribute('rel')
-        } else {
-          link.removeAttribute('download')
-          link.setAttribute('target', this.browser.newWindow ? '_blank' : '_self')
-          link.setAttribute('rel', this.browser.rel ? 'noopener noreferrer' : '')
-        }
-      }
-
-      if (this.param.cmd === 'insertLink') {
-        const link = this.selection.doc.createElement('a')
-        applyLinkAttributes(link)
-
-        const range = this._savedRange
-        if (!range) return
-
-        const editorEl = this.getEditorFrom(range)
-        if (!editorEl) return
-        const textEditor = editorEl.closest('.inline-edit[contenteditable="true"]')
-        if (!textEditor) return
-
-        let rangeIsInListItem = false
-        if (!range.startContainer.isEqualNode(range.endContainer)) {
-          const listItems = Array.from(textEditor.querySelectorAll('li')).reverse()
-          for (const li of listItems) {
-            if (range.intersectsNode(li)) {
-              rangeIsInListItem = li
-              break
-            }
-          }
-        }
-
-        if (rangeIsInListItem) {
-          range.setStart(rangeIsInListItem, 0)
-          if (rangeIsInListItem.isEqualNode(range.endContainer)) {
-            range.setEnd(range.endContainer, range.endOffset)
-          } else {
-            range.setEnd(rangeIsInListItem, rangeIsInListItem.childNodes.length)
-          }
-        }
-
-        link.append(range.extractContents())
-        if (link.textContent.trim().length < 1 && link.children.length === 0) {
-          link.textContent = href
-        }
-        range.insertNode(link)
-        this._savedRange = null
-        textEditor.dispatchEvent(new Event('input'))
-      } else {
-        let anchor = this.param.anchor
-        if (!anchor || !anchor.parentNode) {
-          anchor = this.getLastAnchor()
-        }
-        if (!anchor || !anchor.parentNode) {
-          anchor = this.getAnchorAtSelection()
-        }
-        if (!anchor || !anchor.parentNode) {
-          const container = this.getLastContainer()
-          if (container) {
-            anchor = container.querySelector('a')
-          }
-        }
-        if (!anchor || !anchor.parentNode) {
-          const container = this.getLastContainer()
-          if (container) {
-            const allAnchors = container.querySelectorAll('a')
-            if (allAnchors.length > 0) {
-              anchor = allAnchors[0]
-            }
-          }
-        }
-        if (!anchor || !anchor.parentNode) return
-        applyLinkAttributes(anchor)
-        const inlineContainer = anchor.closest('[data-per-inline]')
-        if (inlineContainer) {
-          if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
-            $perAdminApp.action(this, 'reWrapEditable')
-          }
-          $perAdminApp.action(this, 'writeElementToModel', inlineContainer)
-        } else {
-          $perAdminApp.action(this, 'textEditorWriteToModel')
-        }
-        const view = $perAdminApp.getView()
-        if (view) {
-          const state = view.state || (view.state = {})
-          const inline = state.inline || (state.inline = {})
-          inline.lastAnchor = anchor
-        }
-        this.param.anchor = null
-      }
-    },
 
     async onImageSelect() {
       if (this.param.cmd === 'editIcon') {

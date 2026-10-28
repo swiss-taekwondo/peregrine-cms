@@ -3,7 +3,7 @@ import removeLink from './removeLink'
 import {IconLib} from '../../../../../../../../js/constants'
 
 export default (vm) => {
-  const isATag = () => vm.itemIsTag('A')
+  const isATag = () => vm.rangeMatchesSelector('a')
   return {
     label: 'link',
     icon: 'link',
@@ -13,7 +13,9 @@ export default (vm) => {
     priority: 70,
     isActive: isATag,
     isDisabled: () => vm.toolbarDisabled && !isATag(),
-    toggleClick: () => { if (!isATag()) vm.exec('link') },
+    toggleClick: () => {
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'insertLink' } }))
+    },
     rules: () => !vm.responsive || !vm.hiddenGroups.link,
     items: [
       editLink(vm),

@@ -331,6 +331,9 @@ export default {
         this.unselect(this)
       }
     },
+    targetInline(newValue, oldValue){
+      console.log('targetInline:', newValue, oldValue)
+    },
     scrollTop() {
       if (this.target) {
         this.wrapEditableAroundSelected()
@@ -564,6 +567,7 @@ export default {
       dataInline.reverse()
       let parentProp = vm.node
       while (dataInline.length > 1) {
+        console.log('parentProp', parentProp)
         parentProp = parentProp[dataInline.pop()]
       }
       const keyStr = dataInline.pop()
@@ -573,12 +577,10 @@ export default {
     onInlineEdit(event) {
     event.preventDefault()
       if (!this.inlineEdit.firstTime.includes(event.target)) {
-        // selection saving still required here. For some reason v-html rerenders break selection/caret position on first edit.
-        // This seemingly isn't normally an issue since it works just fine in the sidebar. Those also use state bound to v-html and selection is never lost.
-        // Might wanna revisit this at some point. TODO: since it only happens on first edit, try forcing a change by prepending and removing zerowidthspace on focusin?
         this.inlineEdit.firstTime.push(event.target)
-        this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
       }
+      // We need this selection handler, it preserves the caret position for all inline edits, both RTE and others.
+      this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
