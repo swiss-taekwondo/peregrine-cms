@@ -321,6 +321,13 @@ public class PageModel extends Container {
             }
         };
 
+        // Visit the template resource to inherit its assets
+        PageModel templatePageModel = getTemplatePageModel();
+        if (templatePageModel != null && templatePageModel.getResource() != null) {
+            visitor.accept(templatePageModel.getResource());
+        }
+
+        // Visit the current page resource
         visitor.accept(getResource());
 
         ObjectMapper mapper = new ObjectMapper();
