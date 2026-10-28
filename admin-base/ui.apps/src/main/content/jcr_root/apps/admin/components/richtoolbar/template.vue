@@ -312,13 +312,6 @@ export default {
     
   },
 
-  created() {
-    this.buttonCommands = {
-      ...createButtonCommandMethods(this),
-      ...createPathbrowserCommandMethods(this),
-    };
-  },
-
   mounted() {
     this.$nextTick(() => {
       window.addEventListener('resize', this.scheduleDocElDimensionsUpdate)
@@ -446,7 +439,7 @@ export default {
           'update-img-width': v => { this.browser.img.width = v },
           'update-img-height': v => { this.browser.img.height = v },
           'update-img-objectFit': v => { this.browser.img.objectFit = v },
-          select: this.buttonCommands.onBrowserSelect,
+          select: this.onBrowserSelect,
         },
       }))
     }
@@ -459,6 +452,8 @@ export default {
 
   methods: {
     ...createSelectionMethods(),
+    ...createButtonCommandMethods(),
+    ...createPathbrowserCommandMethods(),
 
     initResizeObserver() {
       if (typeof ResizeObserver === 'undefined' || !this.$el) return
@@ -1092,8 +1087,8 @@ export default {
       if (this.onSubNav) return
       if (typeof this[event.detail.cmd] === 'function') {
         this[event.detail.cmd](event.detail.value)
-      } else if (this.buttonCommands?.[event.detail.cmd]) {
-        this.buttonCommands[event.detail.cmd](event.detail.value)
+      } else if (this?.[event.detail.cmd]) {
+        this[event.detail.cmd](event.detail.value)
 			} else {
 				const selectionOwnerDoc = this.lastInRteSelection.commonAncestorContainer.ownerDocument
 				selectionOwnerDoc.execCommand(event.detail.cmd, event.detail.showUi || null, event.detail.value || null)
@@ -1293,14 +1288,8 @@ export default {
 
     exec(cmd, value = null) {
 	    console.log('exec:', cmd, value)
-	    this.restoreEditorSelection()
-      if (Object.keys(this.buttonCommands).indexOf(cmd) >= 0) {
-        this.buttonCommands[cmd](value)
-      } else {
-        this.execCmd(cmd, value)
-      }
-      // this.pingRichToolbar()
-      
+			console.warn('exec sill used:', cmd, value)
+			return
     },
 
     getLastAnchor() {
@@ -1482,76 +1471,6 @@ export default {
 
 
 
-    async onImageSelect() {
-      if (this.param.cmd === 'editIcon') {
-        const imgEl = this.browser.element
-        const styles = []
-        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        imgEl.setAttribute('alt', this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected) || '')
-        imgEl.setAttribute('style', styles.join(';'))
-        const container = imgEl.closest('[data-per-inline]')
-        if (container) $perAdminApp.action(this, 'writeElementToModel', container)
-        this.browser.element = null
-        this.browser.altText = undefined
-        this.browser.withImageTab = false
-        return
-      }
-      if (this.param.cmd === 'editImage') {
-        const imgEl = this.browser.element
-        const linkTitle = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
-        const styles = []
-        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        imgEl.setAttribute('src', this.browser.path.selected)
-        imgEl.setAttribute('alt', linkTitle || '')
-        imgEl.setAttribute('title', linkTitle || '')
-        imgEl.setAttribute('style', styles.join(';'))
-        if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
-          $perAdminApp.action(this, 'reWrapEditable')
-        }
-        const editor = imgEl.closest('[contenteditable="true"]')
-        if (editor) editor.dispatchEvent(new Event('input'))
-        this.browser.element = null
-        this.browser.mediaSourcePath = ''
-        this.browser.mediaSourceText = ''
-        this.browser.mediaSourceFallback = ''
-      } else {
-        // insertImage
-        const sel = window.getSelection()
-        const range = this._savedRange
-
-        const styles = []
-        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
-        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
-        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
-        const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
-
-        const img = document.createElement('img')
-        img.setAttribute('src', this.browser.path.selected)
-        img.setAttribute('alt', mediaText || '')
-        img.setAttribute('title', mediaText || '')
-        if (styles.length) {
-          img.setAttribute('style', styles.join(';'))
-        }
-
-        range.deleteContents()
-        range.insertNode(img)
-        range.setStartAfter(img)
-        range.collapse(true)
-        sel.removeAllRanges()
-        sel.addRange(range)
-
-        const editor = this.getEditorFrom(range)
-        if (editor) editor.dispatchEvent(new Event('input'))
-
-      }
-      this.browser.mediaSourcePath = ''
-      this.browser.mediaSourceText = ''
-      this.browser.mediaSourceFallback = ''
-    },
 
     setBrowserPathCurrent(path) {
       this.browser.path.current = path

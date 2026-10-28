@@ -1,28 +1,31 @@
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
+import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 
-export function createPathbrowserCommandMethods(vm) {
+// TODO: split onLink/ImageSelect functions, they are giant if blocks, should be different functions.
+
+export function createPathbrowserCommandMethods() {
   return {
 
   onBrowserSelect() {
-    vm.browser.open = false
+    this.browser.open = false
 
-    vm.$nextTick(() => {
-      if (['editLink', 'insertLink'].includes(vm.param.cmd)) {
-        vm.buttonCommands.onLinkSelect()
+    this.$nextTick(() => {
+      if (['editLink', 'insertLink'].includes(this.param.cmd)) {
+        this.onLinkSelect()
         return
-      } else if (['insertImage', 'editImage', 'editIcon'].includes(vm.param.cmd)) {
-        vm.buttonCommands.onImageSelect().catch((err) => console.error(err))
+      } else if (['insertImage', 'editImage', 'editIcon'].includes(this.param.cmd)) {
+        this.onImageSelect().catch((err) => console.error(err))
         return
       }
 
-      vm.execCmd(vm.param.cmd, vm.param.value)
-      vm.param.cmd = null
-      vm.param.value = null
-      vm.param.anchor = null
-      vm.browser.path.selected = null
-      vm.browser.linkTitle = null
-      vm.browser.img.width = null
-      vm.browser.img.height = null
+      this.execCmd(this.param.cmd, this.param.value)
+      this.param.cmd = null
+      this.param.value = null
+      this.param.anchor = null
+      this.browser.path.selected = null
+      this.browser.linkTitle = null
+      this.browser.img.width = null
+      this.browser.img.height = null
     })
   },
 
@@ -31,41 +34,41 @@ export function createPathbrowserCommandMethods(vm) {
     // ====================
 
   removeLink(vm) {
-    vm.lastSelectedRte.ownerDocument.execCommand('unlink', false, null)
-    vm.triggerInput()
+    this.lastSelectedRte.ownerDocument.execCommand('unlink', false, null)
+    this.triggerInput()
   },
 
   insertLink() {
-    const startPath = vm.roots.pages
-    vm.param.cmd = 'insertLink'
-    vm.param.anchor = null
-    vm.browser.header = vm.$i18n('Insert Link')
-    vm.browser.path.current = startPath
-    vm.browser.path.selected = null
-    vm.browser.withLinkTab = true
-    vm.browser.newWindow = false
-    vm.browser.rel = true
-    vm.browser.linkTitle = ''
-    vm.browser.type = PathBrowser.Type.PAGE
-    vm.startBrowsing(startPath)
+    const startPath = this.roots.pages
+    this.param.cmd = 'insertLink'
+    this.param.anchor = null
+    this.browser.header = this.$i18n('Insert Link')
+    this.browser.path.current = startPath
+    this.browser.path.selected = null
+    this.browser.withLinkTab = true
+    this.browser.newWindow = false
+    this.browser.rel = true
+    this.browser.linkTitle = ''
+    this.browser.type = PathBrowser.Type.PAGE
+    this.startBrowsing(startPath)
   },
 
   editLink() {
-    const anchor = vm.rangeMatchesSelector('a')
+    const anchor = this.rangeMatchesSelector('a')
     const href = anchor.getAttribute('href') || ''
     const title = anchor.getAttribute('title') || ''
     const target = anchor.getAttribute('target') || ''
     const rel = anchor.getAttribute('rel') || ''
 
-    let startPath = vm.roots.pages
-    vm.param.cmd = 'editLink'
-    vm.param.anchor = anchor
-    vm.browser.header = vm.$i18n('Edit Link')
-    vm.browser.withLinkTab = true
-    vm.browser.newWindow = target === '_blank'
-    vm.browser.rel = rel.includes('noopener')
-    vm.browser.linkTitle = title
-    vm.browser.type = PathBrowser.Type.PAGE
+    let startPath = this.roots.pages
+    this.param.cmd = 'editLink'
+    this.param.anchor = anchor
+    this.browser.header = this.$i18n('Edit Link')
+    this.browser.withLinkTab = true
+    this.browser.newWindow = target === '_blank'
+    this.browser.rel = rel.includes('noopener')
+    this.browser.linkTitle = title
+    this.browser.type = PathBrowser.Type.PAGE
 
     let resolvedHref = href
 
@@ -80,8 +83,8 @@ export function createPathbrowserCommandMethods(vm) {
 
     const isExternal = /^https?:\/\//.test(resolvedHref)
     if (isExternal) {
-      vm.browser.path.selected = resolvedHref
-      startPath = vm.roots.pages || '/'
+      this.browser.path.selected = resolvedHref
+      startPath = this.roots.pages || '/'
     } else {
       // Normalize only the repository path; keep query strings and fragments verbatim.
       const suffixIndex = resolvedHref.search(/[?#]/)
@@ -89,21 +92,21 @@ export function createPathbrowserCommandMethods(vm) {
       const suffix = suffixIndex < 0 ? '' : resolvedHref.slice(suffixIndex)
       let hrefPath = pathname.replace(/\.html$/, '')
       if (!hrefPath.startsWith('/content/')) {
-        hrefPath = (vm.roots.pages || '') + hrefPath
+        hrefPath = (this.roots.pages || '') + hrefPath
       }
       const lastSlash = hrefPath.lastIndexOf('/')
-      startPath = lastSlash > 0 ? hrefPath.substring(0, lastSlash) : (vm.roots.pages || '/')
-      vm.browser.path.selected = hrefPath + suffix
+      startPath = lastSlash > 0 ? hrefPath.substring(0, lastSlash) : (this.roots.pages || '/')
+      this.browser.path.selected = hrefPath + suffix
     }
-    vm.browser.path.current = startPath
-    vm.startBrowsing(startPath)
-    vm.startBrowsing(startPath)
+    this.browser.path.current = startPath
+    this.startBrowsing(startPath)
+    this.startBrowsing(startPath)
   },
 
   onLinkSelect() {
-    const typeLC = vm.browser.type?.toLowerCase()
+    const typeLC = this.browser.type?.toLowerCase()
     const isAssetOrFile = typeLC === PathBrowser.Type.ASSET || typeLC === 'file'
-    let href = vm.browser.path.selected || ''
+    let href = this.browser.path.selected || ''
     if (!href.trim()) {
       console.warn('no href specified in onLinkSelect')
       $perAdminApp.toast("Invalid link", "warn", 3000)
@@ -117,7 +120,7 @@ export function createPathbrowserCommandMethods(vm) {
       return
     }
 
-    const isPageType = vm.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
+    const isPageType = this.browser.type?.toLowerCase() === PathBrowser.Type.PAGE
     if (href.startsWith('/') && isPageType) {
       const url = new URL(href, "https://placeholder.invalid");
       if (!url.pathname.endsWith('.html')) {
@@ -128,8 +131,8 @@ export function createPathbrowserCommandMethods(vm) {
 
     const applyLinkAttributes = (link) => {
       link.setAttribute('href', href)
-      if (vm.browser.linkTitle) {
-        link.setAttribute('title', vm.browser.linkTitle)
+      if (this.browser.linkTitle) {
+        link.setAttribute('title', this.browser.linkTitle)
       } else {
         link.removeAttribute('title')
       }
@@ -139,16 +142,16 @@ export function createPathbrowserCommandMethods(vm) {
         link.removeAttribute('rel')
       } else {
         link.removeAttribute('download')
-        link.setAttribute('target', vm.browser.newWindow ? '_blank' : '_self')
-        link.setAttribute('rel', vm.browser.rel ? 'noopener noreferrer' : '')
+        link.setAttribute('target', this.browser.newWindow ? '_blank' : '_self')
+        link.setAttribute('rel', this.browser.rel ? 'noopener noreferrer' : '')
       }
     }
 
-    if (vm.param.cmd === 'insertLink') {
-      const range = vm.lastInRteSelection;
+    if (this.param.cmd === 'insertLink') {
+      const range = this.lastInRteSelection;
       const link = range.startContainer.ownerDocument.createElement('a')
       applyLinkAttributes(link)
-      const textEditor = vm.lastSelectedRte;
+      const textEditor = this.lastSelectedRte;
 
       let rangeIsInListItem = false
       if (!range.startContainer.isEqualNode(range.endContainer)) {
@@ -175,12 +178,12 @@ export function createPathbrowserCommandMethods(vm) {
         link.textContent = href
       }
       range.insertNode(link)
-      vm.triggerInput()
+      this.triggerInput()
     } else { // param.cmd === editLink
-      let anchor = vm.param.anchor
+      let anchor = this.param.anchor
       applyLinkAttributes(anchor)
-      vm.param.anchor = null
-      vm.triggerInput()
+      this.param.anchor = null
+      this.triggerInput()
     }
   },
 
@@ -190,73 +193,27 @@ export function createPathbrowserCommandMethods(vm) {
   // ====================
 
   insertImage() {
-    let container = null
-    let doc = null
-
-    const inlineContainer = vm.getInlineContainer()
-    const inlineDoc = vm.getInlineDoc()
-    if (inlineContainer && inlineDoc) {
-      container = inlineContainer
-      doc = inlineDoc
-    }
-
-    if (!container) {
-      const lastContainer = vm.getLastContainer()
-      const lastDoc = vm.getLastDoc()
-      if (lastContainer && lastDoc) {
-        container = lastContainer
-        doc = lastDoc
-      }
-    }
-
-    if (!container) {
-      const wrapper = vm.$el?.closest('.text-editor-wrapper')
-      if (wrapper) {
-        container = wrapper.querySelector('.text-editor')
-        if (!doc) doc = document
-      }
-    }
-
-    if (!container) {
-      container = document.querySelector('.text-editor')
-      if (!doc) doc = document
-    }
-
-    if (!container) {
-      return
-    }
-
-    if (!doc) doc = container.ownerDocument
-
-    vm.param.cmd = 'insertImage'
-    vm.browser.header = vm.$i18n('Insert Image')
-    vm.browser.path.current = vm.roots.assets
-    vm.browser.withLinkTab = true
-    vm.browser.newWindow = undefined
-    vm.browser.type = PathBrowser.Type.ASSET
-    vm.browser.path.suffix = ''
-    vm.browser.img.width = null
-    vm.browser.img.height = null
-    vm.browser.img.objectFit = null
-    vm.browser.path.selected = '';
-    vm.selection.doc = doc
-    vm.selection.container = container
-
-    const win = doc.defaultView || window
-    const liveSel = win.getSelection ? win.getSelection() : document.getSelection()
-    const liveRange = liveSel?.rangeCount > 0 ? liveSel.getRangeAt(0).cloneRange() : null
-    vm._savedRange = liveRange
-
-    const savedSel = saveSelection(container, doc) || $perAdminApp.getNodeFromViewOrNull('/state/inline/lastSelectionBuffer')
-    vm.selection.buffer = savedSel
-    vm.selection.restore = false
-    vm.startBrowsing()
+    this.param.cmd = 'insertImage'
+    this.browser.header = this.$i18n('Insert Image')
+    this.browser.path.current = this.roots.assets
+    this.browser.withLinkTab = true
+    this.browser.newWindow = undefined
+    this.browser.type = PathBrowser.Type.ASSET
+    this.browser.path.suffix = ''
+    this.browser.img.width = null
+    this.browser.img.height = null
+    this.browser.img.objectFit = null
+    this.browser.path.selected = '';
+    // this.selection.doc = doc
+    // this.selection.container = container
+    this.startBrowsing()
   },
 
-  async editImage(target) {
+  async editImage(vm = this, target) {
+    // vm handles inline double click
     const title = target.getAttribute('title')
     const src = target.getAttribute('src')
-    const defaultText = title || target.getAttribute('alt') || await vm.getDefaultMediaText(src)
+    const defaultText = title || target.getAttribute('alt') || await this.getDefaultMediaText(src)
     const fallbackText = fallbackMediaText(src)
     const srcArr = src.split('/')
     const img = {
@@ -265,7 +222,6 @@ export function createPathbrowserCommandMethods(vm) {
       objectFit: target.style.objectFit || null,
     }
     vm.param.cmd = 'editImage'
-    vm.selection.restore = false
     vm.browser.header = vm.$i18n('Edit Image')
     vm.browser.path.selected = srcArr.join('/')
     srcArr.pop()
@@ -285,33 +241,99 @@ export function createPathbrowserCommandMethods(vm) {
   },
 
   async editIcon(target) {
-    const alt = target.getAttribute('alt') || await vm.getDefaultMediaText(target.getAttribute('src') || '')
+    const alt = target.getAttribute('alt') || await this.getDefaultMediaText(target.getAttribute('src') || '')
     const src = target.getAttribute('src') || ''
     const img = {
       width: target.style.width ? parseInt(target.style.width) : 20,
       height: target.style.height ? parseInt(target.style.height) : 20,
       objectFit: target.style.objectFit || null,
     }
-    vm.param.cmd = 'editIcon'
-    vm.browser.header = vm.$i18n('Edit Icon')
-    vm.browser.withLinkTab = false
-    vm.browser.withImageTab = true
-    vm.browser.path.selected = src
-    vm.browser.path.current = src
-    vm.browser.type = PathBrowser.Type.ASSET
-    vm.browser.altText = alt
-    vm.browser.linkTitle = undefined
-    vm.browser.newWindow = undefined
-    vm.browser.element = target
-    vm.browser.img.width = img.width
-    vm.browser.img.height = img.height
-    vm.browser.img.objectFit = img.objectFit
-    vm.saveSelection()
-    vm.selection.restore = true
-    vm.startBrowsing(src.substring(0, src.lastIndexOf('/')))
+    this.param.cmd = 'editIcon'
+    this.browser.header = this.$i18n('Edit Icon')
+    this.browser.withLinkTab = false
+    this.browser.withImageTab = true
+    this.browser.path.selected = src
+    this.browser.path.current = src
+    this.browser.type = PathBrowser.Type.ASSET
+    this.browser.altText = alt
+    this.browser.linkTitle = undefined
+    this.browser.newWindow = undefined
+    this.browser.element = target
+    this.browser.img.width = img.width
+    this.browser.img.height = img.height
+    this.browser.img.objectFit = img.objectFit
+    this.saveSelection()
+    this.selection.restore = true
+    this.startBrowsing(src.substring(0, src.lastIndexOf('/')))
   },
 
 
+  async onImageSelect() {
+    if (this.param.cmd === 'editIcon') {
+      const imgEl = this.browser.element
+      console.log('imgEl', imgEl)
+      const styles = []
+      if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+      if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+      if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+      imgEl.setAttribute('alt', this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected) || '')
+      imgEl.setAttribute('style', styles.join(';'))
+      const container = imgEl.closest('[data-per-inline]')
+      if (container) $perAdminApp.action(this, 'writeElementToModel', container)
+      this.browser.element = null
+      this.browser.altText = undefined
+      this.browser.withImageTab = false
+      return
+    }
+    if (this.param.cmd === 'editImage') {
+      const imgEl = this.browser.element
+      const linkTitle = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
+      const styles = []
+      if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+      if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+      if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+      imgEl.setAttribute('src', this.browser.path.selected)
+      imgEl.setAttribute('alt', linkTitle || '')
+      imgEl.setAttribute('title', linkTitle || '')
+      imgEl.setAttribute('style', styles.join(';'))
+      if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
+        $perAdminApp.action(this, 'reWrapEditable')
+      }
+      const editor = imgEl.closest('[contenteditable="true"]')
+      if (editor) editor.dispatchEvent(new Event('input'))
+      this.browser.element = null
+      this.browser.mediaSourcePath = ''
+      this.browser.mediaSourceText = ''
+      this.browser.mediaSourceFallback = ''
+    } else {
+      // insertImage
+      const range = this.lastInRteSelection;
+
+      const styles = []
+      if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`)
+      if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`)
+      if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`)
+      const mediaText = this.browser.linkTitle || this.browser.altText || await this.getDefaultMediaText(this.browser.path.selected)
+
+      const img = document.createElement('img')
+      img.setAttribute('src', this.browser.path.selected)
+      img.setAttribute('alt', mediaText || '')
+      img.setAttribute('title', mediaText || '')
+      if (styles.length) {
+        img.setAttribute('style', styles.join(';'))
+      }
+
+      range.deleteContents()
+      range.insertNode(img)
+      range.setStartAfter(img)
+      range.collapse(true)
+
+      this.triggerInput()
+    }
+    this.browser.mediaSourcePath = ''
+    this.browser.mediaSourceText = ''
+    this.browser.mediaSourceFallback = ''
+  },
 
   }
 }

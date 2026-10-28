@@ -94,21 +94,21 @@ function getSelectedBlocksFromRange(range, editor) {
 }
 
 
-export function createButtonCommandMethods(vm) {
+export function createButtonCommandMethods() {
   return {
 
   formatBlock(tagName) {
     const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
     if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
-    const range = vm.lastInRteSelection;
-    const textEditor = vm.lastSelectedRte;
+    const range = this.lastInRteSelection;
+    const textEditor = this.lastSelectedRte;
 
     if (!range.collapsed) {
       if (!wrapSelectedRangeInBlock(range, textEditor, normalizedTagName)) return false
-      vm.triggerInput()
-      vm.$nextTick(() => {
-	        vm.$nextTick(() => {
-	           vm.reconstructSelectionRelativeToRte()
+      this.triggerInput()
+      this.$nextTick(() => {
+	        this.$nextTick(() => {
+	           this.reconstructSelectionRelativeToRte()
 	        })
       })
       
@@ -133,10 +133,10 @@ export function createButtonCommandMethods(vm) {
       block.replaceWith(replacement)
     }
 
-    vm.triggerInput()
-    vm.$nextTick(() => {
-      vm.$nextTick(() => {
-        vm.reconstructSelectionRelativeToRte()
+    this.triggerInput()
+    this.$nextTick(() => {
+      this.$nextTick(() => {
+        this.reconstructSelectionRelativeToRte()
       })
     })
     return true
@@ -166,9 +166,9 @@ export function createButtonCommandMethods(vm) {
 
   updateFontSize(newSize) {
     const fontSize = `${newSize}px`
-    const range = vm.lastInRteSelection;
+    const range = this.lastInRteSelection;
     console.log('updatefontsize range:', range.commonAncestorContainer, range.startOffset, range.endOffset, range)
-    const textEditor = vm.lastSelectedRte;
+    const textEditor = this.lastSelectedRte;
 
     function setFontSizeOfEl(element, fontSizeStr) {
       element.querySelectorAll('*[style*="font-size"]').forEach(element => {
@@ -196,10 +196,10 @@ export function createButtonCommandMethods(vm) {
       }
       setFontSizeOfEl(fontSizeParent, fontSize)
       fontSizeParent.style.fontSize = fontSize
-      vm.triggerInput()
-      vm.$nextTick(() => {
-	        vm.$nextTick(() => {
-	           vm.reconstructSelectionRelativeToRte()
+      this.triggerInput()
+      this.$nextTick(() => {
+	        this.$nextTick(() => {
+	           this.reconstructSelectionRelativeToRte()
 	        })
       })
       return
@@ -222,21 +222,21 @@ export function createButtonCommandMethods(vm) {
         const span = document.createElement('span')
         span.style.fontSize = fontSize
         range.surroundContents(span)
-        vm.triggerInput()
-        vm.selectNodes([span])
-        vm.$nextTick(() => {
-	        vm.$nextTick(() => {
-	           vm.reconstructSelectionRelativeToRte()
+        this.triggerInput()
+        this.selectNodes([span])
+        this.$nextTick(() => {
+	        this.$nextTick(() => {
+	           this.reconstructSelectionRelativeToRte()
 	        })
         })
       } else {
         setFontSizeOfEl(range.startContainer, fontSize)
-        vm.triggerInput()
+        this.triggerInput()
       }
       return
     }
 
-    const nodeRanges = vm.wrapTextNodesInRange(range, fontSize)
+    const nodeRanges = this.wrapTextNodesInRange(range, fontSize)
 
     textEditor.querySelectorAll('span[style*="font-size"]:has(> span[style*="font-size"])').forEach(span => {
       if (span.childNodes.length === 1) {
@@ -244,62 +244,62 @@ export function createButtonCommandMethods(vm) {
       }
     })
 
-    vm.selectNodes(nodeRanges)
-    vm.$nextTick(() => {
-      vm.$nextTick(() => {
-          vm.reconstructSelectionRelativeToRte()
+    this.selectNodes(nodeRanges)
+    this.$nextTick(() => {
+      this.$nextTick(() => {
+          this.reconstructSelectionRelativeToRte()
       })
     })
   },
 
   undo() {
-    if (vm.historyIndex > 0) {
-      vm.isUndoing = true
-      vm.historyIndex--
+    if (this.historyIndex > 0) {
+      this.isUndoing = true
+      this.historyIndex--
       window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-        detail: { historyIndex: vm.historyIndex, historyLength: vm.historyStack.length },
+        detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
       }))
-      const content = vm.historyStack[vm.historyIndex]
-      const container = vm.getInlineContainer()
-      const doc = vm.getInlineDoc()
+      const content = this.historyStack[this.historyIndex]
+      const container = this.getInlineContainer()
+      const doc = this.getInlineDoc()
       const savedSel = container && doc ? saveSelection(container, doc) : null
-      const textEditor = vm.$el.closest('.text-editor-wrapper')
-        ? vm.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-        : vm.$el.nextElementSibling
+      const textEditor = this.$el.closest('.text-editor-wrapper')
+        ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
+        : this.$el.nextElementSibling
       textEditor.innerHTML = content
       $perAdminApp.action(this, 'textEditorWriteToModel')
-      vm.$nextTick(() => {
-        vm.isUndoing = false
+      this.$nextTick(() => {
+        this.isUndoing = false
         if (savedSel && container && doc) {
           // restoreSelection(container, savedSel, doc)
         }
-        vm.pingRichToolbar()
+        this.pingRichToolbar()
       })
     }
   },
 
   redo() {
-    if (vm.historyIndex < vm.historyStack.length - 1) {
-      vm.isUndoing = true
-      vm.historyIndex++
+    if (this.historyIndex < this.historyStack.length - 1) {
+      this.isUndoing = true
+      this.historyIndex++
       window.dispatchEvent(new CustomEvent('richtoolbar:history', {
-        detail: { historyIndex: vm.historyIndex, historyLength: vm.historyStack.length },
+        detail: { historyIndex: this.historyIndex, historyLength: this.historyStack.length },
       }))
-      const content = vm.historyStack[vm.historyIndex]
-      const container = vm.getInlineContainer()
-      const doc = vm.getInlineDoc()
+      const content = this.historyStack[this.historyIndex]
+      const container = this.getInlineContainer()
+      const doc = this.getInlineDoc()
       const savedSel = container && doc ? saveSelection(container, doc) : null
-      const textEditor = vm.$el.closest('.text-editor-wrapper')
-        ? vm.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
-        : vm.$el.nextElementSibling
+      const textEditor = this.$el.closest('.text-editor-wrapper')
+        ? this.$el.closest('.text-editor-wrapper').querySelector('.text-editor')
+        : this.$el.nextElementSibling
       textEditor.innerHTML = content
       $perAdminApp.action(this, 'textEditorWriteToModel')
-      vm.$nextTick(() => {
-        vm.isUndoing = false
+      this.$nextTick(() => {
+        this.isUndoing = false
         if (savedSel && container && doc) {
           // restoreSelection(container, savedSel, doc)
         }
-        vm.pingRichToolbar()
+        this.pingRichToolbar()
       })
     }
   },
