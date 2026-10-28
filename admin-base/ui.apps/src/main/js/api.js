@@ -263,6 +263,10 @@ class PerApi {
         return impl.saveAssetProperties(node)
     }
 
+    generateAltText(path) {
+        return impl.generateAltText(path)
+    }
+
     insertNodeAt(path, component, drop, variation) {
         return impl.insertNodeAt(path, component, drop, variation)
     }

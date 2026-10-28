@@ -36,6 +36,7 @@ import com.peregrine.replication.Replication;
 import com.peregrine.replication.Replication.ReplicationException;
 import com.peregrine.replication.ReplicationUtil;
 import com.peregrine.replication.ReplicationsContainerWithDefault;
+import com.peregrine.admin.resource.GeminiGeneration;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
@@ -131,6 +132,9 @@ public final class ReplicationServlet extends ReplicationServletBase {
     @Reference
     private AdminResourceHandler resourceManagement;
 
+    @Reference
+    private GeminiGeneration geminiGeneration;
+
     protected ReplicationsContainerWithDefault getReplications() {
         return replications;
     }
@@ -171,6 +175,38 @@ public final class ReplicationServlet extends ReplicationServletBase {
         }
 
         toBeReplicated = replication.prepare(toBeReplicated);
+
+        // Sort the list to prioritize per:Asset resources
+        toBeReplicated.sort((r1, r2) -> {
+            boolean isAsset1 = isAsset(r1);
+            boolean isAsset2 = isAsset(r2);
+            if (isAsset1 && !isAsset2) return -1;
+            if (!isAsset1 && isAsset2) return 1;
+            return 0;
+        });
+
+        logger.info("Replication triggered. Preparing {} resources for processing.", toBeReplicated.size());
+
+        // Iterate and generate AI content for assets before versioning
+        for (Resource r : toBeReplicated) {
+            boolean isAssetNode = isAsset(r);
+            logger.info("Evaluating resource in replication payload: path={}, isAsset={}", r.getPath(), isAssetNode);
+
+            if (isAssetNode) {
+                Node assetNode = r.adaptTo(Node.class);
+                try {
+                    logger.info("Triggering AI metadata generation for asset: {}", r.getPath());
+                    geminiGeneration.generateAndApplyAltTextAndTranslations(assetNode, resourceResolver);
+                    logger.info("Finished AI metadata generation step for asset: {}", r.getPath());
+                } catch (Exception e) {
+                    logger.error("Failed to generate AI alt text/translations for asset: {}", r.getPath(), e);
+                }
+            }
+        }
+
+        // Save the session to persist new AI-generated properties
+        resourceResolver.adaptTo(Session.class).save();
+
         List<String> toBeReplicatedPaths = new ArrayList<>();
         HashSet<String> allReplicatedPaths = new HashSet<>();
         streamReplicableResources(toBeReplicated)
@@ -310,6 +346,18 @@ public final class ReplicationServlet extends ReplicationServletBase {
         }
 
         return prepareResponse(resource, replicatedStuff);
+    }
+
+    private boolean isAsset(Resource resource) {
+        if (resource != null) {
+            Node node = resource.adaptTo(Node.class);
+            try {
+                return node != null && node.isNodeType("per:Asset");
+            } catch (RepositoryException e) {
+                logger.warn("Failed to check node type", e);
+            }
+        }
+        return false;
     }
 
     /**

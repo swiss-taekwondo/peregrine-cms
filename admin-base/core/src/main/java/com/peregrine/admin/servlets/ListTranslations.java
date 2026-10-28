@@ -78,8 +78,11 @@ public class ListTranslations extends AbstractBaseServlet {
 
     private static final String PER_PAGE = "per:Page";
     private static final String PER_OBJECT = "per:Object";
+    private static final String PER_ASSET = "per:Asset";
+    private static final String ASSET_TRANSLATION_REF = "asset";
     private static final String NODE_PATH_NOT_FOUND = "Node path not found";
     private static final String MODEL_PATH_NOT_FOUND = "Model path not found";
+    private static final String ASSET_CONTENT_NOT_FOUND = "Asset content node not found";
     private static final String WRONG_NODE_TYPE = "Wrong Node type";
     private static final List<String> EXCLUDED_PROPERTIES = Arrays.asList(NAME, PATH, COMPONENT);
 
@@ -144,6 +147,15 @@ public class ListTranslations extends AbstractBaseServlet {
             else if (PER_OBJECT.equals(nodeType)){
                 nodes.add(pageOrObject);
             }
+            else if (PER_ASSET.equals(nodeType)) {
+                if (!pageOrObject.hasNode(JCR_CONTENT)) {
+                    return new ErrorResponse()
+                            .setHttpErrorCode(SC_BAD_REQUEST)
+                            .setErrorMessage(ASSET_CONTENT_NOT_FOUND)
+                            .setRequestPath(path);
+                }
+                nodes.add(pageOrObject.getNode(JCR_CONTENT));
+            }
             else {
                 return new ErrorResponse()
                         .setHttpErrorCode(SC_BAD_REQUEST)
@@ -169,13 +181,18 @@ public class ListTranslations extends AbstractBaseServlet {
         ArrayNode foundNodes = objectMapper.createArrayNode();
 
         for (Node node : nodes) {
-            if (node.hasProperty(PER_TRANSLATE_REF)) {
+            boolean isAssetContent = node.getPrimaryNodeType().isNodeType(ASSET_CONTENT_TYPE);
+            if (node.hasProperty(PER_TRANSLATE_REF) || (isAssetContent && model.containsKey(ASSET_TRANSLATION_REF))) {
                 ObjectNode objectNode = objectMapper.createObjectNode();
                 objectNode.put(PATH, node.getPath());
 
-                String translationRef = node.getProperty(PER_TRANSLATE_REF).getString();
+                String translationRef = isAssetContent ? ASSET_TRANSLATION_REF : node.getProperty(PER_TRANSLATE_REF).getString();
                 objectNode.put(REFERENCE_NAME, translationRef);
                 List<String> properties = model.get(translationRef);
+                if (properties == null) {
+                    logger.debug("Skipping translation reference {} without a matching model entry", translationRef);
+                    continue;
+                }
 
                 ObjectNode originalNode = objectMapper.createObjectNode();
 

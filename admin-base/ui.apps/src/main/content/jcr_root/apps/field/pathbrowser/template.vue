@@ -36,8 +36,7 @@
           :readonly="schema.readonly"
           :title="value"
           @input="onInputInput"
-          @focus="editing = true"
-          @blur="editing = false"/>
+          />
         <button v-if="!schema.readonly" :disabled="disabled" v-on:click.stop.prevent="browse" class="btn-flat picker-open">
           <icon v-bind="buttonIcon"/>
         </button>
@@ -70,7 +69,7 @@
 
 <script>
 import {IconLib, PathBrowser} from '../../../../../js/constants'
-import {fallbackMediaText, isImagePath, normalizeAssetPath, resolveMediaText} from '../../js/mediaText'
+import {isImagePath} from '../../../../../js/utils'
 import {getBasePath} from '../../../../../js/mixins'
 
 import PathBrowserComponent from '../../admin/components/pathbrowser/template.vue'
@@ -91,7 +90,6 @@ export default {
                 rel: false,
                 selectedPath: null,
                 withLinkTab: true,
-                editing: false
             }
         },
         computed: {
@@ -114,91 +112,17 @@ export default {
           this.browserRoot = this.getBasePath() + this.browserRoot
           this.currentPath = this.getBasePath() + this.currentPath
       },
-      mounted() {
-          this.syncMediaText(this.value)
-      },
-      watch: {
-          value(newValue) {
-              this.syncMediaText(newValue)
-          }
-      },
       methods: {
            isImagePath,
-           getMediaTextTargets() {
-             const modelName = String(this.schema && this.schema.model ? this.schema.model : '').toLowerCase()
-             const targets = []
-             const push = (name) => {
-               if (name && !targets.includes(name)) {
-                 targets.push(name)
-               }
-             }
-
-             if (/logo/.test(modelName)) push('logoalttext')
-             if (/icon/.test(modelName)) push('iconalttext')
-             if (/bgimage/.test(modelName) || /background.*image/.test(modelName)) push('bgimagealttext')
-             if (/imagepath$/.test(modelName) || /path$/.test(modelName)) push('alt')
-             if (/src$/.test(modelName)) push('mediatitle')
-             if (/image/.test(modelName)) {
-               push('imagealttext')
-               push('mediatitle')
-               push('alt')
-             }
-             if (/media/.test(modelName)) push('mediatitle')
-             push('altText')
-             push('alt')
-
-             return targets
-           },
-           getBlankMediaTextTarget() {
-             const targets = this.getMediaTextTargets()
-             return targets.find((name) => {
-               return String(this.model[name] || '').trim() === ''
-             }) || null
-           },
-           getMediaTextTargetsWithValues() {
-             return this.getMediaTextTargets().filter((name) => String(this.model[name] || '').trim() !== '')
-           },
-           async getDefaultMediaText(path = '') {
-             const rootData = this.$root && this.$root.$data
-             const adminNodes = rootData && rootData.admin && rootData.admin.nodes
-             return resolveMediaText(normalizeAssetPath(path), adminNodes)
-           },
-           async clearInheritedMediaText(path = this.value) {
-             const normalizedPath = normalizeAssetPath(path)
-             if (!normalizedPath) return
-             const defaultText = String(await this.getDefaultMediaText(normalizedPath) || '').trim()
-             const fallbackText = String(fallbackMediaText(normalizedPath) || '').trim()
-             if (!defaultText && !fallbackText) return
-             for (const targetField of this.getMediaTextTargetsWithValues()) {
-               const currentText = String(this.model[targetField] || '').trim()
-               if (currentText && (currentText === defaultText || currentText === fallbackText)) {
-                 this.$set(this.model, targetField, '')
-               }
-             }
-           },
-           async syncMediaText(path = this.selectedPath) {
-             const normalizedPath = normalizeAssetPath(path)
-             if (!normalizedPath) return
-             const targetField = this.getBlankMediaTextTarget()
-             if (!targetField) return
-             const text = await this.getDefaultMediaText(normalizedPath)
-             if (this.selectedPath && normalizedPath !== normalizeAssetPath(this.selectedPath)) return
-             if (String(this.model[targetField] || '').trim()) return
-             this.$set(this.model, targetField, text)
-           },
            onInputInput(event) {
-             if (!this.editing) {
-               this.value = event.target.value
-             }
+            this.value = event.target.value
            },
             onCancel(){
                 this.isOpen = false
             },
             async onSelect() {
-                await this.clearInheritedMediaText(this.value)
-                this.value = normalizeAssetPath(this.selectedPath)
-                await this.syncMediaText(this.selectedPath)
-                this.$emit('select', this.selectedPath);
+                this.value = this.selectedPath
+                this.$emit('select', this.selectedPath)
                 this.isOpen = false
             },
             setCurrentPath(path){
@@ -208,9 +132,7 @@ export default {
                 this.selectedPath = path
             },
             isValidPath(path, root){
-                const normalizedPath = normalizeAssetPath(path)
-                const normalizedRoot = normalizeAssetPath(root)
-                return normalizedPath && normalizedPath !== normalizedRoot && normalizedPath.includes(normalizedRoot)
+                return path && path !== root && path.includes(root)
             },
             browse() {
                 // root path is used to limit top lever directory of path browser
@@ -224,7 +146,7 @@ export default {
                 if(!type) {
                     root === `${this.getBasePath()}/pages` ? type = PathBrowser.Type.PAGE : type = PathBrowser.Type.ASSET
                 }
-                let selectedPath = normalizeAssetPath(this.value)
+                let selectedPath = this.value
                 // current path is the active directory in the path browser
                 let currentPath
                 // if a selected path is valid, currentPath becomes the selected path's parent
@@ -236,7 +158,7 @@ export default {
                 this.browserRoot = root
                 this.browserType = type
                 this.currentPath = currentPath
-                this.selectedPath = selectedPath
+                this.selectedPath = this.value
 
       let options = this.schema.browserOptions
       if (options && options.withLink !== null && options.withLink !== undefined) {
@@ -252,7 +174,6 @@ export default {
       })
             },
             async remove() {
-              await this.clearInheritedMediaText(this.value)
               this.value = "";
             },
     toggleNewWindow() {

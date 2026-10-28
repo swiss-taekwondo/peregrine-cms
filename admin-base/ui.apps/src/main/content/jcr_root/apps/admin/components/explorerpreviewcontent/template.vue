@@ -274,7 +274,23 @@
             <icon icon="external-link" :lib="IconLib.FONT_AWESOME"/>
             Open live version
           </div>
-          <div v-if="allowTranslate" class="action" :title="`translate ${nodeType}`" @click="openTranslationsModal()">
+          <button v-if="nodeType === NodeType.ASSET"
+                  :class="['action', 'generate-alt-text-action', { operationDisabledOnActivatedItem: !canGenerateAltText || !altTextConfigured }]" type="button"
+                  :disabled="!canGenerateAltText || !altTextConfigured || generatingAltText || savingAltText"
+                  :title="!canGenerateAltText ? 'AI alt text supports PNG, JPEG, WebP, and GIF images' : (!altTextConfigured ? 'Alt text requires its Gemini API Key, Model, and Prompt' : 'Generate Alt Text')"
+                  @click.stop.prevent="generateAltText">
+            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"
+                 viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M0 0h48v48H0z" fill="none"/>
+              <path fill="currentColor"
+                    d="M34 6c-1.368 4.944-3.13 6.633-8 8c4.87 1.367 6.632 3.056 8 8c1.368-4.944 3.13-6.633 8-8c-4.87-1.367-6.632-3.056-8-8m-14 8c-2.395 8.651-5.476 11.608-14 14c8.524 2.392 11.605 5.349 14 14c2.395-8.651 5.476-11.608 14-14c-8.524-2.392-11.605-5.349-14-14"/>
+            </svg>
+            <span>{{ savingAltText ? 'Saving...' : (generatingAltText ? 'Generating...' : 'Generate Alt Text') }}</span>
+          </button>
+          <div v-if="allowTranslate"
+               :class="translationConfigured ? 'action' : 'action operationDisabledOnActivatedItem'"
+               :title="translationConfigured ? `translate ${nodeType}` : translationConfigurationMessage"
+               @click="openTranslationsModal()">
             <icon icon="translate" />
             <span>Translate {{ nodeType }}</span>
           </div>
@@ -303,6 +319,30 @@
         v-bind:path="node && node.path"
         v-bind:modalTitle="`Translations: ${nodeName}`">
       </admin-components-translationsmodal>
+
+      <materialize-modal
+          ref="altTextCompareModal"
+          modalTitle="Review Generated Alt Text"
+          v-on:complete="pendingAltText = null">
+        <div class="alt-text-comparison">
+          <div>
+            <div>Current alt text</div>
+            <div class="alt-text-value">{{ pendingAltText && pendingAltText.current }}</div>
+          </div>
+          <div>
+            <div>Generated alt text</div>
+            <div class="alt-text-value">{{ pendingAltText && pendingAltText.generated }}</div>
+          </div>
+        </div>
+        <template slot="footer">
+          <button class="modal-action waves-effect waves-light btn-flat" type="button" @click="keepCurrentAltText">
+            Keep Current
+          </button>
+          <button class="modal-action waves-effect waves-light btn" type="button" :disabled="savingAltText" @click="useGeneratedAltText">
+            {{ savingAltText ? 'Saving...' : 'Use Generated' }}
+          </button>
+        </template>
+      </materialize-modal>
 
     </template>
 
@@ -378,7 +418,6 @@ import {
 import NodeNameValidation from "../../../../../../js/mixins/NodeNameValidation";
 import ReferenceUtil from "../../../../../../js/mixins/ReferenceUtil";
 import { deepClone, get, set } from "../../../../../../js/utils";
-import { resolveMediaText } from "../../../js/mediaText";
 import Action from "../action/template.vue";
 import ConfirmDialog from "../confirmdialog/template.vue";
 import ExplorerPreviewNavItem from "../explorerpreviewnavitem/template.vue";
@@ -580,6 +619,7 @@ export default {
       return this.nodeTypeGroups.allowDelete.indexOf(this.nodeType) > -1;
     },
     allowTranslate() {
+      if (this.nodeType === NodeType.ASSET) return this.isImage;
       return this.nodeTypeGroups.allowTranslate.indexOf(this.nodeType) > -1;
     },
     allowWebPublish() {
@@ -611,6 +651,10 @@ export default {
       }
       const mime = node.mimeType;
       return Object.values(MimeType.Image).indexOf(mime) >= 0
+    },
+    canGenerateAltText() {
+      return typeof this.currentObject === 'string'
+          && /\.(png|jpe?g|webp|gif)$/i.test(this.currentObject);
     },
     isVideo() {
       const node = $perAdminApp.findNodeFromPath(
@@ -681,6 +725,10 @@ export default {
       }
       if (tab === 'publishing') {
         this.updateIsReferencedInPublish()
+      }
+      if (tab === Tab.ACTIONS) {
+        this.loadTranslationConfiguration()
+        this.loadAltTextConfiguration()
       }
     },
     currentObject : function(path) {
@@ -811,7 +859,6 @@ export default {
           newVal: newVal
         })
       }
-      this.autoFillAltFromAsset(newVal, schemaKey)
     },
     onValidated(isValid, errors) {
       if (this.edit) {
@@ -819,53 +866,6 @@ export default {
       }
       this.valid.state = isValid;
       this.valid.errors = errors;
-    },
-
-    async autoFillAltFromAsset(newVal, schemaKey) {
-      if (!newVal || typeof newVal !== 'string' || !newVal.startsWith('/content/')) return
-      const schema = this.getSchema(SchemaKey.MODEL)
-      if (!schema || !schema.fields) return
-      const findField = (fields) => {
-        if (!fields) return null
-        for (const f of fields) {
-          if (f.model === schemaKey) return f
-          if (f.fields) {
-            const found = findField(f.fields)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      const field = findField(schema.fields)
-      if (!field) return
-      let altModelKey = null
-      if (field.defaultAltFromAsset === true) {
-        altModelKey = schemaKey + 'Alt'
-        if (field.model !== altModelKey) {
-          const byDefaultFrom = (fields) => {
-            for (const f of fields) {
-              if (f.defaultFrom === schemaKey) return f
-              if (f.fields) {
-                const found = byDefaultFrom(f.fields)
-                if (found) return found
-              }
-            }
-            return null
-          }
-          const targetField = byDefaultFrom(schema.fields)
-          if (targetField) {
-            altModelKey = targetField.model
-          }
-        }
-      }
-      if (!altModelKey) return
-      if (this.node[altModelKey]) return
-      const rootData = this.$root && this.$root.$data
-      const adminNodes = rootData && rootData.admin && rootData.admin.nodes
-      const text = await resolveMediaText(newVal, adminNodes)
-      if (text && !this.node[altModelKey]) {
-        this.node[altModelKey] = text
-      }
     },
 
     onConfirmDialog (event) {
@@ -1357,6 +1357,7 @@ export default {
     },
 
     openTranslationsModal(){
+      if (!this.translationConfigured) return;
       this.$refs.translationsModal.open();
     },
 

@@ -48,6 +48,32 @@ function json(data) {
   return blob(content)
 }
 
+function appendDeletedCollections(nodeData, node) {
+  const deletedCollections = node && node._deletedCollections
+  if (!deletedCollections) return null
+
+  Object.keys(deletedCollections).forEach((field) => {
+    const deletedItems = deletedCollections[field]
+    if (!Array.isArray(deletedItems)) {
+      throw new TypeError(`Deleted collection '${field}' must be an array`)
+    }
+    if (nodeData[field] == null) {
+      nodeData[field] = []
+    } else if (!Array.isArray(nodeData[field])) {
+      throw new TypeError(`Cannot append deleted items to non-array field '${field}'`)
+    }
+    nodeData[field].push(...deletedItems)
+  })
+  delete nodeData._deletedCollections
+  return deletedCollections
+}
+
+function clearDeletedCollections(node, submittedCollections) {
+  if (submittedCollections && node && node._deletedCollections === submittedCollections) {
+    Vue.delete(node, '_deletedCollections')
+  }
+}
+
 // Shared Diffing Helper: Finds exact paths of nodes with string changes AND their changed properties
 function getModifiedPaths({ oldObj = {}, newObj = {}, pagePath, currentObjPath, modifiedPathsMap = {} }) {
   const keys = Object.keys(newObj);
@@ -175,7 +201,7 @@ function listTranslations(path, model) {
     })
 }
 
-function autoTranslate(path, translations, changedProperties = null) {
+function autoTranslate(path, translations, changedProperties = null, force = false) {
   if (!translations || !translations.nodes || translations.nodes.length === 0) {
     return Promise.resolve("No nodes found to translate.")
   }
@@ -190,8 +216,10 @@ function autoTranslate(path, translations, changedProperties = null) {
     }
   }
 
-  if (!hasAnyTranslation) {
-    return Promise.resolve("No existing translations found. Skipping auto-translation.")
+  if (!hasAnyTranslation && !force) {
+    return Promise.resolve(
+      "No existing translations found. Skipping auto-translation."
+    );
   }
 
   // Find the exact node matching the requested path
@@ -1511,6 +1539,7 @@ class PerAdminImpl {
       if (node.component) {
         nodeData['sling:resourceType'] = node.component.split('-').join('/')
       }
+      const deletedCollections = appendDeletedCollections(nodeData, node)
       stripNulls(nodeData)
 
       // Sanitize the target path for backend calls
@@ -1618,6 +1647,7 @@ class PerAdminImpl {
 
                 updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
                   .then(() => {
+                    clearDeletedCollections(node, deletedCollections)
                     resolve(); // Unblock the UI immediately
                     processTranslations(); // Run translations in the background
                   })
@@ -1637,6 +1667,7 @@ class PerAdminImpl {
 
             updateWithForm('/admin/updateResource.json' + targetNodePath, formData)
               .then(() => {
+                clearDeletedCollections(node, deletedCollections)
                 resolve(); // Unblock the UI immediately
                 processTranslations(); // Run translations in the background
               })
@@ -1654,6 +1685,7 @@ class PerAdminImpl {
       const formData = new FormData()
       // convert to a new object
       const nodeData = JSON.parse(JSON.stringify(node))
+      const deletedCollections = appendDeletedCollections(nodeData, node)
       stripNulls(nodeData)
       delete nodeData['jcr:created']
       delete nodeData['jcr:createdBy']
@@ -1690,11 +1722,8 @@ class PerAdminImpl {
           return {};
         })
         .then(currentData => {
-          // Check if the object has a valid translation reference in the data
-          const hasTranslateRef = currentData['per:TranslateRef']
-            && currentData['per:TranslateRef'].trim() !== ''
-            && nodeData['per:TranslateRef']
-            && nodeData['per:TranslateRef'].trim() !== '';
+          // Check if the object being saved has a valid translation reference
+          const hasTranslateRef = nodeData['per:TranslateRef'] && nodeData['per:TranslateRef'].trim() !== '';
 
           // Compare old and new object states
           const pathsToTranslateMap = getModifiedPaths({
@@ -1708,6 +1737,7 @@ class PerAdminImpl {
           // Update the backend with the new data
           updateWithForm('/admin/updateResource.json' + path, formData)
             .then(() => {
+              clearDeletedCollections(node, deletedCollections)
               resolve(); // Unblock the UI immediately
 
               // Bail early if there's no translation reference
@@ -1734,7 +1764,7 @@ class PerAdminImpl {
                   pathsToTranslate.forEach(translatePath => {
                     const changedProps = pathsToTranslateMap[translatePath];
 
-                    const task = autoTranslate(translatePath, translations, changedProps)
+                    const task = autoTranslate(translatePath, translations, changedProps, hasTranslateRef)
                       .then(results => {
                         if (typeof results === 'string') {
                           console.log(results);
@@ -1797,6 +1827,19 @@ class PerAdminImpl {
       updateWithForm('/admin/updateResource.json' + node.path + '/jcr:content',
           formData)
           .then(() => resolve())
+          .catch(reject)
+    })
+  }
+
+  generateAltText(path) {
+    if (typeof path !== 'string' || !path.trim()) {
+      return Promise.reject(new Error('An image asset path is required'))
+    }
+    const formData = new FormData()
+    formData.append('path', path)
+    return axios.post('/perapi/admin/generateAltText.json', formData, {
+      ...postConfig,
+      timeout: 75000
     })
   }
 
