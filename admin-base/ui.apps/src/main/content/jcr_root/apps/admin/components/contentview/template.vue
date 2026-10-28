@@ -102,6 +102,8 @@ import {
   get,
   getCaretCharacterOffsetWithin,
   isChromeBrowser,
+  restoreSelection,
+  saveSelection,
   set
 } from '../../../../../../js/utils'
 
@@ -505,7 +507,6 @@ export default {
         this.flushInlineState()
         return this.$nextTick()
       }).then(() => {
-        this.pingToolbar()
         focusElement(this.target, this.iframe.win)
       })
     },
@@ -571,10 +572,12 @@ export default {
 
     onInlineEdit(event) {
     event.preventDefault()
-    console.log('onInlineEdit', event, this)
       if (!this.inlineEdit.firstTime.includes(event.target)) {
-        console.log('fistTime:', event.target)
+        // selection saving still required here. For some reason v-html rerenders break selection/caret position on first edit.
+        // This seemingly isn't normally an issue since it works just fine in the sidebar. Those also use state bound to v-html and selection is never lost.
+        // Might wanna revisit this at some point. TODO: since it only happens on first edit, try forcing a change by prepending and removing zerowidthspace on focusin?
         this.inlineEdit.firstTime.push(event.target)
+        this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
       }
 
       this.target = event.target
@@ -591,7 +594,7 @@ export default {
       console.log('onInlineEdit:vnode', vnode)
       if (vnode.data.domProps) {
         if (this.isRich) {
-          vnode.data.domProps.innerHTML = this.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
+          vnode.data.domProps.innerHTML = this.target.innerHTML
         } else {
           vnode.data.domProps.innerHTML = this.target.innerText
         }
@@ -599,6 +602,14 @@ export default {
       this.writeInlineToModel()
 
 
+      if (this.inlineEdit.selection) {
+        this.$nextTick(() => {
+          this.$nextTick(() => {
+            restoreSelection(event.target, this.inlineEdit.selection, this.iframe.doc)
+            this.inlineEdit.selection = null
+          })
+        })
+      }
       this.autoSave = true
       this.reWrapEditable()
     },
@@ -661,7 +672,6 @@ export default {
         set(this.view, '/state/inline/lastAnchorClickAt', Date.now())
         set(this.view, '/state/inline/doc', doc)
       }
-      this.pingToolbar()
     },
 
     onInlineFocus(event) {
@@ -1587,18 +1597,6 @@ export default {
       $perAdminApp.stateAction('addComponentToPath', payload).then((data) => {
         this.refreshIframeElements()
       })
-    },
-
-    pingToolbar() {
-      clearTimeout(this.pingDebouncer.id)
-      setTimeout(() => {
-        const currentPing = get(this.view, '/state/inline/ping', 0)
-        if (currentPing < 10) {
-          set(this.view, '/state/inline/ping', currentPing + 1)
-        } else {
-          set(this.view, '/state/inline/ping', 0)
-        }
-      }, this.pingDebouncer.timeout)
     },
 
     onAddComponentModalComponentAdded(newNode) {
