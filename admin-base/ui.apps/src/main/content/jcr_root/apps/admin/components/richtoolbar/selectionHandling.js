@@ -20,13 +20,11 @@ export function createSelectionMethods() {
           return;
         }
         const range = doc.getSelection().getRangeAt(0);
-        // console.log('handleselectionchange', range.commonAncestorContainer, range.startOffset, range.endOffset, this.lastInRteSelection?.commonAncestorContainer, this.lastInRteSelection?.startOffset, this.lastInRteSelection?.endOffset)
         const commonAncestorEl = range.commonAncestorContainer.closest
           ? range.commonAncestorContainer
           : range.commonAncestorContainer.parentElement;
         const rte = commonAncestorEl.closest(".inline-edit");
 
-        console.log("handleSelectionChange rte", rte);
         if (rte) {
           this.lastInRteSelection = range.cloneRange();
           this.lastInRteSelectionRelativeToRte = {
@@ -43,7 +41,6 @@ export function createSelectionMethods() {
           );
           if (fontSizeSpan) {
             this.currentFontSize = parseInt(fontSizeSpan.style.fontSize);
-            // console.log('fontsizespan:', this.currentFontSize)
           } else {
             const getFontSizeFrom = this.lastRteSelectionInlineOnly
               ?.commonAncestorContainer
@@ -60,11 +57,9 @@ export function createSelectionMethods() {
                 document
                   .querySelector("#editview")
                   .contentDocument.querySelector("[data-editing-component]"); // fallback if rte was only ever touched via sidebar
-            // console.log('getFontSizeFrom', getFontSizeFrom)
             this.currentFontSize = parseInt(
               window.getComputedStyle(getFontSizeFrom).fontSize,
             );
-            // console.log('fontsize base:', this.currentFontSize)
           }
         } else {
           // console.warn('handleselectionchange: no rte')
@@ -144,13 +139,6 @@ export function createSelectionMethods() {
         const end = pointAt(saved.end);
         const restoredRange = doc.createRange();
 
-        // const shouldSelectParentElement = start.node.isEqualNode(end.node) && start.node.nodeType === Node.TEXT_NODE && start.node.parentElement.childNodes.length === 1
-        // console.log('shouldSelectParentElement', shouldSelectParentElement)
-        // if (shouldSelectParentElement) {
-        //       restoredRange.setStart(start.node.parentElement, 0)
-        //       restoredRange.setEnd(end.node.parentElement, 1)
-        // } else {
-        // }
         restoredRange.setStart(start.node, start.offset);
         restoredRange.setEnd(end.node, end.offset);
 
@@ -159,7 +147,6 @@ export function createSelectionMethods() {
         selection.addRange(restoredRange);
         if (inIframe) document.querySelector("#editview").focus();
         doc.dispatchEvent(new Event("selectionchange"));
-        console.log("restored relative range");
       }
     },
 

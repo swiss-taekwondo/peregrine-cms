@@ -237,14 +237,6 @@ export default {
     // Only sidebar toolbar executes commands!
     if (!this.onSubNav) {
       window.addEventListener('richtoolbar:cmd', this.rteCommandHandler)
-      // const interval = setInterval(() => {
-      //   console.log('interval range:', this.lastInRteSelection?.commonAncestorContainer)
-      // }, 100)
-      // window.addEventListener('keyup', (e) => {
-      //   if (e.key === 's') {
-      //   clearInterval(interval)
-      //   }
-      // })
       this.$watch('editorContent', (newValue, oldValue) => {
         if (!this.performingUndoRedo) {
           this.undoStack.push(oldValue)
@@ -262,7 +254,6 @@ export default {
       const doc = editIframe.contentDocument;
       if (doc?.readyState === 'complete') {
         doc.addEventListener('selectionchange', this.handleSelectionChange);
-        // console.log('editIframe', editIframe)
       }
     };
     editIframe.addEventListener('load', attachListener);
@@ -277,24 +268,8 @@ export default {
   },
 
   watch: {
-	  toolbarDisabled(newVal) {
-			this.$el.classList.toggle('disabled', newVal)
-	    // console.log('toolbarDisabled:', newVal)
-	  },
-    currentFontSize(newVal) {
-      // if (this.onSubNav) console.log('fontsize:', newVal)
-    },
-    lastInRteSelection(newVal) {
-      console.log('selection:', newVal.startContainer, newVal.startOffset, newVal.endContainer, newVal.endOffset)
-    },
-    lastRteSelectionInlineOnly(newVal) {
-    // console.log('inline sel:', newVal)
-    },
-    undoStack(newVal) {
-      // console.log('undoStack', newVal)
-    },
-    redoStack(newVal) {
-      // console.log('redoStack', newVal)
+    toolbarDisabled(newVal) {
+      this.$el.classList.toggle('disabled', newVal)
     },
   },
 
@@ -403,21 +378,19 @@ export default {
 
 
     rteCommandHandler(event) {
-      console.log('command:', event.detail.cmd, event.detail.value, event)
       if (this.onSubNav) return
       if (typeof this[event.detail.cmd] === 'function') {
         this[event.detail.cmd](event.detail.value)
       } else if (this?.[event.detail.cmd]) {
         this[event.detail.cmd](event.detail.value)
-			} else {
-				const selectionOwnerDoc = this.lastInRteSelection.commonAncestorContainer.ownerDocument
-				selectionOwnerDoc.execCommand(event.detail.cmd, event.detail.showUi || null, event.detail.value || null)
-			}
+      } else {
+        const selectionOwnerDoc = this.lastInRteSelection.commonAncestorContainer.ownerDocument
+        selectionOwnerDoc.execCommand(event.detail.cmd, event.detail.showUi || null, event.detail.value || null)
+      }
     },
 
     triggerInput() {
       this.lastSelectedRte.dispatchEvent(new Event('input'))
-      console.log('lastSelectedRte', this.lastSelectedRte)
     },
 
 
@@ -440,8 +413,8 @@ export default {
     },
 
     exec(cmd, value = null) {
-			console.warn('exec sill used:', cmd, value)
-			return
+      console.warn('exec sill used:', cmd, value)
+      return
     },
 
 

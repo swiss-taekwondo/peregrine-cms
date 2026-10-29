@@ -82,15 +82,15 @@ function resolveHeadingShortcutDigit(event) {
 }
 
 const allowedClasses = [
-	'peregrine-icon',
+  'peregrine-icon',
 ];
 const allowedStyles = [
-	'text-align',
-	'font-size',
-	'width',
-	'height',
-	'vertical-align',
-	'display',
+  'text-align',
+  'font-size',
+  'width',
+  'height',
+  'vertical-align',
+  'display',
 ];
 DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
  if (data.attrName === 'class') {
@@ -134,14 +134,14 @@ DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
   }
 })
 const domPurifyConfig = {
-	ALLOWED_TAGS: [
-		'p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br',
-		'strong', 'em', 'b', 'i', 'u', 'a', 'img',
-		'ul', 'ol', 'li', 'sub', 'sup'
-	],
-	ADD_ATTR: [
-		'target'
-	]
+  ALLOWED_TAGS: [
+    'p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br',
+    'strong', 'em', 'b', 'i', 'u', 'a', 'img',
+    'ul', 'ol', 'li', 'sub', 'sup'
+  ],
+  ADD_ATTR: [
+    'target'
+  ]
 }
 
 export default {
@@ -187,7 +187,6 @@ export default {
 
     onKeyDown(event) {
       const key = event.key;
-      console.log('sidebarKeydown', key)
       const shift = event.shiftKey
       const alt = event.altKey
       const ctrlOrCmd = event.ctrlKey || event.metaKey
@@ -225,7 +224,6 @@ export default {
     },
 
     onInput(event) {
-    console.log('event', event)
       let content = event.target.innerHTML;
       const pVnode = this._vnode.children && this._vnode.children.find(c => c.elm === this.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content

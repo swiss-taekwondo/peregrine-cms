@@ -332,9 +332,6 @@ export default {
         this.unselect(this)
       }
     },
-    targetInline(newValue, oldValue){
-      // console.log('targetInline:', newValue, oldValue)
-    },
     scrollTop() {
       if (this.target) {
         this.wrapEditableAroundSelected()
@@ -486,7 +483,6 @@ export default {
     },
 
     unselect(vm) {
-    // console.log('unselect', vm.target)
       vm.target = null
       vm.editable.class = null
       vm.autoSave = false
@@ -560,15 +556,10 @@ export default {
       } else {
         content = vm.target.innerText
       }
-    // console.log('writeInlineToModel', content, vm.target, vm)
-    // TODO: updates self, breaks selection
-    // return;
       const dataInline = vm.targetInline.split('.').slice(1)
-      // console.log('dataInline', dataInline, vm.targetInline)
       dataInline.reverse()
       let parentProp = vm.node
       while (dataInline.length > 1) {
-        // console.log('parentProp', parentProp)
         parentProp = parentProp[dataInline.pop()]
       }
       const keyStr = dataInline.pop()
@@ -588,7 +579,6 @@ export default {
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
-      // console.log('onInlineEdit:eventPath', eventPath)
 
       if (!eventPath) {
         this.toast.missingEventPath = $perAdminApp.toast(Error.MISSING_EVENT_PATH,
@@ -597,7 +587,6 @@ export default {
       }
 
       const vnode = this.findVnode(this.component.__vue__, eventPath)
-      // console.log('onInlineEdit:vnode', vnode)
       if (vnode.data.domProps) {
         if (this.isRich) {
           vnode.data.domProps.innerHTML = this.target.innerHTML
@@ -622,7 +611,6 @@ export default {
 
     onInlineKeyDown(event) {
       const key = event.key;
-    console.log('onInlineKeyDown', key)
       const shift = event.shiftKey
       const alt = event.altKey
       const ctrlOrCmd = event.ctrlKey || event.metaKey
@@ -672,7 +660,6 @@ export default {
     },
 
     onInlineClick(event) {
-      console.log('onInlineClick', event.target, event)
       const target = event.target
       const anchor = target?.closest ? target.closest('a') : null
       const editor = event.currentTarget
@@ -688,7 +675,6 @@ export default {
     },
 
     onInlineFocus(event) {
-    console.log('oninlinefocus', event.target, event)
       event.target.classList.add('inline-editing')
       this.editing = true
       this.caret.pos = -1
@@ -699,7 +685,6 @@ export default {
       set(this.view, '/state/inline/doc', this.iframe.doc)
       const modelPropName = this.getCurrentModelPropName()
       this.dynWatchers.some((w, index) => {
-        // console.log('dynwatchers.some', w.modelPropName)
         if (w.modelPropName === modelPropName) {
           w.unwatch()
           this.dynWatchers.splice(index, 1)
@@ -709,7 +694,6 @@ export default {
     },
 
     onInlineFocusOut(event) {
-      console.log('onInlineFocusOut', event.target, event)
       event.target.classList.remove('inline-editing')
       this.editing = false
       set(this.view, '/state/inline/lastContainer', event.target)
@@ -980,7 +964,6 @@ export default {
         el.addEventListener('focus', this.onInlineFocus)
         el.addEventListener('focusout', this.onInlineFocusOut)
         el.addEventListener('keydown', this.onInlineKeyDown)
-        console.log('keydown setup', el)
         // el.addEventListener('keyup', this.onInlineKeyUp)
         el.addEventListener('dblclick', this.onInlineDblClick)
         el.setAttribute('contenteditable', this.previewMode !== 'preview' + '')

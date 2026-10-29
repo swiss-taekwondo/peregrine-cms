@@ -170,13 +170,6 @@ export function createButtonCommandMethods() {
     updateFontSize(newSize) {
       const fontSize = `${newSize}px`;
       const range = this.lastInRteSelection;
-      console.log(
-        "updatefontsize range:",
-        range.commonAncestorContainer,
-        range.startOffset,
-        range.endOffset,
-        range,
-      );
       const textEditor = this.lastSelectedRte;
 
       function setFontSizeOfEl(element, fontSizeStr) {
@@ -194,7 +187,6 @@ export function createButtonCommandMethods() {
         range.endContainer.isEqualNode(range.startContainer) &&
         range.endOffset === range.startOffset;
       if (noHighlight) {
-        console.log("noHighlight", noHighlight);
         const parentQuery = "p, ul, ol, h1, h2, h3, h4, h5, h6";
         const fontSizeParent =
           range.startContainer.contentEditable === "true" &&
@@ -238,11 +230,6 @@ export function createButtonCommandMethods() {
         const isOnlyChildTextNodeOfExistingFontSizeSpan =
           range.startContainer.parentElement.childNodes.length === 1 &&
           range.startContainer.parentElement.nodeName === "SPAN";
-        console.log(
-          "isOnlyChildTextNodeOfExistingFontSizeSpan",
-          isOnlyChildTextNodeOfExistingFontSizeSpan,
-          range.cloneRange(),
-        );
         if (
           range.startContainer.nodeType === Node.TEXT_NODE &&
           !isOnlyChildTextNodeOfExistingFontSizeSpan

@@ -302,7 +302,6 @@ export function createPathbrowserCommandMethods() {
     async onImageSelect() {
       if (this.param.cmd === "editIcon") {
         const imgEl = this.browser.element;
-        console.log("imgEl", imgEl);
         const styles = [];
         if (this.browser.img.width)
           styles.push(`width: ${this.browser.img.width}px`);

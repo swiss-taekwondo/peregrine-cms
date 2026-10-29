@@ -1,4 +1,4 @@
-import { IconLib, PathBrowser } from "../../../../../../js/constants.js";
+import { IconLib } from "../../../../../../js/constants.js";
 import RichtoolbarFontSize from "../richtoolbarfontsize/template.vue";
 import RichtoolbarGroup from "../richtoolbargroup/template.vue";
 
