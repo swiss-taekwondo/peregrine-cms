@@ -33,7 +33,9 @@ export function createPathbrowserCommandMethods() {
     // Links
     // ====================
 
-  removeLink(vm) {
+  removeLink() {
+  console.log('removeLink', )
+    this.restoreEditorSelection()
     this.lastSelectedRte.ownerDocument.execCommand('unlink', false, null)
     this.triggerInput()
   },

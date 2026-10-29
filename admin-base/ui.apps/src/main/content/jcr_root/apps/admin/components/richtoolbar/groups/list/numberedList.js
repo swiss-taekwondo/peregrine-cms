@@ -6,7 +6,7 @@ export default (vm) => {
     icon: 'list-ol',
     iconLib: IconLib.FONT_AWESOME,
     cmd: 'insertOrderedList',
-    isActive: () => vm.itemIsTag('OL'),
+    isActive: () => vm.rangeMatchesSelector('ol'),
     isDisabled: () => vm.toolbarDisabled
   }
 }

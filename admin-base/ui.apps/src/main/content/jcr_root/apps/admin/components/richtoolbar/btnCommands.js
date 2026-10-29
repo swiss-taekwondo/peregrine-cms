@@ -288,9 +288,60 @@ export function createButtonCommandMethods() {
     }
   },
 
+  insertIcon(imgPath) {
+    const range = this.lastInRteSelection;
+    range.deleteContents()
+    const fragment = range.createContextualFragment(`<img class="peregrine-icon" style="font-size: inherit; display: inline; width: auto; height: 1em; vertical-align: -0.125em;" src="${imgPath}"></img>`)
+    const lastChild = fragment.lastChild;
+    range.insertNode(fragment)
+    range.setStartAfter(lastChild)
+    range.collapse(true)
+    this.triggerInput()
+  },
 
-
-
+  wrapTextNodesInRange(range, fontSize) {
+    const textNodes = []
+    const walker = document.createTreeWalker(
+      range.commonAncestorContainer,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: node => {
+          if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT
+          const nodeRange = document.createRange()
+          nodeRange.selectNodeContents(node)
+          return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+        },
+      }
+    )
+    let node
+    while (node = walker.nextNode()) {
+      textNodes.push(node)
+    }
+    const fontSizeNodes = []
+    for (let i = 0; i < textNodes.length; i++) {
+      const textNode = textNodes[i]
+      const nodeRange = document.createRange()
+      nodeRange.selectNodeContents(textNode)
+      if (textNode === range.startContainer || textNode.contains(range.startContainer)) {
+        nodeRange.setStart(range.startContainer, range.startOffset)
+      }
+      if (textNode === range.endContainer || textNode.contains(range.endContainer)) {
+        nodeRange.setEnd(range.endContainer, range.endOffset)
+      }
+      const existingSpan = textNode.parentElement.tagName === 'SPAN' && textNode.parentElement.childNodes.length === 1
+        ? textNode.parentElement : null
+      if (existingSpan) {
+        existingSpan.style.fontSize = fontSize
+        fontSizeNodes.push(existingSpan)
+      } else {
+        const span = document.createElement('span')
+        span.style.fontSize = fontSize
+        nodeRange.surroundContents(span)
+        fontSizeNodes.push(span)
+      }
+    }
+    return fontSizeNodes
+  },
 
 
 

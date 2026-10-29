@@ -10,8 +10,8 @@ export default (vm) => {
       iconLib: IconLib.FONT_AWESOME,
       cmd: 'formatBlock',
       value: `h${i}`,
-      isActive: () => vm.itemIsTag(`H${i}`),
-      class: () => vm.itemIsTag(`H${i}`) ? 'active' : null,
+      isActive: () => vm.rangeMatchesSelector(`h${i}`),
+      class: () => vm.rangeMatchesSelector(`h${i}`) ? 'active' : null,
       click: () => vm.exec('formatBlock', `h${i}`),
     })
   }

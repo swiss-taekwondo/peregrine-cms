@@ -14,8 +14,5 @@ export default (vm) => {
     items: [
       ...icons(vm)
     ],
-    toggleClick() {
-      if (vm.getInlineDoc()) vm.saveSelection()
-    }
   }
 }
