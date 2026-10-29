@@ -145,8 +145,7 @@ export function createSelectionMethods() {
     rangeMatchesSelector(selector) {
       const range = this.lastInRteSelection;
       if (!range) return null;
-      const doc = range.startContainer.ownerDocument ||
-        range.startContainer;
+      const doc = range.startContainer.ownerDocument;
       const walker = doc.createTreeWalker(
         range.commonAncestorContainer,
         NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT
@@ -161,12 +160,13 @@ export function createSelectionMethods() {
         return null;
       };
       if (range.collapsed) return findMatch(range.startContainer);
-      let node;
-      while ((node = walker.nextNode())) {
+      let node = walker.currentNode;
+      while (node) {
         if (range.intersectsNode(node)) {
           const match = findMatch(node);
           if (match) return match;
         }
+        node = walker.nextNode()
       }
       return null;
     }
