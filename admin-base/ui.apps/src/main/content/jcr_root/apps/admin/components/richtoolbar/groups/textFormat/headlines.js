@@ -12,7 +12,7 @@ export default (vm) => {
       value: `h${i}`,
       isActive: () => vm.rangeMatchesSelector(`h${i}`),
       class: () => vm.rangeMatchesSelector(`h${i}`) ? 'active' : null,
-      click: () => vm.exec('formatBlock', `h${i}`),
+      click: () => window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value: `<h${i}>` } }))
     })
   }
 

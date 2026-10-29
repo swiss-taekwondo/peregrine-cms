@@ -8,6 +8,6 @@ export default (vm) => {
     cmd: 'formatBlock',
     value: 'p',
     class: () => vm.rangeMatchesSelector('p') ? 'active' : null,
-    click: () => vm.exec('formatBlock', 'p')
+    click: () => window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value: '<p>' } }))
   }
 }
