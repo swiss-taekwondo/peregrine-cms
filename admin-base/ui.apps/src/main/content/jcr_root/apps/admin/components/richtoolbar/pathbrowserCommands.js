@@ -34,10 +34,15 @@ export function createPathbrowserCommandMethods() {
     // ====================
 
   removeLink() {
-  console.log('removeLink', )
-    this.restoreEditorSelection()
-    this.lastSelectedRte.ownerDocument.execCommand('unlink', false, null)
-    this.triggerInput()
+    const anchor = this.rangeMatchesSelector('a')
+    const doc = anchor.ownerDocument
+    const sel = doc.getSelection()
+    const range = sel.getRangeAt(0)
+    range.selectNodeContents(anchor)
+    sel.removeAllRanges()
+    sel.addRange(range)
+    doc.execCommand('unlink', false, null)
+    doc.dispatchEvent(new Event('selectionchange'))
   },
 
   insertLink() {
