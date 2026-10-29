@@ -1,5 +1,4 @@
-import { IconLib, PathBrowser } from "../../../../../../js/constants";
-import { fallbackMediaText, resolveMediaText } from "../../../js/mediaText";
+import { PathBrowser } from "../../../../../../js/constants";
 
 // TODO: split onLink/ImageSelect functions, they are giant if blocks, should be different functions.
 
@@ -15,7 +14,7 @@ export function createPathbrowserCommandMethods() {
         } else if (
           ["insertImage", "editImage", "editIcon"].includes(this.param.cmd)
         ) {
-          this.onImageSelect().catch((err) => console.error(err));
+          this.onImageSelect();
           return;
         }
 
@@ -236,15 +235,10 @@ export function createPathbrowserCommandMethods() {
       this.startBrowsing();
     },
 
-    async editImage(vm = this, target) {
+    editImage(vm = this, target) {
       // vm handles inline double click
       const title = target.getAttribute("title");
       const src = target.getAttribute("src");
-      const defaultText =
-        title ||
-        target.getAttribute("alt") ||
-        (await this.getDefaultMediaText(src));
-      const fallbackText = fallbackMediaText(src);
       const srcArr = src.split("/");
       const img = {
         width: target.style.width ? parseInt(target.style.width) : null,
@@ -259,10 +253,7 @@ export function createPathbrowserCommandMethods() {
       vm.browser.withLinkTab = true;
       vm.browser.newWindow = undefined;
       vm.browser.type = PathBrowser.Type.ASSET;
-      vm.browser.linkTitle = defaultText;
-      vm.browser.mediaSourcePath = src;
-      vm.browser.mediaSourceText = defaultText || "";
-      vm.browser.mediaSourceFallback = fallbackText;
+      vm.browser.linkTitle = title;
       vm.browser.element = target;
       vm.browser.img.width = img.width;
       vm.browser.img.height = img.height;
@@ -270,10 +261,7 @@ export function createPathbrowserCommandMethods() {
       vm.startBrowsing();
     },
 
-    async editIcon(target) {
-      const alt =
-        target.getAttribute("alt") ||
-        (await this.getDefaultMediaText(target.getAttribute("src") || ""));
+    editIcon(target) {
       const src = target.getAttribute("src") || "";
       const img = {
         width: target.style.width ? parseInt(target.style.width) : 20,
@@ -287,7 +275,6 @@ export function createPathbrowserCommandMethods() {
       this.browser.path.selected = src;
       this.browser.path.current = src;
       this.browser.type = PathBrowser.Type.ASSET;
-      this.browser.altText = alt;
       this.browser.linkTitle = undefined;
       this.browser.newWindow = undefined;
       this.browser.element = target;
@@ -299,7 +286,7 @@ export function createPathbrowserCommandMethods() {
       this.startBrowsing(src.substring(0, src.lastIndexOf("/")));
     },
 
-    async onImageSelect() {
+    onImageSelect() {
       if (this.param.cmd === "editIcon") {
         const imgEl = this.browser.element;
         const styles = [];
@@ -309,27 +296,17 @@ export function createPathbrowserCommandMethods() {
           styles.push(`height: ${this.browser.img.height}px`);
         if (this.browser.img.objectFit)
           styles.push(`object-fit: ${this.browser.img.objectFit}`);
-        imgEl.setAttribute(
-          "alt",
-          this.browser.altText ||
-            (await this.getDefaultMediaText(this.browser.path.selected)) ||
-            "",
-        );
         imgEl.setAttribute("style", styles.join(";"));
         const container = imgEl.closest("[data-per-inline]");
         if (container)
           $perAdminApp.action(this, "writeElementToModel", container);
         this.browser.element = null;
-        this.browser.altText = undefined;
         this.browser.withImageTab = false;
         return;
       }
       if (this.param.cmd === "editImage") {
         const imgEl = this.browser.element;
-        const linkTitle =
-          this.browser.linkTitle ||
-          this.browser.altText ||
-          (await this.getDefaultMediaText(this.browser.path.selected));
+        const linkTitle = this.browser.linkTitle
         const styles = [];
         if (this.browser.img.width)
           styles.push(`width: ${this.browser.img.width}px`);
@@ -338,7 +315,6 @@ export function createPathbrowserCommandMethods() {
         if (this.browser.img.objectFit)
           styles.push(`object-fit: ${this.browser.img.objectFit}`);
         imgEl.setAttribute("src", this.browser.path.selected);
-        imgEl.setAttribute("alt", linkTitle || "");
         imgEl.setAttribute("title", linkTitle || "");
         imgEl.setAttribute("style", styles.join(";"));
         if (
@@ -349,29 +325,18 @@ export function createPathbrowserCommandMethods() {
         const editor = imgEl.closest('[contenteditable="true"]');
         if (editor) editor.dispatchEvent(new Event("input"));
         this.browser.element = null;
-        this.browser.mediaSourcePath = "";
-        this.browser.mediaSourceText = "";
-        this.browser.mediaSourceFallback = "";
       } else {
         // insertImage
         const range = this.lastInRteSelection;
 
         const styles = [];
-        if (this.browser.img.width)
-          styles.push(`width: ${this.browser.img.width}px`);
-        if (this.browser.img.height)
-          styles.push(`height: ${this.browser.img.height}px`);
-        if (this.browser.img.objectFit)
-          styles.push(`object-fit: ${this.browser.img.objectFit}`);
-        const mediaText =
-          this.browser.linkTitle ||
-          this.browser.altText ||
-          (await this.getDefaultMediaText(this.browser.path.selected));
+        if (this.browser.img.width) styles.push(`width: ${this.browser.img.width}px`);
+        if (this.browser.img.height) styles.push(`height: ${this.browser.img.height}px`);
+        if (this.browser.img.objectFit) styles.push(`object-fit: ${this.browser.img.objectFit}`);
 
         const img = document.createElement("img");
         img.setAttribute("src", this.browser.path.selected);
-        img.setAttribute("alt", mediaText || "");
-        img.setAttribute("title", mediaText || "");
+        img.setAttribute('title', this.browser.linkTitle || '')
         if (styles.length) {
           img.setAttribute("style", styles.join(";"));
         }
@@ -383,9 +348,6 @@ export function createPathbrowserCommandMethods() {
 
         this.triggerInput();
       }
-      this.browser.mediaSourcePath = "";
-      this.browser.mediaSourceText = "";
-      this.browser.mediaSourceFallback = "";
     },
   };
 }

@@ -472,10 +472,6 @@ export default {
       this.browser.linkTitle = event.target.value
     },
 
-    setBrowserAltText(event) {
-      this.browser.altText = event.target.value
-    },
-
   },
 }
 </script>
