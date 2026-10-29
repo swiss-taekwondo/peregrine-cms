@@ -160,12 +160,6 @@ export default {
     },
   },
 
-  watch: {
-    value(newValue, oldValue) {
-      console.log('texteditor:', newValue, oldValue)
-    },
-  },
-
   mounted() {
     const view = this.view
     console.log('view', view)

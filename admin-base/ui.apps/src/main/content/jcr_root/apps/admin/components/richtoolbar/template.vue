@@ -262,7 +262,7 @@ export default {
       const doc = editIframe.contentDocument;
       if (doc?.readyState === 'complete') {
         doc.addEventListener('selectionchange', this.handleSelectionChange);
-        console.log('editIframe', editIframe)
+        // console.log('editIframe', editIframe)
       }
     };
     editIframe.addEventListener('load', attachListener);
@@ -290,10 +290,10 @@ export default {
     // console.log('inline sel:', newVal)
     },
     undoStack(newVal) {
-      console.log('undoStack', newVal)
+      // console.log('undoStack', newVal)
     },
     redoStack(newVal) {
-      console.log('redoStack', newVal)
+      // console.log('redoStack', newVal)
     },
   },
 

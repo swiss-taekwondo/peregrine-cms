@@ -202,7 +202,8 @@ export default {
         timeout: 150
       },
       undoItem: null,
-      redoItem: null
+      redoItem: null,
+      suppressCaretPreservation: false,
     }
   },
   computed: {
@@ -332,7 +333,7 @@ export default {
       }
     },
     targetInline(newValue, oldValue){
-      console.log('targetInline:', newValue, oldValue)
+      // console.log('targetInline:', newValue, oldValue)
     },
     scrollTop() {
       if (this.target) {
@@ -485,7 +486,7 @@ export default {
     },
 
     unselect(vm) {
-    console.log('unselect', vm.target)
+    // console.log('unselect', vm.target)
       vm.target = null
       vm.editable.class = null
       vm.autoSave = false
@@ -559,15 +560,15 @@ export default {
       } else {
         content = vm.target.innerText
       }
-    console.log('writeInlineToModel', content, vm.target, vm)
+    // console.log('writeInlineToModel', content, vm.target, vm)
     // TODO: updates self, breaks selection
     // return;
       const dataInline = vm.targetInline.split('.').slice(1)
-      console.log('dataInline', dataInline, vm.targetInline)
+      // console.log('dataInline', dataInline, vm.targetInline)
       dataInline.reverse()
       let parentProp = vm.node
       while (dataInline.length > 1) {
-        console.log('parentProp', parentProp)
+        // console.log('parentProp', parentProp)
         parentProp = parentProp[dataInline.pop()]
       }
       const keyStr = dataInline.pop()
@@ -575,16 +576,19 @@ export default {
     },
 
     onInlineEdit(event) {
-    event.preventDefault()
+      event.preventDefault()
       if (!this.inlineEdit.firstTime.includes(event.target)) {
         this.inlineEdit.firstTime.push(event.target)
       }
       // We need this selection handler, it preserves the caret position for all inline edits, both RTE and others.
-      this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
+      // TODO: look into this issue further. It doesn't quite make sense that these selection workarounds are required for inline editing.
+      // The flow of setting the HTML element value to the state doesn't break caret position in the sidebar, so it is weird that it happens inline.
+      // Newline has the wrong position and is fixed in RTE, but it's broken for non-rich-text but that never worked and we should prevent newlines in normal text anyway. Sidebar inputs don't allow them natively
+      if (!this.isRich || !this.suppressCaretPreservation) this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
-      console.log('onInlineEdit:eventPath', eventPath)
+      // console.log('onInlineEdit:eventPath', eventPath)
 
       if (!eventPath) {
         this.toast.missingEventPath = $perAdminApp.toast(Error.MISSING_EVENT_PATH,
@@ -593,7 +597,7 @@ export default {
       }
 
       const vnode = this.findVnode(this.component.__vue__, eventPath)
-      console.log('onInlineEdit:vnode', vnode)
+      // console.log('onInlineEdit:vnode', vnode)
       if (vnode.data.domProps) {
         if (this.isRich) {
           vnode.data.domProps.innerHTML = this.target.innerHTML
@@ -640,6 +644,12 @@ export default {
         if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5")
         if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6")
       }
+      if (key === "Enter") {
+        this.suppressCaretPreservation = true;
+        setTimeout(() => {
+          this.suppressCaretPreservation = false;
+        })
+      }
     },
 
     sendRichToolbarCommand(event, cmd, value) {
@@ -677,7 +687,7 @@ export default {
     },
 
     onInlineFocus(event) {
-    console.log('oninlinefocus', event.target, event)
+    // console.log('oninlinefocus', event.target, event)
       event.target.classList.add('inline-editing')
       if (isChromeBrowser() && event.target.innerHTML) {
         event.target.innerHTML = event.target.innerHTML.trim()
@@ -691,7 +701,7 @@ export default {
       set(this.view, '/state/inline/doc', this.iframe.doc)
       const modelPropName = this.getCurrentModelPropName()
       this.dynWatchers.some((w, index) => {
-        console.log('dynwatchers.some', w.modelPropName)
+        // console.log('dynwatchers.some', w.modelPropName)
         if (w.modelPropName === modelPropName) {
           w.unwatch()
           this.dynWatchers.splice(index, 1)
