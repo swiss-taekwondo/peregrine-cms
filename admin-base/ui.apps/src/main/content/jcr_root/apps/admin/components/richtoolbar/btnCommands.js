@@ -299,6 +299,17 @@ export function createButtonCommandMethods() {
     this.triggerInput()
   },
 
+  insertSpecialCharacter(charCode) {
+    const range = this.lastInRteSelection;
+    range.deleteContents()
+    const fragment = range.createContextualFragment(`&#${charCode};`)
+    const lastChild = fragment.lastChild;
+    range.insertNode(fragment)
+    range.setStartAfter(lastChild)
+    range.collapse(true)
+    this.triggerInput()
+  },
+
   wrapTextNodesInRange(range, fontSize) {
     const textNodes = []
     const walker = document.createTreeWalker(

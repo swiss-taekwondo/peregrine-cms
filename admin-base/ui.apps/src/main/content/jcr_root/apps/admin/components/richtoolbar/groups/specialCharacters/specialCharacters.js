@@ -10,25 +10,9 @@ export default (vm) => {
       title: char.name,
       name: char.name,
       click: () => {
-        const container = vm.selection.container
-        const doc = vm.selection.doc
-        if (container && doc) {
-          container.focus({ preventScroll: true })
-          const range = vm._specialCharRange
-          if (range) {
-            const sel = doc.defaultView.getSelection()
-            if (sel) {
-              sel.removeAllRanges()
-              sel.addRange(range.cloneRange())
-            }
-            vm._specialCharRange = null
-          }
-        } else {
-          vm.restoreSelection()
-        }
-        vm.execCmd('insertHTML', `&#${char.code};`)
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'insertSpecialCharacter', value: char.code } }))
       }
-    },)
+    })
   })
 
   return specialChars
