@@ -29,23 +29,30 @@ import static com.peregrine.commons.util.PerConstants.JACKSON;
 import static com.peregrine.commons.util.PerConstants.JCR_CONTENT;
 import static com.peregrine.commons.util.PerConstants.JCR_TITLE;
 import static com.peregrine.commons.util.PerConstants.JSON;
-import static com.peregrine.commons.util.PerConstants.PAGE_PRIMARY_TYPE;
 import static com.peregrine.commons.util.PerConstants.SLASH;
 import static com.peregrine.pagerender.vue.models.PageRenderVueConstants.PR_VUE_COMPONENT_PAGE_TYPE;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.peregrine.commons.util.PerConstants;
 import com.peregrine.nodetypes.models.IComponent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Named;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.commons.io.IOUtils;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.resource.AbstractResourceVisitor;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.api.resource.ValueMap;
@@ -72,6 +79,7 @@ import org.slf4j.LoggerFactory;
 public class PageModel extends Container {
     private static final Logger log = LoggerFactory.getLogger(PageModel.class);
 
+    private static final Pattern ASSET_PATH_PATTERN = Pattern.compile("(/content/[^\"\'<>]+?/assets/[^\"\'<>]+)");
     public static final String INLINE_CSS = "inlineCSS";
     public static final String SITE_CSS = "siteCSS";
     public static final String PREFETCH_DNS = "prefetchDNS";
@@ -230,6 +238,7 @@ public class PageModel extends Container {
         return css.trim();
     }
 
+    @JsonIgnore
     public Boolean getInlineCSS() {
         if (!inlineCSS) {
             Boolean value = (Boolean) getInheritedProperty(INLINE_CSS);
@@ -244,6 +253,7 @@ public class PageModel extends Container {
         return inlineCSS;
     }
 
+    @JsonIgnore
     public List<String> getInlineSiteCSS() {
         List<String> cssContents = new ArrayList<>();
         String[] paths = getSiteCSS();
@@ -281,6 +291,162 @@ public class PageModel extends Container {
             }
         }
         return cssContents;
+    }
+
+    @JsonRawValue
+    public String getAssets() {
+        Map<String, Map<String, Object>> assetsMap = new HashMap<>();
+
+        AbstractResourceVisitor visitor = new AbstractResourceVisitor() {
+            @Override
+            protected void visit(Resource resource) {
+                ValueMap properties = resource.getValueMap();
+
+                for (Map.Entry<String, Object> entry : properties.entrySet()) {
+                    String key = entry.getKey();
+
+                    if (key.startsWith("jcr:") || key.startsWith("per:") || key.startsWith("sling:")) {
+                        continue;
+                    }
+
+                    Object value = entry.getValue();
+                    if (value instanceof String) {
+                        handlePropertyValue((String) value, resource, assetsMap);
+                    } else if (value instanceof String[]) {
+                        for (String strValue : (String[]) value) {
+                            handlePropertyValue(strValue, resource, assetsMap);
+                        }
+                    }
+                }
+            }
+        };
+
+        // Visit the template resource to inherit its assets
+        PageModel templatePageModel = getTemplatePageModel();
+        if (templatePageModel != null && templatePageModel.getResource() != null) {
+            visitor.accept(templatePageModel.getResource());
+        }
+
+        // Visit the current page resource
+        visitor.accept(getResource());
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.writeValueAsString(assetsMap);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize page assets to JSON", e);
+            return "{}";
+        }
+    }
+
+    private void handlePropertyValue(String value, Resource resource, Map<String, Map<String, Object>> assetsMap) {
+        if (value == null || value.isEmpty()) return;
+
+        // If it's a direct path
+        if (value.startsWith("/content/") && value.contains("/assets/")) {
+            processAssetPath(value, resource, assetsMap);
+        }
+        // If it might be Rich Text (contains HTML tags or just embedded paths)
+        else if (value.contains("/content/") && value.contains("/assets/")) {
+            Matcher matcher = ASSET_PATH_PATTERN.matcher(value);
+            while (matcher.find()) {
+                String extractedPath = matcher.group(1);
+                processAssetPath(extractedPath, resource, assetsMap);
+            }
+        }
+    }
+
+    private void processAssetPath(String path, Resource contextResource, Map<String, Map<String, Object>> assetsMap) {
+        if (path != null && path.startsWith("/content/") && path.contains("/assets/")) {
+
+            if (!assetsMap.containsKey(path)) {
+                Resource assetResource = contextResource.getResourceResolver().getResource(path);
+
+                if (assetResource != null) {
+                    String primaryType = assetResource.getValueMap().get("jcr:primaryType", String.class);
+
+                    // If the path points to a folder, extract all direct asset children
+                    if ("sling:Folder".equals(primaryType) || "sling:OrderedFolder".equals(primaryType) || "nt:folder".equals(primaryType)) {
+
+                        // Add the folder path itself to prevent duplicate traversals
+                        assetsMap.put(path, new HashMap<>());
+
+                        for (Resource child : assetResource.getChildren()) {
+                            if (!child.getName().startsWith("jcr:") && !child.getName().startsWith("rep:")) {
+                                Map<String, Object> assetInfo = extractAssetInfo(child);
+                                if (!assetInfo.isEmpty()) {
+                                    assetsMap.put(child.getPath(), assetInfo);
+                                }
+                            }
+                        }
+                    } else {
+                        // Handle standard single asset paths
+                        Map<String, Object> assetInfo = extractAssetInfo(assetResource);
+                        if (!assetInfo.isEmpty()) {
+                            assetsMap.put(path, assetInfo);
+                        } else {
+                            log.warn("No target metadata (alt/width/height) found for asset: {}", path);
+                        }
+                    }
+                } else {
+                    log.warn("Could not resolve asset resource for path: {}", path);
+                }
+            }
+        }
+    }
+
+    private Map<String, Object> extractAssetInfo(Resource assetResource) {
+        Map<String, Object> info = new HashMap<>();
+        org.apache.sling.api.resource.ResourceResolver resolver = assetResource.getResourceResolver();
+
+        // Resolve jcr:content (handles both aliases)
+        Resource jcrContent = resolver.getResource(assetResource.getPath() + "/" + JCR_CONTENT);
+        if (jcrContent == null) {
+            jcrContent = resolver.getResource(assetResource.getPath() + "/_jcr_content");
+        }
+
+        if (jcrContent != null) {
+            ValueMap contentProps = jcrContent.getValueMap();
+            if (contentProps.containsKey("alt")) {
+                info.put("alt", contentProps.get("alt", String.class));
+            }
+
+            // ALIGNED: Extract translated alt text into a standard experiences array
+            Resource experiences = jcrContent.getChild("experiences");
+            if (experiences != null) {
+                List<Map<String, Object>> expList = new ArrayList<>();
+                for (Resource langNode : experiences.getChildren()) {
+                    ValueMap langProps = langNode.getValueMap();
+                    if (langProps.containsKey("alt")) {
+                        Map<String, Object> langData = new HashMap<>();
+                        langData.put("name", langNode.getName());
+                        langData.put("alt", langProps.get("alt", String.class));
+                        expList.add(langData);
+                    }
+                }
+                if (!expList.isEmpty()) {
+                    info.put("experiences", expList);
+                }
+            }
+        }
+
+        // Resolve metadata/per-data directly
+        Resource perData = resolver.getResource(assetResource.getPath() + "/" + JCR_CONTENT + "/metadata/per-data");
+        if (perData == null) {
+            perData = resolver.getResource(assetResource.getPath() + "/_jcr_content/metadata/per-data");
+        }
+
+        if (perData != null) {
+            ValueMap perDataProps = perData.getValueMap();
+            if (perDataProps.containsKey("width")) {
+                info.put("width", perDataProps.get("width", Integer.class));
+            }
+            if (perDataProps.containsKey("height")) {
+                info.put("height", perDataProps.get("height", Integer.class));
+            }
+        }
+
+        return info;
     }
 
     /**

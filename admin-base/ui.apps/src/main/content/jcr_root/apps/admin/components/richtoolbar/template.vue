@@ -40,7 +40,6 @@ import {
 } from './groups'
 import {get, set} from '../../../../../../js/utils'
 import {IconLib, PathBrowser} from '../../../../../../js/constants'
-import {fallbackMediaText, resolveMediaText} from '../../../js/mediaText'
 import RichtoolbarFontSize from '../richtoolbarfontsize/template.vue'
 import RichtoolbarGroup from '../richtoolbargroup/template.vue'
 import Pathbrowser from '../pathbrowser/template.vue'
@@ -102,10 +101,6 @@ export default {
         withImageTab: false,
         newWindow: false,
         linkTitle: '',
-        altText: undefined,
-        mediaSourcePath: '',
-        mediaSourceText: '',
-        mediaSourceFallback: '',
         path: {
           current: '',
           selected: null,
@@ -328,8 +323,6 @@ export default {
           newWindow: this.browser.newWindow,
           linkTitle: this.browser.linkTitle,
           setLinkTitle: this.setBrowserLinkTitle,
-          altText: this.browser.altText,
-          setAltText: this.setBrowserAltText,
           currentPath: this.browser.path.current,
           setCurrentPath: this.setBrowserPathCurrent,
           selectedPath: this.browser.path.selected,
@@ -393,13 +386,6 @@ export default {
       this.lastSelectedRte.dispatchEvent(new Event('input'))
     },
 
-
-
-
-
-
-
-
     execCmd(cmd, value = null, showUi = true, doc = null) {
       console.warn('still using execCmd')
       const targetDoc = doc || this.getInlineDoc()
@@ -416,12 +402,6 @@ export default {
       console.warn('exec sill used:', cmd, value)
       return
     },
-
-
-
-
-
-
 
     async getDefaultMediaText(path = '') {
       const rootData = this.$root && this.$root.$data
@@ -462,17 +442,11 @@ export default {
       this.browser.open = false
       this.browser.withImageTab = false
       this.param.anchor = null
-      this.browser.mediaSourcePath = ''
-      this.browser.mediaSourceText = ''
-      this.browser.mediaSourceFallback = ''
       if (this.selection.restore) {
         this.restoreSelection()
         this.selection.restore = false
       }
     },
-
-
-
 
     setBrowserPathCurrent(path) {
       this.browser.path.current = path
@@ -480,12 +454,6 @@ export default {
 
     setBrowserPathSelected(path) {
       this.browser.path.selected = path
-      if (this.param.cmd === 'editImage' && path && path !== this.browser.mediaSourcePath) {
-        const current = String(this.browser.linkTitle || '').trim()
-        if (!current || current === this.browser.mediaSourceText || current === this.browser.mediaSourceFallback) {
-          this.browser.linkTitle = ''
-        }
-      }
     },
 
     setBrowserResourceType(type) {

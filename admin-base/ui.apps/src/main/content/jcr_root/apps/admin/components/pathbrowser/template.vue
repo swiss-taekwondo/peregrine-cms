@@ -321,15 +321,6 @@
                       @mousedown=""
                       @input="selectLink"/>
                 </div>
-                <div class="form-group" v-if="altText !== undefined">
-                  <label for="altText">Image Alternate Text</label>
-                  <input
-                      id="altText"
-                      type="text"
-                      placeholder="Alt Text"
-                      :value="altText"
-                      @input="setAltText"/>
-                </div>
                 <div class="form-group" v-if="linkTitle !== undefined">
                   <label for="linkTitle">Link Title</label>
                   <input
@@ -377,15 +368,6 @@
                 </div>
               </template>
               <template v-if="withImageTab && tab === 'image'">
-                <div class="form-group" v-if="altText !== undefined">
-                  <label for="imageTabAltText">Image Alternate Text</label>
-                  <input
-                      id="imageTabAltText"
-                      type="text"
-                      placeholder="Alt Text"
-                      :value="altText"
-                      @input="setAltText"/>
-                </div>
                 <div class="img-group">
                   <div class="form-group">
                     <label for="imageTabWidth">Width (px)</label>
@@ -440,7 +422,7 @@
             <div class="pathbrowser-footer-details">
               <span class="pathbrowser-selected-path">{{ selectedPath && selectedPath.split ? selectedPath.split('#')[0] : '' }}</span>
 
-            <div class="" v-if="preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
+            <div class="" v-if="preview && preview.resourceType === 'per:Page' && preview.anchors && preview.anchors.length > 0">
               <select id="pageAnchor" v-model="selectedAnchor" class="browser-default" aria-label="Select anchor">
                 <option value="">Anchor: none</option>
                 <option v-for="anchor in preview.anchors" :key="anchor" :value="anchor">
@@ -474,7 +456,7 @@
 <script>
 import { IconLib, PathBrowser } from '../../../../../../js/constants'
 
-import {isImagePath} from '../../../js/mediaText'
+import {isImagePath} from '../../../../../../js/utils'
 import FileDropper from '../filedropper/template.vue'
 import Icon from '../icon/template.vue'
 
@@ -503,8 +485,6 @@ export default {
     setResourceType: Function,
     linkTitle: String,
     setLinkTitle: Function,
-    altText: String,
-    setAltText: Function,
     rel: {
       type: Boolean,
       default: true
