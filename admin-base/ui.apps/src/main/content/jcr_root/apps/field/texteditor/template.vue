@@ -162,7 +162,6 @@ export default {
 
   mounted() {
     const view = this.view
-    console.log('view', view)
     if (view) set(view, '/state/inline/rich', true)
     document.execCommand('defaultParagraphSeparator', false, 'p')
   },
@@ -180,33 +179,36 @@ export default {
       set(view, '/state/inline/editorModel', this.model)
       this.editing = true
     },
-    onKeyDown(event) {
-      const key = event.which
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
-      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event) : null
 
-      if (headingDigit !== null) {
-        event.preventDefault()
-        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
-      } else if (key === Key.B && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'bold' } }))
-      } else if (key === Key.I && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'italic' } }))
-      } else if (key === Key.U && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'underline' } }))
-      } else if (key === Key.Z && ctrlOrCmd) {
-        event.preventDefault()
-        event.stopPropagation()
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'undo' } }))
-      } else if (key === Key.Y && ctrlOrCmd) {
-        event.preventDefault()
-        event.stopPropagation()
-        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'redo' } }))
-    }
+    sendRichToolbarCommand(event, cmd, value) {
+      event.preventDefault()
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd, value } }))
+    },
+
+    onKeyDown(event) {
+      const key = event.key;
+      console.log('sidebarKeydown', key)
+      const shift = event.shiftKey
+      const alt = event.altKey
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+
+      if (ctrlOrCmd) {
+        if (key === "a") this.onInlineSelectAll(event)
+        if (key === "b") this.sendRichToolbarCommand(event, "bold")
+        if (key === "i") this.sendRichToolbarCommand(event, "italic")
+        if (key === "u") this.sendRichToolbarCommand(event, "underline")
+        if (key === "z") this.sendRichToolbarCommand(event, "undo")
+        if (key === "y") this.sendRichToolbarCommand(event, "redo")
+      }
+      if (ctrlOrCmd && alt) {
+        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p")
+        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1")
+        if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2")
+        if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3")
+        if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4")
+        if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5")
+        if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6")
+      }
     },
     onFocusOut() {
       const view = this.view

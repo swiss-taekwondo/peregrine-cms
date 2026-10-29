@@ -672,6 +672,7 @@ export default {
     },
 
     onInlineClick(event) {
+      console.log('onInlineClick', event.target, event)
       const target = event.target
       const anchor = target?.closest ? target.closest('a') : null
       const editor = event.currentTarget
@@ -687,11 +688,8 @@ export default {
     },
 
     onInlineFocus(event) {
-    // console.log('oninlinefocus', event.target, event)
+    console.log('oninlinefocus', event.target, event)
       event.target.classList.add('inline-editing')
-      if (isChromeBrowser() && event.target.innerHTML) {
-        event.target.innerHTML = event.target.innerHTML.trim()
-      }
       this.editing = true
       this.caret.pos = -1
       this.caret.counter = 0
@@ -711,14 +709,12 @@ export default {
     },
 
     onInlineFocusOut(event) {
+      console.log('onInlineFocusOut', event.target, event)
       event.target.classList.remove('inline-editing')
       this.editing = false
       set(this.view, '/state/inline/lastContainer', event.target)
       set(this.view, '/state/inline/lastDoc', this.iframe.doc)
       set(this.view, '/state/inline/doc', null)
-      if (!isChromeBrowser() && event.target.innerHTML) {
-        event.target.innerHTML = event.target.innerHTML.trim()
-      }
       const modelPropName = this.getCurrentModelPropName()
       const unwatch = this.$watch(`node.${modelPropName}`, (val) => {
         if (![undefined, null].includes(val)) {
@@ -984,6 +980,7 @@ export default {
         el.addEventListener('focus', this.onInlineFocus)
         el.addEventListener('focusout', this.onInlineFocusOut)
         el.addEventListener('keydown', this.onInlineKeyDown)
+        console.log('keydown setup', el)
         // el.addEventListener('keyup', this.onInlineKeyUp)
         el.addEventListener('dblclick', this.onInlineDblClick)
         el.setAttribute('contenteditable', this.previewMode !== 'preview' + '')

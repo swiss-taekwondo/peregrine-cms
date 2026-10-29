@@ -22,6 +22,7 @@ export function createSelectionMethods() {
     const commonAncestorEl = range.commonAncestorContainer.closest ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement
     const rte = commonAncestorEl.closest('.inline-edit')
 
+    console.log('handleSelectionChange rte', rte)
     if (rte) {
       this.lastInRteSelection = range.cloneRange()
       this.lastInRteSelectionRelativeToRte = {
@@ -50,7 +51,6 @@ export function createSelectionMethods() {
     }
 
     this.toolbarDisabled = !commonAncestorEl.closest('.inline-edit, .richtoolbar')
-    // this.pingRichToolbar()
 
 
     } catch (error) {
@@ -72,10 +72,6 @@ export function createSelectionMethods() {
       const selection = doc.getSelection();
       selection.removeAllRanges();
       selection.addRange(range);
-      
-    },
-
-    saveCurrentSelection() {
       
     },
 

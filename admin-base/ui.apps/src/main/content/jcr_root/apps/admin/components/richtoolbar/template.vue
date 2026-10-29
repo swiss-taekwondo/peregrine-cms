@@ -278,13 +278,14 @@ export default {
 
   watch: {
 	  toolbarDisabled(newVal) {
+			this.$el.classList.toggle('disabled', newVal)
 	    // console.log('toolbarDisabled:', newVal)
 	  },
     currentFontSize(newVal) {
       // if (this.onSubNav) console.log('fontsize:', newVal)
     },
     lastInRteSelection(newVal) {
-      // console.log('selection:', newVal)
+      console.log('selection:', newVal.startContainer, newVal.startOffset, newVal.endContainer, newVal.endOffset)
     },
     lastRteSelectionInlineOnly(newVal) {
     // console.log('inline sel:', newVal)
@@ -424,24 +425,6 @@ export default {
 
 
 
-    pingRichToolbar(vm = this) {
-      console.warn('still using pingRichToolbar', vm)
-      vm.$emit('ping')
-      const view = $perAdminApp.getView()
-      if (view) {
-        const state = view.state || (view.state = {})
-        const inline = state.inline || (state.inline = {})
-        inline.ping = (inline.ping || 0) + 1
-
-        const anchor = vm.getAnchorAtSelection ? vm.getAnchorAtSelection() : null
-        if (anchor) {
-          inline.lastAnchor = anchor
-        }
-      }
-      if ($perAdminApp.getNodeFromViewOrNull('/state/contentview/editor/active')) {
-        $perAdminApp.action(vm, 'reWrapEditable')
-      }
-    },
 
 
     execCmd(cmd, value = null, showUi = true, doc = null) {

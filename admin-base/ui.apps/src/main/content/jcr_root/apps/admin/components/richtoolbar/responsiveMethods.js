@@ -551,7 +551,6 @@ export function createResponsiveMethods() {
                   requestAnimationFrame(() => {
                     if (btn.click) btn.click()
                     else this.exec(btn.cmd)
-                    this.pingRichToolbar()
                   })
                 },
               },
@@ -776,7 +775,6 @@ export function createResponsiveMethods() {
       const hiddenGroupsChanged = JSON.stringify(previousHiddenGroups) !== JSON.stringify(nextHiddenGroups)
       if (layoutChanged || hiddenGroupsChanged) {
         this.layoutPing += 1
-        this.pingRichToolbar()
       }
       if (hiddenGroupsChanged) {
         this.$nextTick(() => {
