@@ -142,7 +142,8 @@ export default {
       // selection/range state
       lastInRteSelection: null,
       lastSelectedRte: null,
-      currentFontSize: 14,
+      fallbackFontSize: 16,
+      currentFontSize: 16,
       lastRteSelectionInlineOnly: null,
       lastInRteSelectionRelativeToRte: null,
       toolbarDisabled: true,
@@ -245,21 +246,24 @@ export default {
 
     document.addEventListener('selectionchange', this.handleSelectionChange)
     const editIframe = document.querySelector('#editview');
-    const attachListener = () => {
-      const doc = editIframe.contentDocument;
-      if (doc?.readyState === 'complete') {
-        doc.addEventListener('selectionchange', this.handleSelectionChange);
-      }
-    };
-    editIframe.addEventListener('load', attachListener);
-    attachListener();
+    if (editIframe) {
+      const attachListener = () => {
+        const doc = editIframe.contentDocument;
+        if (doc?.readyState === 'complete') {
+          doc.addEventListener('selectionchange', this.handleSelectionChange);
+        }
+      };
+      editIframe.addEventListener('load', attachListener);
+      attachListener();
+    }
 
     document.addEventListener('mousedown', this._closeDropdowns)
+    this.$el.classList.toggle('disabled', this.toolbarDisabled)
   },
 
   destroyed() {
     document.removeEventListener('selectionchange', this.handleSelectionChange)
-    document.querySelector('#editview').contentDocument.removeEventListener('selectionchange', this.handleSelectionChange)
+    document.querySelector('#editview')?.contentDocument.removeEventListener('selectionchange', this.handleSelectionChange)
   },
 
   watch: {

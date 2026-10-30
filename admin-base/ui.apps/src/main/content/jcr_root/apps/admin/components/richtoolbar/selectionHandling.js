@@ -36,38 +36,28 @@ export function createSelectionMethods() {
           this.lastSelectedRte = rte;
 
           // fontsize
-          const fontSizeSpan = commonAncestorEl.closest(
-            '.inline-edit [style*="font-size"]',
-          );
+          const fontSizeSpan = commonAncestorEl.closest('.inline-edit [style*="font-size"]');
           if (fontSizeSpan) {
             this.currentFontSize = parseInt(fontSizeSpan.style.fontSize);
           } else {
-            const getFontSizeFrom = this.lastRteSelectionInlineOnly
-              ?.commonAncestorContainer
-              ? (this.lastRteSelectionInlineOnly.commonAncestorContainer.closest
-                  ? this.lastRteSelectionInlineOnly.commonAncestorContainer
-                  : this.lastRteSelectionInlineOnly.commonAncestorContainer
-                      .parentElement
-                ).closest(".inline-edit")
-              : document
-                  .querySelector("#editview")
-                  .contentDocument.querySelector(
-                    '[data-editing-component] [contenteditable="true"][data-per-inline$=".text"]',
-                  ) ||
-                document
-                  .querySelector("#editview")
-                  .contentDocument.querySelector("[data-editing-component]"); // fallback if rte was only ever touched via sidebar
-            this.currentFontSize = parseInt(
-              window.getComputedStyle(getFontSizeFrom).fontSize,
-            );
+            const editIframe = document.querySelector("#editview")
+            const getFontSizeFrom =
+              this.lastRteSelectionInlineOnly?.commonAncestorContainer ?
+                (this.lastRteSelectionInlineOnly.commonAncestorContainer.closest ? this.lastRteSelectionInlineOnly.commonAncestorContainer : this.lastRteSelectionInlineOnly.commonAncestorContainer.parentElement).closest(".inline-edit") :
+                editIframe?.contentDocument.querySelector('[data-editing-component] [contenteditable="true"][data-per-inline$=".text"]') ||
+                editIframe?.contentDocument.querySelector("[data-editing-component]"); // fallback if rte was only ever touched via sidebar
+            if (getFontSizeFrom) {
+              this.currentFontSize = parseInt(window.getComputedStyle(getFontSizeFrom).fontSize);
+            } else {
+              // Objects do not have an iframe to check, they will get the default.
+              this.currentFontSize = this.fallbackFontSize;
+            }
           }
         } else {
           // console.warn('handleselectionchange: no rte')
         }
 
-        this.toolbarDisabled = !commonAncestorEl.closest(
-          ".inline-edit, .richtoolbar",
-        );
+        this.toolbarDisabled = !commonAncestorEl.closest(".inline-edit, .richtoolbar");
       } catch (error) {
         console.error("error handling selection", error);
       }

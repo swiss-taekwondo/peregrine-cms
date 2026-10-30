@@ -496,7 +496,7 @@ export function createResponsiveMethods() {
           exec: this.exec,
           lastInRteSelection: this.lastInRteSelection,
           currentFontSize: this.currentFontSize,
-          disabled: !this.hasEditorSelection,
+          toolbarDisabled: this.toolbarDisabled,
         },
       });
     },
