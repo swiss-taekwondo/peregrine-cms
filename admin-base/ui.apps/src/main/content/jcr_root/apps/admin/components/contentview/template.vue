@@ -737,21 +737,21 @@ export default {
       }
       this.iframe.doc.execCommand('defaultParagraphSeparator', false, 'p')
       window.dispatchEvent(new CustomEvent('peregrine:iframe-loaded', { detail: { iframeEl: this.$refs.editview } }))
-      // Debug
-      const styleEl = this.iframe.doc.createElement("style");
-      styleEl.textContent = `
-        * {
-          caret-shape: block;
-          caret-animation: manual;
-          animation: caret-block 2s step-end infinite;
-        }
-        
-        @keyframes caret-block {
-           0% { caret-color: #00d2ff; }
-          50% { caret-color: #ffa6b9; }
-        }
-      `;
-      (this.iframe.doc.head).appendChild(styleEl);
+      // Help Debug caret issues
+      // const styleEl = this.iframe.doc.createElement("style");
+      // styleEl.textContent = `
+      //   * {
+      //     caret-shape: block;
+      //     caret-animation: manual;
+      //     animation: caret-block 2s step-end infinite;
+      //   }
+      //   
+      //   @keyframes caret-block {
+      //      0% { caret-color: #00d2ff; }
+      //     50% { caret-color: #ffa6b9; }
+      //   }
+      // `;
+      // (this.iframe.doc.head).appendChild(styleEl);
     },
 
     onIframeClick(ev) {

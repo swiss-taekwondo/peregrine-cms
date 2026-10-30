@@ -263,7 +263,7 @@ export default {
 
   destroyed() {
     document.removeEventListener('selectionchange', this.handleSelectionChange)
-    document.querySelector('#editview')?.contentDocument.removeEventListener('selectionchange', this.handleSelectionChange)
+    document.querySelector('#editview')?.contentDocument?.removeEventListener('selectionchange', this.handleSelectionChange)
   },
 
   watch: {
