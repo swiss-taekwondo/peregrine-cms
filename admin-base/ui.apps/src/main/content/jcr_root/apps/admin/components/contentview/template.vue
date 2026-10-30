@@ -102,7 +102,6 @@ import {
   get,
   getCaretCharacterOffsetWithin,
   isChromeBrowser,
-  restoreDomRangeSelection,
   restoreSelection,
   saveSelection,
   set
@@ -190,7 +189,6 @@ export default {
       holdingDown: false,
       inlineEdit: {
         firstTime: [],
-        selection: null
       },
       dynWatchers: [],
       toast: {
@@ -204,7 +202,8 @@ export default {
         timeout: 150
       },
       undoItem: null,
-      redoItem: null
+      redoItem: null,
+      suppressCaretPreservation: false,
     }
   },
   computed: {
@@ -508,7 +507,6 @@ export default {
         this.flushInlineState()
         return this.$nextTick()
       }).then(() => {
-        this.pingToolbar()
         focusElement(this.target, this.iframe.win)
       })
     },
@@ -554,7 +552,7 @@ export default {
     writeInlineToModel(vm = this) {
       let content = ''
       if (vm.isRich) {
-        content = vm.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
+        content = vm.target.innerHTML
       } else {
         content = vm.target.innerText
       }
@@ -568,61 +566,16 @@ export default {
       parentProp[keyStr] = content;
     },
 
-    writeElementToModel(vm = this, element) {
-      let content = element.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
-      const dataInline = (element.getAttribute('data-per-inline') || '').split('.').slice(1)
-      dataInline.reverse()
-      let parentProp = vm.node
-      while (dataInline.length > 1) {
-        parentProp = parentProp[dataInline.pop()]
-      }
-      const keyStr = dataInline.pop()
-      if (keyStr) parentProp[keyStr] = content
-    },
-
-    formatInlineBlock(element, tagName) {
-      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
-      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
-
-      const selection = this.iframe.win.getSelection()
-      if (!selection || selection.rangeCount === 0) return false
-
-      const range = selection.getRangeAt(0)
-      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
-        ? range.startContainer.parentElement
-        : range.startContainer
-      const editorElement = element || this.target
-      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-        || (editorElement && editorElement.matches && editorElement.matches('p, h1, h2, h3, h4, h5, h6') ? editorElement : null)
-        || (editorElement ? editorElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-      if (!block) return false
-      if (block.tagName === normalizedTagName) return true
-
-      const replacement = this.iframe.doc.createElement(normalizedTagName)
-      for (const attr of Array.from(block.attributes)) {
-        replacement.setAttribute(attr.name, attr.value)
-      }
-      while (block.firstChild) {
-        replacement.appendChild(block.firstChild)
-      }
-      block.replaceWith(replacement)
-
-      const nextRange = this.iframe.doc.createRange()
-      nextRange.selectNodeContents(replacement)
-      selection.removeAllRanges()
-      selection.addRange(nextRange)
-      const modelElement = editorElement?.closest?.('[data-per-inline]') || editorElement
-      modelElement.dispatchEvent(new Event('input', { bubbles: true }))
-      this.writeElementToModel(this, modelElement)
-      this.pingToolbar()
-      return true
-    },
-
     onInlineEdit(event) {
+      event.preventDefault()
       if (!this.inlineEdit.firstTime.includes(event.target)) {
         this.inlineEdit.firstTime.push(event.target)
       }
-      this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
+      // We need this selection handler, it preserves the caret position for all inline edits, both RTE and others.
+      // TODO: look into this issue further. It doesn't quite make sense that these selection workarounds are required for inline editing.
+      // The flow of setting the HTML element value to the state doesn't break caret position in the sidebar, so it is weird that it happens inline.
+      // Newline has the wrong position and is fixed in RTE, but it's broken for non-rich-text but that never worked and we should prevent newlines in normal text anyway. Sidebar inputs don't allow them natively
+      if (!this.isRich || !this.suppressCaretPreservation) this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
 
       this.target = event.target
       const eventPath = event.path || (event.composedPath && event.composedPath())
@@ -634,46 +587,72 @@ export default {
       }
 
       const vnode = this.findVnode(this.component.__vue__, eventPath)
-      const attr = this.isRich ? 'innerHTML' : 'innerText'
       if (vnode.data.domProps) {
         if (this.isRich) {
-          vnode.data.domProps.innerHTML = this.target.innerHTML.replace(/(?:\r\n|\r|\n)/g, '<br>')
+          vnode.data.domProps.innerHTML = this.target.innerHTML
         } else {
           vnode.data.domProps.innerHTML = this.target.innerText
         }
       }
       this.writeInlineToModel()
 
+
       if (this.inlineEdit.selection) {
         this.$nextTick(() => {
           this.$nextTick(() => {
-            const queuedInlineRestore = (
-              window.__labambaInlineRestoreOnce
-              && window.__labambaInlineRestoreOnce.container === event.target
-            ) ? window.__labambaInlineRestoreOnce : null
-            if (queuedInlineRestore?.rangeSelection) {
-              const restoredQueuedRange = restoreDomRangeSelection(event.target, queuedInlineRestore.rangeSelection, this.iframe.doc)
-              if (!restoredQueuedRange && queuedInlineRestore.selection) {
-                restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
-              }
-              window.__labambaInlineRestoreOnce = null
-              this.inlineEdit.selection = null
-              return
-            }
-            if (queuedInlineRestore?.selection) {
-              restoreSelection(event.target, queuedInlineRestore.selection, this.iframe.doc)
-              window.__labambaInlineRestoreOnce = null
-              this.inlineEdit.selection = null
-              return
-            }
             restoreSelection(event.target, this.inlineEdit.selection, this.iframe.doc)
             this.inlineEdit.selection = null
           })
         })
       }
-
       this.autoSave = true
       this.reWrapEditable()
+    },
+
+    onInlineKeyDown(event) {
+      const key = event.key;
+      const shift = event.shiftKey
+      const alt = event.altKey
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+
+      if (ctrlOrCmd) {
+        if (key === "a") this.onInlineSelectAll(event)
+        if (key === "b") this.sendRichToolbarCommand(event, "bold")
+        if (key === "i") this.sendRichToolbarCommand(event, "italic")
+        if (key === "u") this.sendRichToolbarCommand(event, "underline")
+        if (key === "z") this.sendRichToolbarCommand(event, "undo")
+        if (key === "y") this.sendRichToolbarCommand(event, "redo")
+      }
+      if (ctrlOrCmd && alt) {
+        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p")
+        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1")
+        if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2")
+        if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3")
+        if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4")
+        if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5")
+        if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6")
+      }
+      if (key === "Enter") {
+        this.suppressCaretPreservation = true;
+        setTimeout(() => {
+          this.suppressCaretPreservation = false;
+        })
+      }
+    },
+
+    sendRichToolbarCommand(event, cmd, value) {
+      event.preventDefault()
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd, value } }))
+    },
+
+    onInlineSelectAll(event) {
+      event.preventDefault()
+      let range, selection
+      selection = this.iframe.win.getSelection()
+      range = this.iframe.doc.createRange()
+      range.selectNodeContents(event.target)
+      selection.removeAllRanges()
+      selection.addRange(range)
     },
 
     refreshEditor(vm) {
@@ -687,38 +666,16 @@ export default {
       if (anchor && editor && editor.contains(anchor)) {
         this.target = editor
         const doc = this.iframe.doc
-        const selection = doc?.defaultView?.getSelection?.()
-        const selectionBuffer = selection ? saveSelection(editor, doc) : null
-        const savedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
-        const emitSelectionState = () => window.dispatchEvent(new CustomEvent('richtoolbar:selection', {
-          detail: {
-            hasEditorSelection: true,
-            doc,
-            container: editor,
-            buffer: selectionBuffer,
-            savedRange,
-            activeAnchor: anchor,
-            source: 'inline-click',
-          },
-        }))
         set(this.view, '/state/inline/lastAnchor', anchor)
         set(this.view, '/state/inline/lastContainer', editor)
         set(this.view, '/state/inline/lastDoc', doc)
-        set(this.view, '/state/inline/lastSelectionBuffer', selectionBuffer)
         set(this.view, '/state/inline/lastAnchorClickAt', Date.now())
         set(this.view, '/state/inline/doc', doc)
-        emitSelectionState()
-        requestAnimationFrame(emitSelectionState)
-        setTimeout(emitSelectionState, 75)
       }
-      this.pingToolbar()
     },
 
     onInlineFocus(event) {
       event.target.classList.add('inline-editing')
-      if (isChromeBrowser() && event.target.innerHTML) {
-        event.target.innerHTML = event.target.innerHTML.trim()
-      }
       this.editing = true
       this.caret.pos = -1
       this.caret.counter = 0
@@ -739,19 +696,9 @@ export default {
     onInlineFocusOut(event) {
       event.target.classList.remove('inline-editing')
       this.editing = false
-      const iframeSel = this.iframe.doc ? this.iframe.doc.defaultView.getSelection() : null
-      const anchorNode = iframeSel && iframeSel.rangeCount > 0 ? iframeSel.anchorNode : null
-      const el = anchorNode
-        ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode)
-        : null
-      set(this.view, '/state/inline/lastAnchor', el ? el.closest('a') : null)
       set(this.view, '/state/inline/lastContainer', event.target)
       set(this.view, '/state/inline/lastDoc', this.iframe.doc)
-      set(this.view, '/state/inline/lastSelectionBuffer', saveSelection(event.target, this.iframe.doc))
       set(this.view, '/state/inline/doc', null)
-      if (!isChromeBrowser() && event.target.innerHTML) {
-        event.target.innerHTML = event.target.innerHTML.trim()
-      }
       const modelPropName = this.getCurrentModelPropName()
       const unwatch = this.$watch(`node.${modelPropName}`, (val) => {
         if (![undefined, null].includes(val)) {
@@ -761,117 +708,15 @@ export default {
       this.dynWatchers.push({modelPropName, unwatch})
     },
 
-    onInlineKeyDown(event) {
-      this.pingToolbar()
-      const key = event.which
-      const shift = event.shiftKey
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
-      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event, Key) : null
-      const backspaceOrDelete = key === Key.BACKSPACE || key === Key.DELETE
-      const arrowKey = key >= Key.ARROW_LEFT && key <= Key.ARROW_DOWN
-
-      if (key === Key.ESC) {
-        event.target.blur()
-      } else if (key === Key.A && ctrlOrCmd) {
-        this.onInlineSelectAll(event)
-      } else if (key === Key.B && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'bold' } }))
-      } else if (key === Key.I && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'italic' } }))
-      } else if (key === Key.U && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
-      } else if (headingDigit !== null) {
-        event.preventDefault()
-        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
-        const editorElement = this.target || event.target
-        if (!this.formatInlineBlock(editorElement, value)) {
-          this.iframe.doc.execCommand('formatBlock', false, `<${value}>`)
-          this.writeElementToModel(this, editorElement?.closest?.('[data-per-inline]') || editorElement)
-          this.pingToolbar()
-        }
-      } else if (key === Key.Z && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
-      } else if (key === Key.Y && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
-      } else if (backspaceOrDelete) {
-        this.onInlineDelete(event)
-      } else if (arrowKey && !shift) {
-        this.onInlineArrowKey(event)
-      }
-      this.holdingDown = true
-    },
-
-    onInlineKeyUp(event) {
-      this.pingToolbar()
-      const key = event.which
-      const shift = event.shiftKey
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
-      const backspaceOrDelete = key === Key.BACKSPACE || key === Key.DELETE
-      const arrowKey = key >= Key.ARROW_LEFT && key <= Key.ARROW_DOWN
-
-      if (arrowKey && !shift) {
-        this.onInlineArrowKey(event, true)
-      }
-      this.holdingDown = false
-    },
 
     onInlineDblClick(event) {
       if (event.target.tagName === 'IMG') {
+        // TODO: Fix edit icon on dblclick or remove. It doesn't play nicely with pathbrowser.
         const action = event.target.classList.contains('peregrine-icon') ? 'editIcon' : 'editImage'
         $perAdminApp.action(this, action, event.target)
       }
     },
 
-    onInlineSelectAll(event) {
-      event.preventDefault()
-      let range, selection
-      selection = this.iframe.win.getSelection()
-      range = this.iframe.doc.createRange()
-      range.selectNodeContents(event.target)
-      selection.removeAllRanges()
-      selection.addRange(range)
-    },
-
-    onInlineDelete(event) {
-      const selection = this.iframe.win.getSelection()
-      if (selection.rangeCount > 1 && selection.anchorNode === this.target) {
-        event.preventDefault()
-        this.iframe.doc.execCommand('delete')
-        this.target.innerHTML = ''
-        this.writeInlineToModel()
-      }
-    },
-
-    onInlineArrowKey(event, isKeyUp = false) {
-      if (isChromeBrowser()) return
-
-      const key = event.which
-      const newCaretPos = getCaretCharacterOffsetWithin(event.target)
-      if (this.caret.pos === newCaretPos && (isKeyUp || this.holdingDown)) {
-        this.caret.counter++
-        if (this.caret.counter < 2) return
-        const inlineEditNodes = this.iframe.app.querySelectorAll(`[${Attribute.INLINE}]`)
-        if (inlineEditNodes.length <= 1) return
-        const len = inlineEditNodes.length
-
-        for (let i = 0; i < len; i++) {
-          if (inlineEditNodes[i] === this.target) {
-            if (i > 0 && (key === Key.ARROW_LEFT || key === Key.ARROW_UP)) {
-              this.placeCaretAtEnd(inlineEditNodes[i - 1])
-            } else if (i < len - 1 && (key === Key.ARROW_RIGHT || key === Key.ARROW_DOWN)) {
-              inlineEditNodes[i + 1].focus()
-            }
-            break
-          }
-        }
-      }
-      this.caret.pos = newCaretPos
-    },
 
     onIframeLoaded(ev) {
       this.iframe.loaded = true
@@ -892,6 +737,21 @@ export default {
       }
       this.iframe.doc.execCommand('defaultParagraphSeparator', false, 'p')
       window.dispatchEvent(new CustomEvent('peregrine:iframe-loaded', { detail: { iframeEl: this.$refs.editview } }))
+      // Help Debug caret issues
+      // const styleEl = this.iframe.doc.createElement("style");
+      // styleEl.textContent = `
+      //   * {
+      //     caret-shape: block;
+      //     caret-animation: manual;
+      //     animation: caret-block 2s step-end infinite;
+      //   }
+      //   
+      //   @keyframes caret-block {
+      //      0% { caret-color: #00d2ff; }
+      //     50% { caret-color: #ffa6b9; }
+      //   }
+      // `;
+      // (this.iframe.doc.head).appendChild(styleEl);
     },
 
     onIframeClick(ev) {
@@ -1104,7 +964,7 @@ export default {
         el.addEventListener('focus', this.onInlineFocus)
         el.addEventListener('focusout', this.onInlineFocusOut)
         el.addEventListener('keydown', this.onInlineKeyDown)
-        el.addEventListener('keyup', this.onInlineKeyUp)
+        // el.addEventListener('keyup', this.onInlineKeyUp)
         el.addEventListener('dblclick', this.onInlineDblClick)
         el.setAttribute('contenteditable', this.previewMode !== 'preview' + '')
       })
@@ -1207,6 +1067,10 @@ export default {
 
     wrapEditableAroundElement(el) {
       if (!el) return
+      el.ownerDocument.querySelectorAll('[data-editing-component]').forEach(comp => {
+        comp.removeAttribute('data-editing-component')
+      })
+      el.setAttribute('data-editing-component', '')
 
       this.$nextTick(() => {
         const {top, left, width, height} = this.dragging ? el.getBoundingClientRect() : this.getBoundingClientRectWithMargin(el)
@@ -1726,37 +1590,6 @@ export default {
       $perAdminApp.stateAction('addComponentToPath', payload).then((data) => {
         this.refreshIframeElements()
       })
-    },
-
-    placeCaretAtEnd(el) {
-      const doc = el.ownerDocument
-      const win = doc.defaultView || doc.parentWindow
-      el.focus()
-      if (typeof win.getSelection != 'undefined' && typeof doc.createRange != 'undefined') {
-        const range = doc.createRange()
-        range.selectNodeContents(el)
-        range.collapse(false)
-        const sel = win.getSelection()
-        sel.removeAllRanges()
-        sel.addRange(range)
-      } else if (typeof doc.body.createTextRange != 'undefined') {
-        const textRange = doc.body.createTextRange()
-        textRange.moveToElementText(el)
-        textRange.collapse(false)
-        textRange.select()
-      }
-    },
-
-    pingToolbar() {
-      clearTimeout(this.pingDebouncer.id)
-      setTimeout(() => {
-        const currentPing = get(this.view, '/state/inline/ping', 0)
-        if (currentPing < 10) {
-          set(this.view, '/state/inline/ping', currentPing + 1)
-        } else {
-          set(this.view, '/state/inline/ping', 0)
-        }
-      }, this.pingDebouncer.timeout)
     },
 
     onAddComponentModalComponentAdded(newNode) {

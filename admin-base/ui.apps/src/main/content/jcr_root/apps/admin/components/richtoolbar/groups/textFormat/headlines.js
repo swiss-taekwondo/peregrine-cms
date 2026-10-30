@@ -10,9 +10,9 @@ export default (vm) => {
       iconLib: IconLib.FONT_AWESOME,
       cmd: 'formatBlock',
       value: `h${i}`,
-      isActive: () => vm.itemIsTag(`H${i}`),
-      class: () => vm.itemIsTag(`H${i}`) ? 'active' : null,
-      click: () => vm.exec('formatBlock', `h${i}`),
+      isActive: () => vm.rangeMatchesSelector(`h${i}`),
+      class: () => vm.rangeMatchesSelector(`h${i}`) ? 'active' : null,
+      click: () => window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value: `<h${i}>` } }))
     })
   }
 

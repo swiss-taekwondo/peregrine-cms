@@ -1,10 +1,10 @@
 <template>
   <div class="font-size-wrapper btn-group">
-    <button class="subtract btn" @click="onSubtract" title="Decrease font size" :disabled="effectiveDisabled">
+    <button class="subtract btn" @click="onSubtract" title="Decrease font size" :disabled="toolbarDisabled">
       <icon icon="remove" :lib="iconLib" />
     </button>
 
-    <div class="inputWrapper" @focusin="onFocusIn" @focusout="onFocusOut">
+    <div class="inputWrapper" >
       <input
         v-bind:value="inputValue"
         @input="onInput"
@@ -13,19 +13,19 @@
         type="number"
         max="250"
         min="1"
-        :disabled="effectiveDisabled"
+        :disabled="toolbarDisabled"
       />
 
       <ul>
         <template v-for="sizePreset in fontSizeSelections">
-          <li :key="sizePreset" @mousedown="onPresetMouseDown(sizePreset)" @click="onListSelect(sizePreset)">
+          <li :key="sizePreset" @click="onListSelect(sizePreset)">
             {{ sizePreset }}
           </li>
         </template>
       </ul>
     </div>
 
-    <button class="add btn" @click="onAdd" title="Increase font size" :disabled="effectiveDisabled">
+    <button class="add btn" @click="onAdd" title="Increase font size" :disabled="toolbarDisabled">
       <icon icon="add" :lib="iconLib" />
     </button>
   </div>
@@ -39,29 +39,18 @@ export default {
   name: "FontSizeSelector",
   components: { Icon },
   props: {
-    defaultFontSize: {
+    currentFontSize: {
       type: Number,
       default: null,
     },
-    exec: { type: Function },
+    lastInRteSelection: {
+      default: null,
+    },
     iconLib: {
       type: String,
       default: IconLib.MATERIAL_ICONS
     },
-    isRangeInEditor: { type: Function },
-    getDefaultFontSize: {
-      type: Function
-    },
-    isNodeInEditor: {
-      type: Function
-    },
-    getSelection: {
-      type: Function
-    },
-    getEditorSelection: {
-      type: Function
-    },
-    disabled: {
+    toolbarDisabled: {
       type: Boolean,
       default: false
     },
@@ -71,17 +60,13 @@ export default {
       return {
       fontSizeSelections: [ 8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96 ],
       selectionRange: null,
-      inputValue: "",
+      inputValue: this.currentFontSize,
       inlineListenerInterval: null,
-      focused: false,
       presetSelectionActive: false,
     };
   },
 
   computed: {
-    effectiveDisabled() {
-      return this.disabled && !this.focused
-    },
     forInline() {
       if (this.$refs.inputRef.closest('.richtoolbar.on-sub-nav')) {
         return true
@@ -91,103 +76,23 @@ export default {
   },
 
   mounted() {
-    document.addEventListener("selectionchange", this.onSelectionChange);
-    this.syncInputValueFromSelection()
-
-    // this is bad, but it doesn't work with on load/DOMContentLoaded or readystate, the listener just doesn't get triggered for the sub-nav input
-    // because it loads before the iframe.
-    // this is the most reliable thing I could come up with to circumvent this BS
-    document.querySelector("iframe#editview")?.contentDocument.addEventListener("selectionchange", this.onSelectionChange);
-    this.inlineListenerInterval = setInterval(() => {
-      // Must queryselect each time, it seems the iframe rerenders sometimes causing event listeners to be lost
-      document.querySelector("iframe#editview")?.contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
-      document.querySelector("iframe#editview")?.contentDocument.addEventListener("selectionchange", this.onSelectionChange);
-    }, 1000)
   },
   onBeforeUnmount() {
-    document.removeEventListener("selectionchange", this.onSelectionChange);
-    document.querySelector("iframe#editview").contentDocument.removeEventListener("selectionchange", this.onSelectionChange);
-    clearInterval(this.inlineListenerInterval)
+  },
+  watch: {
+    currentFontSize(newValue) {
+      this.inputValue = newValue;
+    }
   },
 
   methods: {
-    getInlineState() {
-      const view = window.$perAdminApp?.getView?.()
-      if (!view) return null
-      view.state = view.state || {}
-      view.state.inline = view.state.inline || {}
-      return view.state.inline
-    },
-
-    getPresetState() {
-      if (!window.__rteFontSizePreset) {
-        window.__rteFontSizePreset = { active: false, value: null }
-      }
-      return window.__rteFontSizePreset
-    },
-
-    setPresetSelectionActive(active, sizePreset = null) {
-      window.__rteFontSizePreset = {
-        active,
-        value: active ? sizePreset : null,
-      }
-      const inlineState = this.getInlineState()
-      if (!inlineState) return
-      inlineState.fontSizePresetActive = active
-      inlineState.fontSizePresetValue = active ? sizePreset : null
-    },
-
-    isPresetSelectionActive() {
-      return !!this.getPresetState()?.active
-    },
-
-    syncInputValueFromSelection(selectionRange = null) {
-      const range = selectionRange || this.getEditorSelection()
-      if (!range || !this.isRangeInEditor(range)) {
-        const defaultFontSize = parseInt(this.getDefaultFontSize())
-        if (defaultFontSize && !isNaN(defaultFontSize)) {
-          this.inputValue = defaultFontSize
-        }
-        return
-      }
-
-      const htmlEl = range.startContainer.closest
-        ? range.startContainer
-        : range.startContainer.parentElement
-
-      if (htmlEl && this.isNodeInEditor(htmlEl)) {
-        const fontSizeParent = htmlEl.closest('[style*="font-size"]')
-        const check = this.isNodeInEditor(fontSizeParent) ? fontSizeParent : htmlEl
-        const inlineFontSize = parseInt(check?.style?.fontSize)
-        if (!isNaN(inlineFontSize) && inlineFontSize > 0) {
-          this.inputValue = inlineFontSize
-          return
-        }
-      }
-
-      if (this.defaultFontSize) this.inputValue = this.defaultFontSize
-    },
-
-    // sets fontsize of input to that of selected text
-    onSelectionChange(event) {
-      // skip if no selection is present or input is being focused
-      const iframeDoc = document.querySelector("iframe#editview")?.contentDocument
-      if (this.isPresetSelectionActive()) return
-      const currSelection = event.currentTarget.getSelection()
-      if (currSelection.rangeCount <= 0) return
-      if (event.currentTarget.isEqualNode(iframeDoc)) clearInterval(this.inlineListenerInterval)
-      if (document.activeElement.isEqualNode(this.$refs.inputRef)) return;
-
-      const currRange = currSelection.getRangeAt(0);
-      this.syncInputValueFromSelection(currRange)
-    },
-
     applyFontSize() {
       if (!this.inputValue) {
         console.warn("tried to set falsy fontsize");
         return;
       }
-      this.exec("updateFontSize", this.inputValue);
+      // this.exec("updateFontSize", this.inputValue);
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: "updateFontSize", value: this.inputValue  } }))
     },
     onAdd() {
       let value = this.inputValue;
@@ -218,47 +123,14 @@ export default {
       if (e.key === "Enter" || e.key === "Tab") {
         this.$refs.inputRef.parentElement.blur();
         this.$refs.inputRef.blur();
+        this.applyFontSize();
       }
     },
 
     onListSelect(sizePreset) {
       this.inputValue = sizePreset;
-      this.$nextTick(() => {
-        this.$refs.inputRef.parentElement.blur();
-        this.$refs.inputRef.blur();
-        this.presetSelectionActive = false
-        this.setPresetSelectionActive(false)
-      });
+      this.applyFontSize();
     },
-
-    onPresetMouseDown(sizePreset) {
-      this.presetSelectionActive = true
-      this.inputValue = sizePreset
-      this.exec("saveSelection");
-      this.setPresetSelectionActive(true, sizePreset)
-    },
-
-    // save/load selection between manual inputs
-    onFocusOut(e) {
-      this.focused = false
-      this.exec("restoreSelection");
-      if (this.selectionRange) {
-        const selection = this.selectionRange.startContainer.ownerDocument.getSelection()
-        selection.removeAllRanges();
-        selection.addRange(this.selectionRange);
-      }
-      this.$nextTick(() => {
-        this.applyFontSize();
-      });
-    },
-    onFocusIn(e) {
-      this.focused = true
-      this.exec("saveSelection");
-      const range = this.getEditorSelection()
-      if (range && this.isRangeInEditor(range)) {
-        this.selectionRange = range;
-      }
-    }
   }
 };
 </script>

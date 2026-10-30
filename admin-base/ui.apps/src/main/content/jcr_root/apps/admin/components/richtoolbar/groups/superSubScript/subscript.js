@@ -6,7 +6,7 @@ export default (vm) => {
     icon: 'A<sub>2</sub>',
     iconLib: IconLib.PLAIN_TEXT,
     cmd: 'subscript',
-    isActive: () => vm.itemIsTag('SUB'),
-    isDisabled: () => !vm.hasEditorSelection
+    isActive: () => vm.rangeMatchesSelector('sub'),
+    isDisabled: () => vm.toolbarDisabled
   }
 }

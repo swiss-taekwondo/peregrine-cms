@@ -7,7 +7,7 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     cmd: 'formatBlock',
     value: 'p',
-    class: () => vm.itemIsTag('P') ? 'active' : null,
-    click: () => vm.exec('formatBlock', 'p')
+    class: () => vm.rangeMatchesSelector('p') ? 'active' : null,
+    click: () => window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'formatBlock', value: '<p>' } }))
   }
 }

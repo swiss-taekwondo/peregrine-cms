@@ -30,9 +30,10 @@
       :show-always-active="false"
       :responsive="false"
       :editorContent="value"
+      :setEditorContent="setValue"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
     />
-    <div class="text-editor inline-edit"
+    <p class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
        v-html="value"
@@ -41,12 +42,10 @@
        @focusin="onFocusIn"
        @focusout="onFocusOut"
        @input="onInput"
-       @click="onSelectionChange"
        @dblclick="onDblClick"
        @keydown="onKeyDown"
-       @mouseup="onSelectionChange"
-       @keyup="onSelectionChange">
-       </div>
+    >
+    </p>
   </div>
 </template>
 
@@ -83,15 +82,15 @@ function resolveHeadingShortcutDigit(event) {
 }
 
 const allowedClasses = [
-	'peregrine-icon',
+  'peregrine-icon',
 ];
 const allowedStyles = [
-	'text-align',
-	'font-size',
-	'width',
-	'height',
-	'vertical-align',
-	'display',
+  'text-align',
+  'font-size',
+  'width',
+  'height',
+  'vertical-align',
+  'display',
 ];
 DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
  if (data.attrName === 'class') {
@@ -135,14 +134,14 @@ DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
   }
 })
 const domPurifyConfig = {
-	ALLOWED_TAGS: [
-		'p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br',
-		'strong', 'em', 'b', 'i', 'u', 'a', 'img',
-		'ul', 'ol', 'li', 'sub', 'sup'
-	],
-	ADD_ATTR: [
-		'target'
-	]
+  ALLOWED_TAGS: [
+    'p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br',
+    'strong', 'em', 'b', 'i', 'u', 'a', 'img',
+    'ul', 'ol', 'li', 'sub', 'sup'
+  ],
+  ADD_ATTR: [
+    'target'
+  ]
 }
 
 export default {
@@ -164,42 +163,12 @@ export default {
   mounted() {
     const view = this.view
     if (view) set(view, '/state/inline/rich', true)
+    document.execCommand('defaultParagraphSeparator', false, 'p')
   },
 
   methods: {
-    formatBlock(tagName) {
-      const normalizedTagName = String(tagName || '').replace(/[<>]/g, '').toUpperCase()
-      if (!/^(P|H[1-6])$/.test(normalizedTagName)) return false
-
-      const selection = document.getSelection()
-      if (!selection || selection.rangeCount === 0) return false
-
-      const range = selection.getRangeAt(0)
-      const selectedElement = range.startContainer.nodeType === Node.TEXT_NODE
-        ? range.startContainer.parentElement
-        : range.startContainer
-      const block = (selectedElement ? selectedElement.closest('p, h1, h2, h3, h4, h5, h6') : null)
-        || (this.$refs.textEditor && this.$refs.textEditor.matches && this.$refs.textEditor.matches('p, h1, h2, h3, h4, h5, h6') ? this.$refs.textEditor : null)
-        || (this.$refs.textEditor ? this.$refs.textEditor.closest('p, h1, h2, h3, h4, h5, h6') : null)
-      if (!block || !this.$refs.textEditor.contains(block)) return false
-      if (block.tagName === normalizedTagName) return true
-
-      const replacement = document.createElement(normalizedTagName)
-      for (const attr of Array.from(block.attributes)) {
-        replacement.setAttribute(attr.name, attr.value)
-      }
-      while (block.firstChild) {
-        replacement.appendChild(block.firstChild)
-      }
-      block.replaceWith(replacement)
-
-      const nextRange = document.createRange()
-      nextRange.selectNodeContents(replacement)
-      selection.removeAllRanges()
-      selection.addRange(nextRange)
-      this.textEditorWriteToModel()
-      this.$nextTick(() => this.pingToolbar())
-      return true
+    setValue(newValue) {
+      this.value = newValue;
     },
     onFocusIn() {
       const view = this.view
@@ -209,38 +178,36 @@ export default {
       set(view, '/state/inline/lastContainer', this.$refs.textEditor)
       set(view, '/state/inline/editorModel', this.model)
       this.editing = true
-      this.syncToolbarSelection()
-      this.pingToolbar()
     },
-    onKeyDown(event) {
-      this.pingToolbar()
-      const key = event.which
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
-      const headingDigit = ctrlOrCmd && event.altKey ? resolveHeadingShortcutDigit(event) : null
 
-      if (headingDigit !== null) {
-        event.preventDefault()
-        const value = headingDigit === 0 ? 'p' : `h${headingDigit}`
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'formatBlock', value } }))
-      } else if (key === Key.B && ctrlOrCmd) {
-        // override and dispatchevent here for more predictable outcomes and avoid contenteditable default keybinds when we have custom functionality.
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'bold' } }))
-      } else if (key === Key.I && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'italic' } }))
-      } else if (key === Key.U && ctrlOrCmd) {
-        event.preventDefault()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'underline' } }))
-      } else if (key === Key.Z && ctrlOrCmd) {
-        event.preventDefault()
-        event.stopPropagation()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'undo' } }))
-      } else if (key === Key.Y && ctrlOrCmd) {
-        event.preventDefault()
-        event.stopPropagation()
-        window.dispatchEvent(new CustomEvent('inline-richtoolbar:cmd', { detail: { cmd: 'redo' } }))
-    }
+    sendRichToolbarCommand(event, cmd, value) {
+      event.preventDefault()
+      window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd, value } }))
+    },
+
+    onKeyDown(event) {
+      const key = event.key;
+      const shift = event.shiftKey
+      const alt = event.altKey
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+
+      if (ctrlOrCmd) {
+        if (key === "a") this.onInlineSelectAll(event)
+        if (key === "b") this.sendRichToolbarCommand(event, "bold")
+        if (key === "i") this.sendRichToolbarCommand(event, "italic")
+        if (key === "u") this.sendRichToolbarCommand(event, "underline")
+        if (key === "z") this.sendRichToolbarCommand(event, "undo")
+        if (key === "y") this.sendRichToolbarCommand(event, "redo")
+      }
+      if (ctrlOrCmd && alt) {
+        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p")
+        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1")
+        if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2")
+        if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3")
+        if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4")
+        if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5")
+        if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6")
+      }
     },
     onFocusOut() {
       const view = this.view
@@ -254,37 +221,8 @@ export default {
       set(view, '/state/inline/doc', null)
       set(view, '/state/inline/editorModel', null)
       this.editing = false
-      this.pingToolbar()
     },
-    onSelectionChange() {
-      this.syncToolbarSelection()
-      this.pingToolbar()
-    },
-    syncToolbarSelection(vm = this) {
-      const toolbar = vm.$refs.richtoolbar
-      const container = vm.$refs.textEditor
-      const selection = document.getSelection()
-      if (!toolbar || !container || !selection || selection.rangeCount <= 0) return
 
-      const range = selection.getRangeAt(0)
-      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return
-
-      const anchor = getAnchorFromSelection(selection)
-      toolbar.selection.doc = vm.doc
-      toolbar.selection.container = container
-      toolbar.selection.buffer = saveSelection(container, vm.doc)
-      toolbar._savedRange = range.cloneRange()
-      toolbar.activeAnchor = anchor
-      toolbar.hasEditorSelection = true
-
-      const view = vm.view
-      if (view) {
-        set(view, '/state/inline/lastAnchor', anchor)
-        set(view, '/state/inline/lastContainer', container)
-        set(view, '/state/inline/lastDoc', vm.doc)
-        set(view, '/state/inline/doc', vm.doc)
-      }
-    },
     onInput(event) {
       let content = event.target.innerHTML;
       const pVnode = this._vnode.children && this._vnode.children.find(c => c.elm === this.$refs.textEditor)
@@ -321,7 +259,6 @@ export default {
         contentEditableContextFixInput.remove()
       }
       this.textEditorWriteToModel()
-      this.pingToolbar()
     },
     onDblClick(event) {
       if (event.target.tagName === 'IMG') {
@@ -333,40 +270,6 @@ export default {
       const pVnode = vm._vnode && vm._vnode.children && vm._vnode.children.find(c => c.elm === vm.$refs.textEditor)
       if (pVnode && pVnode.data && pVnode.data.domProps) pVnode.data.domProps.innerHTML = content
       vm.model.text = content;
-    },
-    pingToolbar() {
-      this.key = this.key === 'foo' ? 'bar' : 'foo'
-      $perAdminApp.action(this, 'pingRichToolbar')
-    },
-    insertLink(vm = this) {
-      vm._saveInlineSelectionState()
-      if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.insertLink()
-    },
-    editLink(vm = this) {
-      vm._saveInlineSelectionState()
-      if (vm.$refs.richtoolbar) vm.$refs.richtoolbar.editLink()
-    },
-    removeLink(vm = this) {
-      const sel = document.getSelection()
-      const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null
-      const el = anchorNode ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode) : null
-      const anchor = el ? el.closest('a') : null
-      if (!anchor) return
-
-      const range = document.createRange()
-      range.selectNodeContents(anchor)
-      sel.removeAllRanges()
-      sel.addRange(range)
-      document.execCommand('unlink', false, null)
-      vm.textEditorWriteToModel()
-    },
-    _saveInlineSelectionState(vm = this) {
-      const view = $perAdminApp.getView()
-      if (!view) return
-      vm.syncToolbarSelection()
-      set(view, '/state/inline/lastContainer', vm.$refs.textEditor)
-      set(view, '/state/inline/lastDoc', vm.doc)
-      set(view, '/state/inline/doc', vm.doc)
     },
   },
 }

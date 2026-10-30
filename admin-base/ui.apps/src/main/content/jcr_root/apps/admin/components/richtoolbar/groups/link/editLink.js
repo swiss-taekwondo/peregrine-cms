@@ -5,7 +5,6 @@ export default (vm) => {
     label: 'edit link',
     icon: 'pencil',
     iconLib: IconLib.FONT_AWESOME,
-    click: () => vm.editLink(),
-    isActive: () => vm.itemIsTag('A')
+    cmd: 'editLink'
   }
 }

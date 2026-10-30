@@ -10,13 +10,9 @@ export default (vm) => {
     searchable: true,
     order: 100,
     priority: 120,
-    isDisabled: () => !vm.hasEditorSelection,
     rules: () => !vm.responsive || !vm.hiddenGroups['icons'],
     items: [
       ...icons(vm)
     ],
-    toggleClick() {
-      if (vm.getInlineDoc()) vm.saveSelection()
-    }
   }
 }

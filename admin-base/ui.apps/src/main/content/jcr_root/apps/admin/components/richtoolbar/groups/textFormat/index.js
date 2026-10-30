@@ -8,9 +8,9 @@ export default (vm) => {
 
   const getActiveItem = () => {
     for (let i = 1; i <= 6; i++) {
-      if (vm.itemIsTag(`H${i}`)) return headlineItems[i - 1]
+      if (vm.rangeMatchesSelector(`h${i}`)) return headlineItems[i - 1]
     }
-    if (vm.itemIsTag('P')) return paragraphItem
+    if (vm.rangeMatchesSelector('p')) return paragraphItem
     return null
   }
 
@@ -29,7 +29,7 @@ export default (vm) => {
     iconLib: IconLib.FONT_AWESOME,
     collapse: true,
     rules: () => !vm.responsive || !vm.hiddenGroups['text-format'],
-    isDisabled: () => !vm.hasEditorSelection,
+    isDisabled: () => vm.toolbarDisabled,
     items: [paragraphItem, ...headlineItems]
   }
 }
