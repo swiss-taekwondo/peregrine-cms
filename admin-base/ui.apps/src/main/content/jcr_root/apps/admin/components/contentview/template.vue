@@ -352,7 +352,7 @@ export default {
       handler(val) {
         if (!this.component) return
         this.wrapEditableAroundSelected()
-        
+
         this.$nextTick(() => {
           this.refreshIframeElements()
         })
@@ -610,33 +610,33 @@ export default {
     },
 
     onInlineKeyDown(event) {
-      const key = event.key;
-      const shift = event.shiftKey
-      const alt = event.altKey
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
+      const key = (event.key || "").toLowerCase();
+      const shift = event.shiftKey;
+      const alt = event.altKey;
+      const ctrlOrCmd = event.ctrlKey || event.metaKey;
 
       if (ctrlOrCmd) {
-        if (key === "a") this.onInlineSelectAll(event)
-        if (key === "b") this.sendRichToolbarCommand(event, "bold")
-        if (key === "i") this.sendRichToolbarCommand(event, "italic")
-        if (key === "u") this.sendRichToolbarCommand(event, "underline")
-        if (key === "z") this.sendRichToolbarCommand(event, "undo")
-        if (key === "y") this.sendRichToolbarCommand(event, "redo")
+        if (key === "a") this.onInlineSelectAll(event);
+        if (key === "b") this.sendRichToolbarCommand(event, "bold");
+        if (key === "i") this.sendRichToolbarCommand(event, "italic");
+        if (key === "u") this.sendRichToolbarCommand(event, "underline");
+        if (key === "z" && !shift) this.sendRichToolbarCommand(event, "undo");
+        if (key === "y" || (key === "z" && shift)) this.sendRichToolbarCommand(event, "redo");
       }
       if (ctrlOrCmd && alt) {
-        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p")
-        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1")
-        if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2")
-        if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3")
-        if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4")
-        if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5")
-        if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6")
+        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p");
+        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1");
+        if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2");
+        if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3");
+        if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4");
+        if (key === "5") this.sendRichToolbarCommand(event, "formatBlock", "h5");
+        if (key === "6") this.sendRichToolbarCommand(event, "formatBlock", "h6");
       }
-      if (key === "Enter") {
+      if (key === "enter") {
         this.suppressCaretPreservation = true;
-        setTimeout(() => {
+        this.$nextTick(() => {
           this.suppressCaretPreservation = false;
-        })
+        });
       }
     },
 
@@ -745,7 +745,7 @@ export default {
       //     caret-animation: manual;
       //     animation: caret-block 2s step-end infinite;
       //   }
-      //   
+      //
       //   @keyframes caret-block {
       //      0% { caret-color: #00d2ff; }
       //     50% { caret-color: #ffa6b9; }

@@ -275,33 +275,94 @@ export function createButtonCommandMethods() {
     undo() {
       if (!this.performingUndoRedo && this.undoStack.length) {
         this.performingUndoRedo = true;
-        this.redoStack.push(this.editorContent);
-        const content = this.undoStack.pop();
-        if (!content) {
-          return console.warn("Failed to undo, no content");
+
+        this.redoStack.push({
+          content: this.editorContent,
+          selection: this.lastInRteSelectionRelativeToRte ? { ...this.lastInRteSelectionRelativeToRte } : null
+        });
+
+        let popped = this.undoStack.pop();
+
+        while (this.undoStack.length > 0) {
+          const currentContent = typeof popped === 'string' ? popped : popped.content;
+          const peek = this.undoStack[this.undoStack.length - 1];
+          const peekContent = typeof peek === 'string' ? peek : peek.content;
+
+          // Only group single-character changes
+          if (Math.abs(currentContent.length - peekContent.length) !== 1) break;
+
+          // Find the exact character that changed
+          let i = 0;
+          const len = Math.min(currentContent.length, peekContent.length);
+          while (i < len && currentContent[i] === peekContent[i]) i++;
+
+          const longerStr = currentContent.length > peekContent.length ? currentContent : peekContent;
+          const diffChar = longerStr[i];
+
+          // Stop grouping if it's a space, punctuation, or HTML tag bracket
+          if (/[\s.,!?;<>]/.test(diffChar)) break;
+
+          popped = this.undoStack.pop();
         }
-        this.setEditorContent(content);
+
+        const finalContent = typeof popped === 'string' ? popped : popped.content;
+        const finalSelection = typeof popped === 'string' ? null : popped.selection;
+
+        this.setEditorContent(finalContent);
         this.$nextTick(() => {
           this.performingUndoRedo = false;
           $perAdminApp.action(this, "textEditorWriteToModel");
-        });
 
-        return;
+          if (finalSelection) {
+            this.lastInRteSelectionRelativeToRte = finalSelection;
+            this.$nextTick(() => this.reconstructSelectionRelativeToRte());
+          }
+        });
       }
     },
 
     redo() {
       if (!this.performingUndoRedo && this.redoStack.length) {
         this.performingUndoRedo = true;
-        this.undoStack.push(this.editorContent);
-        const content = this.redoStack.pop();
-        if (!content) {
-          return console.warn("Failed to redo, no content");
+
+        this.undoStack.push({
+          content: this.editorContent,
+          selection: this.lastInRteSelectionRelativeToRte ? { ...this.lastInRteSelectionRelativeToRte } : null
+        });
+
+        let popped = this.redoStack.pop();
+
+        while (this.redoStack.length > 0) {
+          const currentContent = typeof popped === 'string' ? popped : popped.content;
+          const peek = this.redoStack[this.redoStack.length - 1];
+          const peekContent = typeof peek === 'string' ? peek : peek.content;
+
+          if (Math.abs(currentContent.length - peekContent.length) !== 1) break;
+
+          let i = 0;
+          const len = Math.min(currentContent.length, peekContent.length);
+          while (i < len && currentContent[i] === peekContent[i]) i++;
+
+          const longerStr = currentContent.length > peekContent.length ? currentContent : peekContent;
+          const diffChar = longerStr[i];
+
+          if (/[\s.,!?;<>]/.test(diffChar)) break;
+
+          popped = this.redoStack.pop();
         }
-        this.setEditorContent(content);
+
+        const finalContent = typeof popped === 'string' ? popped : popped.content;
+        const finalSelection = typeof popped === 'string' ? null : popped.selection;
+
+        this.setEditorContent(finalContent);
         this.$nextTick(() => {
           this.performingUndoRedo = false;
           $perAdminApp.action(this, "textEditorWriteToModel");
+
+          if (finalSelection) {
+            this.lastInRteSelectionRelativeToRte = finalSelection;
+            this.$nextTick(() => this.reconstructSelectionRelativeToRte());
+          }
         });
       }
     },

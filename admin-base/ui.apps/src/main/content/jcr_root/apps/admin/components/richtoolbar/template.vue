@@ -133,7 +133,7 @@ export default {
 //       historyStack: [],
 //       historyIndex: -1,
 //       isUndoing: false,
-// 
+//
 //       sharedHistoryIndex: -1,
 //       sharedHistoryLength: 0,
 
@@ -154,6 +154,7 @@ export default {
       redoStack: [],
       redoStackLength: 0,
       performingUndoRedo: false,
+      historyLimit: 500
     }
   },
 
@@ -220,8 +221,8 @@ export default {
     roots() {
       return $perAdminApp.getNodeFromViewOrNull('/state/tenant/roots')
     },
-    
-    
+
+
   },
 
   mounted() {
@@ -235,7 +236,11 @@ export default {
       window.addEventListener('richtoolbar:cmd', this.rteCommandHandler)
       this.$watch('editorContent', (newValue, oldValue) => {
         if (!this.performingUndoRedo) {
-          this.undoStack.push(oldValue)
+          this.undoStack.push({
+            content: oldValue,
+            selection: this.lastInRteSelectionRelativeToRte ? { ...this.lastInRteSelectionRelativeToRte } : null
+          })
+          if (this.undoStack.length > this.historyLimit) this.undoStack.shift(); // Prevent memory leaks
           this.redoStack = [];
         }
         this.updateUndoRedoStackLengths()

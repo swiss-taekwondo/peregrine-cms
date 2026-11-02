@@ -113,7 +113,6 @@ export function createPathbrowserCommandMethods() {
       }
       this.browser.path.current = startPath;
       this.startBrowsing(startPath);
-      this.startBrowsing(startPath);
     },
 
     onLinkSelect() {

@@ -984,7 +984,7 @@
   }
 }
 
-p.text-editor[readonly="readonly"],
+.text-editor[readonly="readonly"],
 input:read-only:not([type="range"]):not([type="color"]),
 input:disabled:not([type="range"]):not([type="color"]) {
     opacity: 0.5 !important;

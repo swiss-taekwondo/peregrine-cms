@@ -33,10 +33,9 @@
       :setEditorContent="setValue"
       @ping="key = key === 'foo'? 'bar' : 'foo'"
     />
-    <p class="text-editor inline-edit"
+    <div class="text-editor inline-edit"
        :class="['text-editor', 'inline-edit', {'inline-editing': editing}]"
        ref="textEditor"
-       v-html="value"
        :contenteditable="!(schema && schema.readonly)"
        :readonly="(schema && schema.readonly)"
        @focusin="onFocusIn"
@@ -45,7 +44,7 @@
        @dblclick="onDblClick"
        @keydown="onKeyDown"
     >
-    </p>
+    </div>
   </div>
 </template>
 
@@ -164,6 +163,19 @@ export default {
     const view = this.view
     if (view) set(view, '/state/inline/rich', true)
     document.execCommand('defaultParagraphSeparator', false, 'p')
+    this.$refs.textEditor.innerHTML = this.value || ''
+  },
+
+  watch: {
+    value(newValue) {
+      if (this.$refs.textEditor) {
+        // This alone prevents the caret jump during normal typing,
+        // but allows Undo/Redo to successfully update the DOM.
+        if (this.$refs.textEditor.innerHTML !== newValue) {
+          this.$refs.textEditor.innerHTML = newValue || '';
+        }
+      }
+    }
   },
 
   methods: {
@@ -185,23 +197,33 @@ export default {
       window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd, value } }))
     },
 
+    onInlineSelectAll(event) {
+      event.preventDefault()
+      const selection = document.getSelection()
+      const range = document.createRange()
+      range.selectNodeContents(event.target)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    },
+
     onKeyDown(event) {
-      const key = event.key;
-      const shift = event.shiftKey
-      const alt = event.altKey
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
+      const key = (event.key || "").toLowerCase();
+      const shift = event.shiftKey;
+      const alt = event.altKey;
+      const ctrlOrCmd = event.ctrlKey || event.metaKey;
 
       if (ctrlOrCmd) {
-        if (key === "a") this.onInlineSelectAll(event)
-        if (key === "b") this.sendRichToolbarCommand(event, "bold")
-        if (key === "i") this.sendRichToolbarCommand(event, "italic")
-        if (key === "u") this.sendRichToolbarCommand(event, "underline")
-        if (key === "z") this.sendRichToolbarCommand(event, "undo")
-        if (key === "y") this.sendRichToolbarCommand(event, "redo")
+        if (key === "a") this.onInlineSelectAll(event);
+        if (key === "b") this.sendRichToolbarCommand(event, "bold");
+        if (key === "i") this.sendRichToolbarCommand(event, "italic");
+        if (key === "u") this.sendRichToolbarCommand(event, "underline");
+        if (key === "z" && !shift) this.sendRichToolbarCommand(event, "undo");
+        if (key === "y" || (key === "z" && shift)) this.sendRichToolbarCommand(event, "redo");
       }
+
       if (ctrlOrCmd && alt) {
-        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p")
-        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1")
+        if (key === "0") this.sendRichToolbarCommand(event, "formatBlock", "p");
+        if (key === "1") this.sendRichToolbarCommand(event, "formatBlock", "h1");
         if (key === "2") this.sendRichToolbarCommand(event, "formatBlock", "h2")
         if (key === "3") this.sendRichToolbarCommand(event, "formatBlock", "h3")
         if (key === "4") this.sendRichToolbarCommand(event, "formatBlock", "h4")
