@@ -5,7 +5,6 @@ export default (vm) => {
     label: 'remove link',
     icon: 'chain-broken',
     iconLib: IconLib.FONT_AWESOME,
-    click: () => vm.removeLink(),
-    isActive: () => vm.itemIsTag('A')
+    cmd: 'removeLink',
   }
 }

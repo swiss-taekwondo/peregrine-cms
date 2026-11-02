@@ -31,7 +31,7 @@ export default (vm) => {
       icon: img,
       iconLib: IconLib.PLAIN_TEXT,
       click: () => {
-        vm.insertIcon(child.path);
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd: 'insertIcon', value: child.path } }))
       },
     });
   });
