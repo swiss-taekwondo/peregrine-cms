@@ -95,7 +95,7 @@ export default {
 
       // Filter list to local components and with local filter
       return sorted.filter(component => {
-        if (component.group === '.hidden') return false
+        if (component.group?.toLowerCase() === 'hidden' || component.group?.toLowerCase() === '.hidden') return false
         if ((currentGroup && currentGroup !== '') && component.group !== currentGroup) return false
         if (component?.title?.toLowerCase()?.indexOf(this?.state?.filter?.toLowerCase())
             == -1) {
@@ -114,7 +114,7 @@ export default {
 
       // Filter list to local components
       const ret = list.filter(component => {
-        if (component.group === '.hidden') return false
+        if (component.group?.toLowerCase() === 'hidden' || component.group?.toLowerCase() === '.hidden') return false
         return component.path.startsWith(allowedComponents)
 
       })
