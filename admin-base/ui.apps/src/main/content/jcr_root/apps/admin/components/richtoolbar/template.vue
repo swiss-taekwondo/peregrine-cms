@@ -385,9 +385,10 @@ export default {
         this[event.detail.cmd](event.detail.value)
       } else if (this?.[event.detail.cmd]) {
         this[event.detail.cmd](event.detail.value)
-      } else {
-        const selectionOwnerDoc = this.lastInRteSelection.commonAncestorContainer.ownerDocument
-        selectionOwnerDoc.execCommand(event.detail.cmd, event.detail.showUi || null, event.detail.value || null)
+      } else if (this.lastInRteSelection) {
+        // Safeguard native execution against null text selections
+        const selectionOwnerDoc = this.lastInRteSelection.commonAncestorContainer.ownerDocument;
+        selectionOwnerDoc.execCommand(event.detail.cmd, event.detail.showUi || null, event.detail.value || null);
       }
     },
 
@@ -408,8 +409,15 @@ export default {
     },
 
     exec(cmd, value = null) {
-      console.warn('exec sill used:', cmd, value)
-      return
+      // Handle app-level commands locally on the toolbar instance
+      if (cmd === 'preview') {
+        this.togglePreview();
+      } else if (cmd === 'previewInNewTab') {
+        this.previewInNewTab();
+      } else {
+        // Broadcast formatting commands for the active text editor to catch
+        window.dispatchEvent(new CustomEvent('richtoolbar:cmd', { detail: { cmd, value } }));
+      }
     },
 
     async getDefaultMediaText(path = '') {

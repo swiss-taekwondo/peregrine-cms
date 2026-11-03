@@ -155,15 +155,13 @@ export function createButtonCommandMethods() {
 
     // subnav
     togglePreview() {
-      const view = $perAdminApp.getView();
-      const current = get(view, "/state/tools/workspace/preview", null);
+      const current = $perAdminApp.getNodeFromViewOrNull("/state/tools/workspace/preview");
       $perAdminApp.stateAction("editPreview", current ? null : "preview");
     },
 
     // subnav
     previewInNewTab() {
-      const view = $perAdminApp.getView();
-      const page = get(view, "/pageView/path", null);
+      const page = $perAdminApp.getNodeFromViewOrNull("/pageView/path");
       window.open(page + ".html", "viewer");
     },
 

@@ -118,13 +118,12 @@ function renderBtn(
           if (inDropdown) e.stopPropagation();
           if (isDisabled) return;
           if (closeDropdown) closeDropdown();
-          // All buttons just dispatch a custom event to command the sidebar toolbar to execute the command. To avoid any behaviour differences between subnav / sidebar toolbars.
-          // Custom click handlers should follow this as well!
-          if (btn.click) btn.click();
-          else
-            window.dispatchEvent(
-              new CustomEvent("richtoolbar:cmd", { detail: { cmd: btn.cmd } }),
-            );
+          // Route all standard commands through the exec handler
+          if (btn.click) {
+            btn.click();
+          } else {
+            vm.exec(btn.cmd);
+          }
         },
       },
     },
