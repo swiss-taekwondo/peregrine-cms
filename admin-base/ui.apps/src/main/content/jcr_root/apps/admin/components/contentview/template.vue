@@ -240,8 +240,7 @@ export default {
       }
     },
     targetInline() {
-      return this.target.getAttribute(Attribute.INLINE)
-          || this.target.querySelector(`[${Attribute.INLINE}]`).getAttribute(Attribute.INLINE)
+      return this.getInlinePath(this.target)
     },
     view() {
       return $perAdminApp.getView()
@@ -424,6 +423,8 @@ export default {
     window.addEventListener('per:component-deleted', this._onComponentDeleted)
   },
   beforeDestroy() {
+    this.dynWatchers.forEach((watcher) => watcher.unwatch());
+    this.dynWatchers = [];
     set($perAdminApp.getView(), '/state/contentview/editor/active', false)
     window.removeEventListener('keydown', this.onUndoKeyDown)
     window.removeEventListener('per:component-deleted', this._onComponentDeleted)
@@ -497,6 +498,7 @@ export default {
     },
 
     updateSelectedComponent() {
+      const selectedTarget = this.target;
       if (this.iframe.doc.activeElement) {
         this.iframe.doc.activeElement.blur()
       }
@@ -504,10 +506,17 @@ export default {
         watcher.unwatch()
       })
       $perAdminApp.action(this, 'showComponentEdit', this.path).then(() => {
+        if (this.target !== selectedTarget) return;
         this.flushInlineState()
         return this.$nextTick()
       }).then(() => {
-        focusElement(this.target, this.iframe.win)
+        if (this.target !== selectedTarget || !selectedTarget || !selectedTarget.isConnected) return
+        const win = this.iframe && this.iframe.win;
+        const selection = win && win.getSelection ? win.getSelection() : null;
+        if (selection && selection.rangeCount > 0 &&
+          selectedTarget.contains(selection.anchorNode) &&
+          selectedTarget.contains(selection.focusNode)) return;
+        if (win) focusElement(selectedTarget, win);
       })
     },
 
@@ -550,20 +559,31 @@ export default {
     },
 
     writeInlineToModel(vm = this) {
+      if (!vm.target) return;
       let content = ''
       if (vm.isRich) {
         content = vm.target.innerHTML
       } else {
         content = vm.target.innerText
       }
-      const dataInline = vm.targetInline.split('.').slice(1)
-      dataInline.reverse()
-      let parentProp = vm.node
+      const inlinePath = vm.getInlinePath(vm.target);
+      if (!inlinePath) return;
+      const dataInline = inlinePath.split('.').slice(1);
+      dataInline.reverse();
+      const componentEl = vm.findComponentEl(vm.target);
+      const componentPath = componentEl && componentEl.getAttribute(Attribute.PATH);
+      const parentProp = componentPath ? $perAdminApp.findNodeFromPath(vm.view.pageView.page, componentPath) : null;
+      if (!parentProp) return;
+      let targetProp = parentProp;
       while (dataInline.length > 1) {
-        parentProp = parentProp[dataInline.pop()]
-      }
-      const keyStr = dataInline.pop()
-      parentProp[keyStr] = content;
+        const nextKey = dataInline.pop();
+        if (!targetProp[nextKey] || typeof targetProp[nextKey] !== 'object') {
+          vm.$set(targetProp, nextKey, {});
+        };
+        targetProp = targetProp[nextKey];
+      };
+      const keyStr = dataInline.pop();
+      if (keyStr && targetProp) vm.$set(targetProp, keyStr, content);
     },
 
     onInlineEdit(event) {
@@ -578,6 +598,8 @@ export default {
       if (!this.isRich || !this.suppressCaretPreservation) this.inlineEdit.selection = saveSelection(event.target, this.iframe.doc)
 
       this.target = event.target
+      const inlinePath = this.getInlinePath(event.target);
+      if (!inlinePath) return;
       const eventPath = event.path || (event.composedPath && event.composedPath())
 
       if (!eventPath) {
@@ -699,8 +721,17 @@ export default {
       set(this.view, '/state/inline/lastContainer', event.target)
       set(this.view, '/state/inline/lastDoc', this.iframe.doc)
       set(this.view, '/state/inline/doc', null)
-      const modelPropName = this.getCurrentModelPropName()
-      const unwatch = this.$watch(`node.${modelPropName}`, (val) => {
+      const inlinePath = this.getInlinePath(event.target);
+      const dataPath = inlinePath ? inlinePath.split('.').slice(1) : [];
+      const modelPropName = dataPath.join('.');
+      const componentPath = this.findComponentEl(event.target)?.getAttribute(Attribute.PATH);
+      const targetNode = componentPath ? $perAdminApp.findNodeFromPath(this.view.pageView.page, componentPath) : null;
+      if (!targetNode || !modelPropName) return;
+      const unwatch = this.$watch(() => {
+        let value = targetNode;
+        for (const key of dataPath) value = value && value[key];
+        return value;
+      }, (val) => {
         if (![undefined, null].includes(val)) {
           event.target.innerHTML = val
         }
@@ -1047,7 +1078,16 @@ export default {
     },
 
     getCurrentModelPropName(vm = this) {
-      return vm.targetInline.split('.').slice(1).join('.')
+      const inlinePath = vm.getInlinePath(vm.target);
+      return inlinePath ? inlinePath.split('.').slice(1).join('.') : '';
+    },
+
+    getInlinePath(element) {
+      if (!element) return null;
+      const ownPath = element.getAttribute(Attribute.INLINE);
+      if (ownPath) return ownPath;
+      const child = element.querySelector(`[${Attribute.INLINE}]`);
+      return child ? child.getAttribute(Attribute.INLINE) : null;
     },
 
     isContentEditableOrNested(el) {

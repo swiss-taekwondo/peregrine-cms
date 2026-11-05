@@ -116,7 +116,14 @@ export default function(me, target) {
 
     let view = me.getView()
     set(me.getView(), `/state/tools/edit`, false)
-    me.getApi().populateObject(target.selected, '/state/tools/object', 'data').then( () => {
+    const tenant = view.state && view.state.tenant
+    const icons = tenant && tenant.name && !Array.isArray(view.admin && view.admin.icons)
+        ? me.getApi().populateIcons(tenant)
+        : Promise.resolve()
+    Promise.all([
+        me.getApi().populateObject(target.selected, '/state/tools/object', 'data'),
+        icons
+    ]).then( () => {
         const loadedData = me.getNodeFromView('/state/tools/object/data')
         checksum = JSON.stringify(loadedData)
         originalData = deepClone(loadedData)
