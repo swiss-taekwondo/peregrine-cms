@@ -24,7 +24,7 @@
  */
 
 import {LoggerFactory} from './logger'
-import {objectToFormData, stripNulls, pagePathToDataPath} from './utils'
+import {objectToFormData, stripNulls, pagePathToDataPath, set} from './utils'
 import {Field, Toast} from './constants'
 import Notifier from './utils/notifier'
 import {dataFields} from './utils/dialogFields'
@@ -38,6 +38,7 @@ const postConfig = {
 
 let callbacks
 let translationModel = null
+const tenantIconsRequests = new Map()
 
 function blob(content) {
   return new Blob([ content ], {type: 'application/json; charset=utf-8'})
@@ -1914,16 +1915,28 @@ class PerAdminImpl {
   }
 
   populateIcons(tenant) {
-    return fetch(`/admin/nodes.json/content/${tenant.name}/assets/icons`)
+    if (tenantIconsRequests.has(tenant.name)) return tenantIconsRequests.get(tenant.name);
+    const request = fetch(`/admin/nodes.json/content/${tenant.name}/assets/icons`)
         .then((data) => {
           const iconsNode = $perAdminApp.findNodeFromPath(data,
               `/content/${tenant.name}/assets/icons`)
-          const icons = iconsNode.children
-          Vue.set($perAdminApp.getView().admin, 'icons', icons)
+          const icons = iconsNode ? iconsNode.children : [];
+          const view = $perAdminApp.getView();
+          if (view) set(view, '/admin/icons', icons);
           logger.debug(`populated icons for tenant ${tenant.name}:`, icons)
         }).catch((err) => {
-          logger.warn(`tenant ${tenant.name} does not have any icons`)
-        })
+          logger.warn(`tenant ${tenant.name} does not have any icons`, err);
+          const view = $perAdminApp.getView();
+          if (view) set(view, '/admin/icons', []);
+        });
+    tenantIconsRequests.set(tenant.name, request);
+    const clearRequest = () => {
+      if (tenantIconsRequests.get(tenant.name) === request) {
+        tenantIconsRequests.delete(tenant.name);
+      };
+    }
+    request.then(clearRequest, clearRequest);
+    return request;
   }
 
   tenantSetupReplication(path, withSite) {
