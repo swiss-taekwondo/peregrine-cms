@@ -97,7 +97,7 @@
 </template>
 
 <script>
-import {set, jsonEqualizer} from '../../../../../../js/utils'
+import {set} from '../../../../../../js/utils'
 
 
 export default {
@@ -192,9 +192,21 @@ export default {
             })
           },
           no: () => {
-            $perAdminApp.getApi().populatePageView(view.pageView.path).then(() => {
-              this.openEditor(target).then(resolve)
-            })
+            const restored = JSON.parse(JSON.stringify(originalData));
+            const app = $perAdminApp.getApp();
+            Object.keys(currentNode).forEach((key) => {
+              if (key !== 'children' && !Object.prototype.hasOwnProperty.call(restored, key)) {
+                if (app && app.$delete) app.$delete(currentNode, key);
+                else delete currentNode[key];
+              };
+            });
+            Object.keys(restored).forEach((key) => {
+              if (key === 'children') return;
+              const value = JSON.parse(JSON.stringify(restored[key]));
+              if (app && app.$set) app.$set(currentNode, key, value);
+              else currentNode[key] = value;
+            });
+            this.openEditor(target).then(resolve);
           },
           keepEditing: () => {
             if (contentview && savedPreviousTarget) {
