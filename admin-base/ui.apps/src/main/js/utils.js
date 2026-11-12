@@ -537,3 +537,26 @@ export function isMac() {
 export function isImagePath(path = "") {
   return (/\.(jpg|jpeg|png|gif|svg|webp|avif)$/i).test(String(path || ""));
 }
+
+// Encode raw repository paths
+export function encodeAssetPath(path = '') {
+  return String(path || '').split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
+export function normalizeBrowserPath(path) {
+  return String(path || '').split('#')[0].replace(/\.html$/, '');
+}
+
+// Keep preview proportions while limiting raster images to the grid's maximum width.
+export function assetPreviewPath(item) {
+  if (!item || !item.path) return '';
+  const original = encodeAssetPath(item.path);
+  if (item.resourceType !== 'per:Asset' || !/\.(jpe?g|png|webp|avif)$/i.test(item.path)) return original;
+  return original + '.rendition.json/assetbrowser.preview.png';
+}
+
+export function fallbackAssetPreview(event, item) {
+  if (!item || !item.path || !event || !event.target) return;
+  const original = encodeAssetPath(item.path);
+  if (event.target.getAttribute('src') !== original) event.target.setAttribute('src', original);
+}
