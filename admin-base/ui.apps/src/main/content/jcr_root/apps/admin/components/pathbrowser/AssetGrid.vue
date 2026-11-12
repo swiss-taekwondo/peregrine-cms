@@ -27,7 +27,7 @@
     <div
         v-for="(item, index) in items"
         :data-browser-path="item.path"
-        :title="searchQuery ? item.path : ''"
+        :title="item.path"
         :class="['asset-grid-item', { selected: isSelected(item.path) }]"
         :style="`width: ${size}px`"
         :key="item.path">
@@ -70,12 +70,12 @@
             v-if="isImagePath(item.path)"
             class="asset-card-name"
             :style="`width: ${size}px`"
-            :title="searchQuery ? item.path : item.name"
+            :title="item.path"
             v-on:click.stop.prevent="selectFile(item)">{{ item.name }}</div>
         <div
             v-else
             class="item-file"
-            :title="searchQuery ? item.path : item.name"
+            :title="item.path"
             v-bind:style="`width: ${size}px; height: ${size}px`"
             v-on:click.stop.prevent="selectFile(item)">
           <div class="item-content">
@@ -140,7 +140,9 @@ export default {
     assetPreviewPath,
     fallbackAssetPreview,
     onImageLoad(event) {
-      if (event.target.tagName === 'IMG') this.layout(null, false)
+      if (event.target.tagName === 'IMG') {
+        this.layout(() => this.$emit('layout'), false)
+      }
     },
     isSelected(path) {
       return normalizeBrowserPath(path) === normalizeBrowserPath(this.selectedPath)

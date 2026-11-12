@@ -110,6 +110,7 @@
                   <template v-for="(item, index) in visibleList">
                     <li v-if="isFolder(item)"
                         :key="item.path"
+                        :title="item.path"
                         :data-browser-path="item.path"
                         v-on:click.stop.prevent="isBrowserTypePage && isSelectable(item) ? selectItem(item) : navigateFolder(item)"
                         :class="isSelected(item.path) ? 'selected' : ''">
@@ -130,6 +131,7 @@
                     </li>
                     <li v-if="isFile(item)"
                         :key="item.path"
+                        :title="item.path"
                         :data-browser-path="item.path"
                         v-on:click.stop.prevent="selectItem(item)"
                         :class="isSelected(item.path) ? 'selected' : ''">
@@ -174,7 +176,8 @@
                       :get-folder-icon="getFolderIcon"
                       :get-file-icon="getFileIcon"
                       @navigate="navigateFolder"
-                      @select="selectItem"/>
+                      @select="selectItem"
+                      @layout="scrollToSelectedItem"/>
                 <p v-if="!visibleList.length" class="flow-text">{{ getEmptyText() }}</p>
               </template>
               <template v-if="withLinkTab && tab === 'link'">
