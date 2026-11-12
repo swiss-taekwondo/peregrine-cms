@@ -3,7 +3,7 @@
   #%L
   admin base - UI Apps
   %%
-  Copyright (C) 2017 headwire inc.
+  Copyright (C) 2026 headwire inc.
   %%
   Licensed to the Apache Software Foundation (ASF) under one
   or more contributor license agreements.  See the NOTICE file
@@ -24,8 +24,8 @@
   #L%
   -->
 
-<jcr:root xmlns:jcr="http://www.jcp.org/jcr/1.0" xmlns:nt="http://www.jcp.org/jcr/nt/1.0" xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
-          jcr:primaryType="per:Component"
-          jcr:title="page browser"
-          jcr:description=""
+<jcr:root xmlns:jcr="http://www.jcp.org/jcr/1.0" xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
+          jcr:primaryType="sling:OsgiConfig"
+          setupName="assetbrowser.preview.png"
+          imageTransformationConfigurations="[transformation=vips:thumbnail|width=400|height=-1|noCrop=true]"
 />
