@@ -65,7 +65,7 @@
                         </div>
                     </div>
                     <div class="switch">
-                    <label v-if="model.showFilter === 'true'" class="filter-toggle">
+                    <label v-if="showFilterEnabled" class="filter-toggle">
                         <input type="checkbox" v-model="filter">
                         <span class="lever"></span>
                         <span>filter secondary items</span>
@@ -326,6 +326,10 @@ export default {
         },
 
         computed: {
+            showFilterEnabled() {
+                const value = this.model && this.model.showFilter
+                return value === true || value === 'true'
+            },
             showNavigateToParent() {
                 return this.path.split('/').length > 4
             },
@@ -688,7 +692,12 @@ export default {
           },
 
             checkIfAllowed: function(node) {
-                if(this.model.showFilter && this.model.showFilter === 'true' && this.filter) {
+                if(this.showFilterEnabled && this.filter) {
+                    const filterFoldersByPublication = ['/state/tools/assets', '/state/tools/objects'].indexOf(this.model.dataFrom) >= 0
+                    const isFolder = ['sling:Folder', 'sling:OrderedFolder'].indexOf(node.resourceType) >= 0
+                    if (filterFoldersByPublication && isFolder) {
+                        return node.anyDescendantActivated === true || node.anyDescendantActivated === 'true'
+                    }
                     if(node.excludeFromSitemap && node.excludeFromSitemap === 'true') return false
                     return ['per:Page', 'per:Asset', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0
                 }
