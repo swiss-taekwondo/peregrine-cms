@@ -547,16 +547,8 @@ export function normalizeBrowserPath(path) {
   return String(path || '').split('#')[0].replace(/\.html$/, '');
 }
 
-// Keep preview proportions while limiting raster images to the grid's maximum width.
+// Use the original asset source; thumbnail renditions are not generated on author.
 export function assetPreviewPath(item) {
-  if (!item || !item.path) return '';
-  const original = encodeAssetPath(item.path);
-  if (item.resourceType !== 'per:Asset' || !/\.(jpe?g|png|webp|avif)$/i.test(item.path)) return original;
-  return original + '.rendition.json/assetbrowser.preview.png';
+  return item && item.path ? encodeAssetPath(item.path) : '';
 }
 
-export function fallbackAssetPreview(event, item) {
-  if (!item || !item.path || !event || !event.target) return;
-  const original = encodeAssetPath(item.path);
-  if (event.target.getAttribute('src') !== original) event.target.setAttribute('src', original);
-}

@@ -113,7 +113,7 @@
                         :title="item.path"
                         :data-browser-path="item.path"
                         v-on:click.stop.prevent="isBrowserTypePage && isSelectable(item) ? selectItem(item) : navigateFolder(item)"
-                        :class="isSelected(item.path) ? 'selected' : ''">
+                        :class="{ selected: isSelected(item.path), 'contains-selection': isSelectedParent(item.path) }">
                       <template v-if="isSelectable(item)">
                         <input :name="`${instanceId}-selected`"
                                :id="`${instanceId}-browse-${index}`"
@@ -149,7 +149,6 @@
                           v-if="isImagePath(item.path)"
                           class="browse-thumbnail"
                           :src="assetPreviewPath(item)"
-                          @error="fallbackAssetPreview($event, item)"
                           loading="lazy"
                           :alt="item.alt || item.name"/>
                       <icon v-else v-bind="getFileIcon(item)"/>
@@ -267,7 +266,7 @@
                   <admin-components-iconopenfolder></admin-components-iconopenfolder>
                 </div>
                 <template v-else>
-                  <img v-if="isImagePath(preview.path)" class="preview-image" :src="assetPreviewPath(preview)" @error="fallbackAssetPreview($event, preview)" :alt="preview.alt || preview.name"/>
+                  <img v-if="isImagePath(preview.path)" class="preview-image" :src="assetPreviewPath(preview)" :alt="preview.alt || preview.name"/>
                   <icon v-else v-bind="getFileIcon(preview)"/>
                 </template>
                 <dl class="preview-data">
@@ -331,7 +330,7 @@
 <script>
 import { IconLib, PathBrowser } from '../../../../../../js/constants'
 
-import {isImagePath, encodeAssetPath, normalizeBrowserPath, assetPreviewPath, fallbackAssetPreview} from '../../../../../../js/utils'
+import {isImagePath, encodeAssetPath, normalizeBrowserPath, assetPreviewPath} from '../../../../../../js/utils'
 import FileDropper from '../filedropper/template.vue'
 import Icon from '../icon/template.vue'
 import AssetGrid from './AssetGrid.vue'
@@ -538,7 +537,6 @@ export default {
     isImagePath,
     encodeAssetPath,
     assetPreviewPath,
-    fallbackAssetPreview,
     getFileExt(item) {
       return item.name.split('.').pop()
     },
@@ -640,6 +638,11 @@ export default {
     },
     isSelected(path) {
       return this.selectedNodePath === normalizeBrowserPath(path)
+    },
+    isSelectedParent(path) {
+      const folderPath = normalizeBrowserPath(path).replace(/\/+$/, '')
+      const selectedPath = this.selectedNodePath.replace(/\/+$/, '')
+      return Boolean(folderPath && selectedPath.startsWith(folderPath + '/'))
     },
     navigateFolder(item) {
       if (!item || !item.path) return

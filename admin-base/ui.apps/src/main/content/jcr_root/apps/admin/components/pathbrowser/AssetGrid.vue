@@ -28,7 +28,7 @@
         v-for="(item, index) in items"
         :data-browser-path="item.path"
         :title="item.path"
-        :class="['asset-grid-item', { selected: isSelected(item.path) }]"
+        :class="['asset-grid-item', { selected: isSelected(item.path), 'contains-selection': isSelectedParent(item.path) }]"
         :style="`width: ${size}px`"
         :key="item.path">
       <div
@@ -63,7 +63,6 @@
             class="item-image"
             v-bind:style="`width: ${size}px`"
             v-bind:src="assetPreviewPath(item)"
-                          @error="fallbackAssetPreview($event, item)"
             :alt="item.alt || item.name"
             v-on:click.stop.prevent="selectFile(item)"/>
         <div
@@ -91,7 +90,7 @@
 </template>
 
 <script>
-import { isImagePath, encodeAssetPath, normalizeBrowserPath, assetPreviewPath, fallbackAssetPreview } from '../../../../../../js/utils'
+import { isImagePath, encodeAssetPath, normalizeBrowserPath, assetPreviewPath } from '../../../../../../js/utils'
 import Icon from '../icon/template.vue'
 import Isotope from 'isotope-layout'
 
@@ -138,7 +137,6 @@ export default {
     isImagePath,
     encodeAssetPath,
     assetPreviewPath,
-    fallbackAssetPreview,
     onImageLoad(event) {
       if (event.target.tagName === 'IMG') {
         this.layout(() => this.$emit('layout'), false)
@@ -146,6 +144,11 @@ export default {
     },
     isSelected(path) {
       return normalizeBrowserPath(path) === normalizeBrowserPath(this.selectedPath)
+    },
+    isSelectedParent(path) {
+      const folderPath = normalizeBrowserPath(path).replace(/\/+$/, '')
+      const selectedPath = normalizeBrowserPath(this.selectedPath).replace(/\/+$/, '')
+      return Boolean(folderPath && selectedPath.startsWith(folderPath + '/'))
     },
     onFolderClick(item) {
       if (this.isBrowserTypePage && this.isSelectable(item)) this.selectFile(item)
