@@ -95,6 +95,11 @@ public class NodesServlet extends AbstractBaseServlet {
     public static final String RESOURCE_TYPE = "resourceType";
     public static final String JCR_PREFIX = "jcr:";
     public static final String PER_PREFIX = "per:";
+    /** Folder property: object fields to show in the object list. Inherited by child folders. */
+    public static final String LIST_FIELDS = "listFields";
+    /** Values of the effective list fields, written for each object child */
+    public static final String LIST_VALUES = "listValues";
+    public static final String OBJECT_PATH = "objectPath";
 
     private static final String[] OMIT_PREFIXES = new String[] {JCR_PREFIX, PER_PREFIX};
 
@@ -166,6 +171,7 @@ public class NodesServlet extends AbstractBaseServlet {
         }
         logger.debug("looking up {}", path);
         Resource res = rs.resolve(path);
+        String[] listFields = findListFields(res);
         json.writeAttribute(NAME,res.getName());
         json.writeAttribute(PATH,res.getPath());
         json.writeAttribute(HAS_CHILDREN, hasNonJcrContentChild(res));
@@ -261,6 +267,7 @@ public class NodesServlet extends AbstractBaseServlet {
                         if (timestamp != null) {
                             json.writeAttribute(LAST_TRANSLATED, timestamp);
                         }
+                        writeListValues(json, child, listFields);
                     }
 
                     json.writeAttribute(ANY_DESCENDANT_ACTIVATED, ReplicationUtil.isAnyDescendantReplicated(child));
@@ -268,6 +275,46 @@ public class NodesServlet extends AbstractBaseServlet {
                     json.writeAttribute(IS_REFERENCED, referenceLister.isReferenced(child));
                     json.writeClose();
                 }
+            }
+        }
+        json.writeClose();
+    }
+
+    /**
+     * The list fields of a folder: its own {@code listFields} property, or the one of the closest
+     * ancestor that declares it. An empty declaration stops the inheritance.
+     */
+    static String[] findListFields(Resource resource) {
+        for (Resource current = resource; current != null; current = current.getParent()) {
+            ValueMap props = current.getValueMap();
+            if (props.containsKey(LIST_FIELDS)) {
+                String[] fields = props.get(LIST_FIELDS, String[].class);
+                return fields == null ? new String[0] : fields;
+            }
+        }
+        return new String[0];
+    }
+
+    private void writeListValues(JsonResponse json, Resource object, String[] listFields) throws IOException {
+        ValueMap props = object.getValueMap();
+        writeIfFound(json, OBJECT_PATH, props);
+        writeIfFound(json, COMPONENT, props);
+        if (listFields.length == 0) return;
+        json.writeObject(LIST_VALUES);
+        for (String field : listFields) {
+            if (field == null || field.isEmpty() || field.indexOf(':') >= 0) continue;
+            writeIfFound(json, field, props);
+        }
+        json.writeClose();
+    }
+
+    private void writeListFields(JsonResponse json, ValueMap properties) throws IOException {
+        if (!properties.containsKey(LIST_FIELDS)) return;
+        String[] fields = properties.get(LIST_FIELDS, String[].class);
+        json.writeArray(LIST_FIELDS);
+        if (fields != null) {
+            for (String field : fields) {
+                json.writeString(field);
             }
         }
         json.writeClose();
@@ -291,6 +338,7 @@ public class NodesServlet extends AbstractBaseServlet {
         writeIfFound(json, JCR_LAST_MODIFIED_BY, properties);
         writeIfFound(json, JCR_LAST_MODIFIED_BY, properties);
         writeIfFound(json, ALLOWED_OBJECTS, properties);
+        writeListFields(json, properties);
 
         // For the Replication data we need to obtain the content properties. If not found
         // then we try with the resource's properties for non jcr:content nodes

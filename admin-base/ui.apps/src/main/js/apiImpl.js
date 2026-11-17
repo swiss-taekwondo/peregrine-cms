@@ -772,6 +772,31 @@ class PerAdminImpl {
     return this.populateComponentDefinitionFromNode(path)
   }
 
+  /** Raw component definition (dialog) of a node, without touching the view */
+  fetchComponentDefinition(path) {
+    return fetch('/admin/componentDefinition.json' + path)
+  }
+
+  /** listFields settings of an object folder: own, inherited, effective, definitions in use */
+  getObjectFolderSettings(path) {
+    return fetch('/admin/objectFolderSettings.json' + path)
+  }
+
+  /**
+   * Sets the fields the object list shows for a folder (array of field names, empty = none),
+   * or with null removes the own setting so the folder inherits its parent's again.
+   */
+  setObjectFolderListFields(path, listFields) {
+    const data = new FormData()
+    if (listFields === null) {
+      data.append('inherit', 'true')
+    } else {
+      data.append('listFields', listFields.join(','))
+    }
+    return updateWithForm('/admin/objectFolderSettings.json' + path, data)
+        .then((settings) => this.populateNodesForBrowser(path).then(() => settings))
+  }
+
   populateTenants() {
     return new Promise((resolve, reject) => {
       fetch('/admin/listTenants.json')

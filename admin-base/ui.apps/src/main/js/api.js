@@ -83,6 +83,18 @@ class PerApi {
         return impl.populateExplorerDialog(path)
     }
 
+    fetchComponentDefinition(path) {
+        return impl.fetchComponentDefinition(path)
+    }
+
+    getObjectFolderSettings(path) {
+        return impl.getObjectFolderSettings(path)
+    }
+
+    setObjectFolderListFields(path, listFields) {
+        return impl.setObjectFolderListFields(path, listFields)
+    }
+
 
     populateObject(path, target, name, schema) {
         return impl.populateObject(path, target, name, schema)

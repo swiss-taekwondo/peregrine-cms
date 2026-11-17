@@ -63,6 +63,13 @@
                                 </button>
                             </template>
                         </div>
+                        <button v-if="isObjects(path)" class="topbar-btn"
+                            :class="{ 'topbar-btn--active': listColumns.length > 0 }"
+                            :title="$i18n('Choose the object fields shown in this list')"
+                            @click.stop="openListFields()">
+                            <i class="material-icons">view_column</i>
+                            <span>Columns</span>
+                        </button>
                     </div>
                     <div class="switch">
                     <label v-if="model.showFilter === 'true'" class="filter-toggle">
@@ -110,6 +117,12 @@
                         }">
                       <icon v-bind="nodeTypeToIcon(child)"/> {{child.title ? child.title : child.name}}
                     </admin-components-action>
+
+                    <div v-if="child.listValues && listColumns.length" class="object-list-fields">
+                        <span v-for="column in listColumns" :key="column"
+                            :class="['object-list-field', `object-list-field--${listFieldKind(child, column)}`]"
+                            :title="`${listFieldLabel(child, column)}: ${listFieldValue(child, column)}`">{{ listFieldValue(child, column) }}</span>
+                    </div>
 
                     <admin-components-action v-if="!editable(child)"
                         v-bind:model="{
@@ -166,8 +179,11 @@
                             </a>
                         </span>
 
+                        <!-- rows with list columns keep this slot (invisible) so the columns line up -->
                         <admin-components-action
-                            v-if="child.activated"
+                            v-if="child.activated || child.listValues"
+                            :class="{ 'action-placeholder': !child.activated }"
+                            :aria-hidden="child.activated ? null : 'true'"
                             v-bind:model="{
                                     target: child,
                                     command: 'unPublishResource',
@@ -285,6 +301,8 @@
         </div>
     </div>
 
+      <object-list-fields v-if="isObjects(path)" ref="listFieldsModal"/>
+
       <admin-components-publishingmodal
           v-if="publishDialogPath"
           :isOpen="publishDialogPath"
@@ -300,9 +318,10 @@ import {getCurrentDateTime, set, get} from '../../../../../../js/utils'
 import {IconLib} from '../../../../../../js/constants'
 
 import Icon from '../icon/template.vue'
+import ObjectListFields from '../objectlistfields/template.vue'
 
 export default {
-  components: {Icon},
+  components: {Icon, ObjectListFields},
   props: ['model'],
 
         data() {
@@ -315,7 +334,8 @@ export default {
                 publishDialogPath: null,
                 sortBy: 'natural',
                 sortOrder: 'desc',
-                sortOptions: [
+                objectDefinitions: {},
+                baseSortOptions: [
                     { value: 'natural', label: 'Natural Order' },
                     { value: 'name', label: 'Name' },
                     { value: 'date', label: 'Date' },
@@ -357,9 +377,42 @@ export default {
                 }
                 return ret;
             },
+            /** Object fields to show in the list: the closest folder declaring listFields wins */
+            listColumns() {
+                if (!this.isObjects(this.path)) return []
+                const segments = this.path.split('/')
+                while (segments.length > 1) {
+                    const node = $perAdminApp.findNodeFromPath(this.$root.$data.admin.nodes, segments.join('/'))
+                    if (node && Array.isArray(node.listFields)) {
+                        return node.listFields.filter(field => field && field.indexOf(':') < 0)
+                    }
+                    segments.pop()
+                }
+                return []
+            },
+            sortOptions() {
+                const sample = (this.children || []).find(child => child.listValues)
+                const fieldOptions = this.listColumns.map(field => ({
+                    value: `field:${field}`,
+                    label: this.listFieldLabel(sample, field)
+                }))
+                return [...this.baseSortOptions, ...fieldOptions]
+            },
             hasEdit: function() {
                 return this.model.children && this.model.children[0]
             },
+        },
+        watch: {
+            children: {
+                immediate: true,
+                handler(children) { this.loadObjectDefinitions(children) }
+            },
+            listColumns(columns) {
+                this.loadObjectDefinitions(this.children)
+                if (this.sortBy.startsWith('field:') && !columns.includes(this.sortBy.substring(6))) {
+                    this.sortBy = 'natural'
+                }
+            }
         },
         created() {
           document.addEventListener('paste', this.onDocumentPaste)
@@ -395,6 +448,17 @@ export default {
             sortChildren(children) {
                 const sorted = [...children]
                 const order = this.sortOrder === 'asc' ? 1 : -1
+                if (this.sortBy.startsWith('field:')) {
+                    const field = this.sortBy.substring(6)
+                    const value = child => (child.listValues && child.listValues[field]) || ''
+                    sorted.sort((a, b) => {
+                        const valueA = value(a)
+                        const valueB = value(b)
+                        if (!valueA !== !valueB) return valueA ? -1 : 1  // empty values last
+                        return valueA.localeCompare(valueB, undefined, { numeric: true, sensitivity: 'base' }) * order
+                    })
+                    return sorted
+                }
                 switch(this.sortBy) {
                     case 'natural':
                         break
@@ -417,6 +481,81 @@ export default {
                         break
                 }
                 return sorted
+            },
+
+            openListFields() {
+                this.showSortDropdown = false
+                this.$refs.listFieldsModal.open(this.path)
+            },
+
+            /** Loads the dialog of each object definition used in the list, for labels and formatting */
+            loadObjectDefinitions(children) {
+                if (!children || !this.listColumns.length) return
+                children.forEach(child => {
+                    const definitionPath = child.objectPath
+                    if (!child.listValues || !definitionPath || definitionPath in this.objectDefinitions) return
+                    this.$set(this.objectDefinitions, definitionPath, null)
+                    $perAdminApp.getApi().fetchComponentDefinition(child.path)
+                        .then(definition => {
+                            const fields = {}
+                            const collect = list => (list || []).forEach(field => {
+                                if (field.model) fields[field.model] = field
+                                if (field.fields) collect(field.fields)
+                            })
+                            const model = definition && definition.model
+                            if (model) {
+                                collect(model.fields)
+                                ;(model.groups || []).forEach(group => collect(group.fields))
+                            }
+                            this.$set(this.objectDefinitions, definitionPath, fields)
+                        })
+                        .catch(() => this.$set(this.objectDefinitions, definitionPath, {}))
+                })
+            },
+
+            listFieldDefinition(child, field) {
+                const fields = child && child.objectPath && this.objectDefinitions[child.objectPath]
+                return fields ? fields[field] : undefined
+            },
+
+            listFieldLabel(child, field) {
+                const definition = this.listFieldDefinition(child, field)
+                return (definition && definition.label) || field
+            },
+
+            /** Column kind, for the column width: date, switch or text */
+            listFieldKind(child, field) {
+                const definition = this.listFieldDefinition(child, field) || {}
+                const type = definition.type || ''
+                if (type === 'materialswitch' || type === 'checkbox') return 'switch'
+                if (/date|time/i.test(type) || /date|time/i.test(definition.inputType || '')) return 'date'
+                return 'text'
+            },
+
+            listFieldValue(child, field) {
+                const raw = child.listValues ? child.listValues[field] : undefined
+                if (raw === undefined || raw === null || raw === '') return '–'
+                const definition = this.listFieldDefinition(child, field) || {}
+                const type = definition.type || ''
+                const inputType = definition.inputType || ''
+                if (type === 'materialswitch' || type === 'checkbox') {
+                    const on = String(raw) === String(definition.valueOn !== undefined ? definition.valueOn : 'true')
+                    return on ? (definition.textOn || 'yes') : (definition.textOff || 'no')
+                }
+                if (/date|time/i.test(type) || /date|time/i.test(inputType)) {
+                    const date = new Date(raw)
+                    if (!isNaN(date.getTime())) {
+                        const midnight = /^\d{4}-\d{2}-\d{2}T00:00:00(\.000)?Z$/.test(raw)
+                        const withTime = /time/i.test(inputType) && !midnight
+                        return withTime ? date.toLocaleString() : date.toLocaleDateString(undefined, { timeZone: 'UTC' })
+                    }
+                }
+                let text = String(raw)
+                if (type === 'texteditor') {
+                    text = text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+                }
+                text = text.replace(/\s+/g, ' ').trim()
+                return text.length > 60 ? `${text.substring(0, 57)}…` : text
             },
 
             isAssets(path) {
@@ -1108,6 +1247,49 @@ export default {
             display: flex;
             align-items: center;
             flex: 1;
+        }
+
+        /* object rows with list columns: the name takes the free space but can always shrink to the
+           same width, so the columns start at the same place in every row */
+        > span:not(.draggable):not(.folder):has(+ .object-list-fields) {
+            min-width: 8rem;
+            overflow-wrap: anywhere;
+        }
+
+        > .object-list-fields {
+            /* name and columns split the free space evenly, whatever the text, so the columns start
+               at the same place in every row; text columns shrink and end in an ellipsis */
+            flex: 1 1 0;
+            min-width: 0;
+            overflow: hidden;
+            gap: 1rem;
+            margin: 0 1rem;
+            color: #757575;
+            font-size: 0.9rem;
+            white-space: nowrap;
+
+            > .object-list-field {
+                display: block;
+                flex: 0 1 10rem;
+                min-width: 3rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            > .object-list-field--date {
+                flex: 0 0 6rem;
+            }
+            > .object-list-field--switch {
+                flex: 0 0 3.5rem;
+            }
+        }
+
+        > .object-list-fields + .secondary-content {
+            flex-shrink: 0;
+        }
+
+        .secondary-content > .action-placeholder {
+            visibility: hidden;
+            pointer-events: none;
         }
     }
 }

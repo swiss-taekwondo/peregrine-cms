@@ -34,6 +34,8 @@
   <!--  <filter root="/content/docs">-->
   <!--    <exclude pattern="/content/docs/objects/tags/.*"/>-->
   <!--  </filter>-->
+  <!-- route for ObjectFolderSettingsServlet (the other /perapi/admin routes are installed separately) -->
+  <filter root="/perapi/admin/objectFolderSettings"/>
   <filter root="/etc/felibs/admin"/>
   <filter root="/apps/admin">
     <exclude pattern="/apps/admin/install/.*"/>

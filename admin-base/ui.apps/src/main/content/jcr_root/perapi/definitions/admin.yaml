@@ -198,6 +198,55 @@ paths:
           description: If the path did not resolve to a resource, the name is null or the folder already exists
           schema:
             $ref: "#/definitions/Error"
+  '/objectFolderSettings.json{path}':
+    get:
+      description: Settings of an object folder. listFields are the object fields the admin's object list shows next to each object; a folder without its own setting inherits the one of its closest ancestor.
+      parameters:
+        - name: path
+          type: string
+          in: path
+          description: path of an object folder (/content/<tenant>/objects/...)
+          required: true
+      responses:
+        200:
+          description: the folder settings
+          schema:
+            $ref: "#/definitions/ObjectFolderSettings"
+        400:
+          description: If the path is not an object folder
+          schema:
+            $ref: "#/definitions/Error"
+    post:
+      description: Sets the listFields of an object folder, or removes them so the folder inherits its parent's setting again
+      parameters:
+        - name: path
+          type: string
+          in: path
+          description: path of an object folder (/content/<tenant>/objects/...)
+          required: true
+        - name: listFields
+          type: string
+          in: formData
+          description: comma separated field names in display order (letters, digits, - and _; at most 12). An empty value shows no fields and stops the inheritance
+          required: false
+        - name: inherit
+          type: boolean
+          in: formData
+          description: true removes the folder's own setting (listFields is then ignored)
+          required: false
+      responses:
+        200:
+          description: the folder settings after the change
+          schema:
+            $ref: "#/definitions/ObjectFolderSettings"
+        400:
+          description: If the path is not an object folder, or a field name is invalid
+          schema:
+            $ref: "#/definitions/Error"
+        403:
+          description: If the folder could not be changed (e.g. missing write permission)
+          schema:
+            $ref: "#/definitions/Error"
   '/createObject.json{path}':
     post:
       description: Create a new object in the system
@@ -1242,6 +1291,30 @@ paths:
           schema:
             $ref: "#/definitions/Error"
 definitions:
+  ObjectFolderSettings:
+    type: object
+    properties:
+      path:
+        type: string
+      listFields:
+        type: array
+        description: the folder's own setting (absent when inherited)
+        items:
+          type: string
+      inherited:
+        type: boolean
+      inheritedFrom:
+        type: string
+        description: folder the setting is inherited from (absent if none)
+      effectiveListFields:
+        type: array
+        items:
+          type: string
+      objectDefinitions:
+        type: array
+        description: object definitions used by the objects below the folder
+        items:
+          type: string
   Error:
     type: object
     properties:
