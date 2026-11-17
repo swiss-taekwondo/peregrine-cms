@@ -83,7 +83,7 @@
 
     <explorer jcr:primaryType="nt:unstructured"
       sling:resourceType="admin/components/explorer"
-      showFilter="true"
+      showFilter="false"
       dataFrom="/state/tools/assets"
       selectionFrom="/state/tools/asset/show">
       <!--
