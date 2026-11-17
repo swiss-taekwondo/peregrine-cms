@@ -503,6 +503,7 @@ export default {
             onDragRowStart(item, ev) {
                 ev.srcElement.classList.add("dragging");
                 ev.dataTransfer.setData('text', item.path)
+                ev.dataTransfer.setData('activated', item.activated)
                 if(this.isDraggingFile) { this.isDraggingFile = false }
                 this.isDraggingUiEl = true
             },
@@ -535,6 +536,10 @@ export default {
 
             onDropRow(item, ev, type) {
                 if(this.isDraggingUiEl && this.sortBy === 'natural') {
+                    if (ev.dataTransfer.getData("activated") === 'true') {
+                      $perAdminApp.toast("The resource is still published. Please unpublish it first.", "warn", 5000)
+                      return
+                    }
                     ev.target.classList.remove('drop-after','drop-before')
                     const dataFrom = this.model.dataFrom
                     const path = $perAdminApp.getNodeFrom($perAdminApp.getView(), dataFrom)

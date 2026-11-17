@@ -31,9 +31,12 @@ export default function(me, target) {
 
     log.fine(target)
     const api = me.getApi();
-    api.moveTemplate(target.path, target.to, target.type).then( () => {
-        let path = me.getNodeFromView('/state/tools/templates')
-        me.loadContent('/content/admin/pages/templates.html/path'+SUFFIX_PARAM_SEPARATOR+ path)
+    return new Promise( (resolve, reject) => {
+      api.moveTemplate(target.path, target.to, target.type).then( () => {
+          let path = me.getNodeFromView('/state/tools/templates')
+          me.loadContent('/content/admin/pages/templates.html/path'+SUFFIX_PARAM_SEPARATOR+ path)
+          resolve()
+      }).catch(reject)
     })
 
 }
