@@ -107,7 +107,8 @@ public class ObjectFolderSettingsServlet extends AbstractBaseServlet {
             return error(SC_BAD_REQUEST, "Path must be an object folder (/content/<tenant>/objects/...)", path);
         }
         Resource folder = request.getResourceResolver().getResource(path);
-        if (folder == null || !isFolder(folder)) {
+        // check the resolved path too: "/content/t/objects/../pages" matches the pattern above
+        if (folder == null || !isFolder(folder) || !OBJECTS_FOLDER_PATH.matcher(folder.getPath()).matches()) {
             return error(SC_BAD_REQUEST, "Not an object folder", path);
         }
         if (request.isPost()) {

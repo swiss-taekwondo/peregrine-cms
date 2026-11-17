@@ -952,6 +952,7 @@ paths:
             $ref: "#/definitions/Error"
   '/nodes.json{path}':
     get:
+      description: Node tree from the root down to the given path, with the children of every node on the way (as used by the admin explorers)
       parameters:
         - name: path
           type: string
@@ -961,9 +962,7 @@ paths:
         '200':
           description: returns the node tree
           schema:
-            type: object
-            additionalProperties:
-              type: object
+            $ref: "#/definitions/Node"
   '/templates.json':
     get:
       responses:
@@ -1291,6 +1290,43 @@ paths:
           schema:
             $ref: "#/definitions/Error"
 definitions:
+  Node:
+    type: object
+    description: A node in the nodes.json tree. Only the commonly used properties are listed; pages, assets and objects carry more (title, tags, replication status, ...)
+    additionalProperties: true
+    properties:
+      name:
+        type: string
+      path:
+        type: string
+      resourceType:
+        type: string
+        description: jcr:primaryType, e.g. per:Page, per:Object, sling:OrderedFolder
+      hasChildren:
+        type: boolean
+      allowedObjects:
+        type: string
+        description: object folders only, the object definitions that may be created in the folder
+      listFields:
+        type: array
+        description: object folders only, the folder's own setting of the object fields the object list shows (absent when inherited, see objectFolderSettings.json)
+        items:
+          type: string
+      objectPath:
+        type: string
+        description: objects only, path of the object definition
+      component:
+        type: string
+        description: objects only, component name of the object definition
+      listValues:
+        type: object
+        description: objects only, values of the object list fields in effect for the containing folder (own or inherited listFields). Fields without a value are left out; absent when no fields are configured
+        additionalProperties:
+          type: string
+      children:
+        type: array
+        items:
+          $ref: "#/definitions/Node"
   ObjectFolderSettings:
     type: object
     properties:
