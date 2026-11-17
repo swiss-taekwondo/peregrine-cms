@@ -693,12 +693,12 @@ export default {
 
             checkIfAllowed: function(node) {
                 if(this.showFilterEnabled && this.filter) {
+                    if (node.excludeFromSitemap === true || node.excludeFromSitemap === 'true' || node.secondaryItem === true || node.secondaryItem === 'true') return false
                     const filterFoldersByPublication = ['/state/tools/assets', '/state/tools/objects'].indexOf(this.model.dataFrom) >= 0
                     const isFolder = ['sling:Folder', 'sling:OrderedFolder'].indexOf(node.resourceType) >= 0
                     if (filterFoldersByPublication && isFolder) {
-                        return node.anyDescendantActivated === true || node.anyDescendantActivated === 'true'
+                        return true
                     }
-                    if(node.excludeFromSitemap && node.excludeFromSitemap === 'true') return false
                     return ['per:Page', 'per:Asset', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0
                 }
                 return ['per:Asset', 'nt:file', 'sling:Folder', 'sling:OrderedFolder', 'per:Page', 'sling:OrderedFolder', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0

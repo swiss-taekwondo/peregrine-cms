@@ -185,6 +185,8 @@ public class NodesServlet extends AbstractBaseServlet {
                     json.writeAttribute(PATH,child.getPath());
                     json.writeAttribute(HAS_CHILDREN, hasNonJcrContentChild(child));
                     writeProperties(child, json);
+                    writeIfFound(json, "excludeFromSitemap", child.getValueMap());
+                    writeIfFound(json, "secondaryItem", child.getValueMap());
                     if(isPrimaryType(child, ASSET_PRIMARY_TYPE)) {
                         ValueMap props = child.getChild(JCR_CONTENT).getValueMap();
                         String mimeType = props.get(JCR_MIME_TYPE, String.class);
