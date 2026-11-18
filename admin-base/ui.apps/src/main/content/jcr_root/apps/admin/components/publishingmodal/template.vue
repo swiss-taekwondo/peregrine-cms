@@ -193,7 +193,7 @@ export default {
         }
 
         $perAdminApp.stateAction("publish", target, true);
-        $perAdminApp.toast("The publishing process is ongoing. You will be notified once it is completed.", "success");
+        $perAdminApp.toast("Publishing has been queued. You will be notified once it is completed.", "success");
       }
       this.close();
     },

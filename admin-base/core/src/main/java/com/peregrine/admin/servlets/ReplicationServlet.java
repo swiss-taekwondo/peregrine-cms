@@ -37,6 +37,8 @@ import com.peregrine.replication.Replication.ReplicationException;
 import com.peregrine.replication.ReplicationUtil;
 import com.peregrine.replication.ReplicationsContainerWithDefault;
 import com.peregrine.admin.resource.GeminiGeneration;
+import com.peregrine.admin.resource.SmartPublishCoordinator;
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
@@ -63,14 +65,17 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.peregrine.admin.servlets.AdminPaths.RESOURCE_TYPE_DO_REPLICATION;
 import static com.peregrine.commons.util.PerConstants.*;
 import static com.peregrine.commons.util.PerUtil.*;
 import static java.lang.Boolean.parseBoolean;
+import static javax.servlet.http.HttpServletResponse.SC_SERVICE_UNAVAILABLE;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_METHODS;
 import static org.apache.sling.api.servlets.ServletResolverConstants.SLING_SERVLET_RESOURCE_TYPES;
 import static org.osgi.framework.Constants.SERVICE_DESCRIPTION;
@@ -85,6 +90,10 @@ import static org.osgi.framework.Constants.SERVICE_VENDOR;
  *
  * It is invoked like this:
  *      curl -X POST "http://localhost:8080/perapi/admin/repl.json/content/themeclean" -H  "accept: application/json" -H  "content-type: application/x-www-form-urlencoded" -d "name=defaultRepl&quot;deep=false"
+ *
+ * Smart Publish (draft, default true) is queued with the {@link SmartPublishCoordinator} and returns a jobId right
+ * away (see publishStatus.json). Other replication waits until no Smart Publish batch is running. draft and callback
+ * default to true; only "false" turns them off.
  */
 @Component(
     service = Servlet.class,
@@ -121,8 +130,11 @@ public final class ReplicationServlet extends ReplicationServletBase {
     public static final String DEACTIVATE = "deactivate";
     public static final String RESOURCES = "resources";
 
-    private Map<String, String> prePublishWebhookMap;
-    private Map<String, String> postPublishWebhookMap;
+    private static final long EXCLUSIVE_LOCK_TIMEOUT_SECONDS = 120;
+    private static final Duration WEBHOOK_TIMEOUT = Duration.ofSeconds(60);
+
+    private Map<String, String> prePublishWebhookMap = new HashMap<>();
+    private Map<String, String> postPublishWebhookMap = new HashMap<>();
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -134,6 +146,9 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
     @Reference
     private GeminiGeneration geminiGeneration;
+
+    @Reference
+    private SmartPublishCoordinator coordinator;
 
     protected ReplicationsContainerWithDefault getReplications() {
         return replications;
@@ -147,31 +162,64 @@ public final class ReplicationServlet extends ReplicationServletBase {
             final ResourceResolver resourceResolver
     ) throws IOException, ReplicationException, RepositoryException {
         final boolean deep = parseBoolean(request.getParameter("deep"));
-        final boolean draft = parseBoolean(request.getParameter("draft"));
-        final boolean callback = parseBoolean(request.getParameter("callback"));
+        // Smart Publish and the post-publish webhook are on unless explicitly turned off with "false"
+        final boolean draft = !"false".equalsIgnoreCase(request.getParameter("draft"));
+        final boolean callback = !"false".equalsIgnoreCase(request.getParameter("callback"));
+
+        final boolean deactivate = parseBoolean(request.getParameter(DEACTIVATE));
 
         final String tenant = getTenantNameFromResource(resource);
         final String resourceType = resource.getResourceType();
+        final PublishRequest publishRequest = new PublishRequest(resource.getPath(), deep, callback,
+                draft && (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE)),
+                Optional.ofNullable(request.getParameterValues(RESOURCES)).orElse(new String[0]));
 
-        if (parseBoolean(request.getParameter(DEACTIVATE))) {
-            return performDeactivation(replication, resource, callback, tenant);
+        if (draft && !deactivate) {
+            return queueSmartPublish(replication, resource, resourceResolver, tenant, publishRequest);
         }
 
-        final PerUtil.ResourceChecker tenantChecker = new ReplicationUtil.TenantOwnedResourceChecker(resource);
-        List<Resource> toBeReplicated = listMissingResources(resource, tenantChecker, deep, new LinkedList<>());
-        for (final Resource r : Optional.of(RESOURCES)
-                .map(request::getParameterValues)
-                .map(Arrays::stream)
-                .orElseGet(Stream::empty)
-                .map(resourceResolver::getResource)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList())) {
-            listMissingResources(r, tenantChecker, deep, toBeReplicated);
+        if (!lockExclusive()) {
+            return new ErrorResponse()
+                    .setHttpErrorCode(SC_SERVICE_UNAVAILABLE)
+                    .setErrorMessage("A site publish is still running. Try again in a few minutes.");
         }
+        try {
+            if (deactivate) {
+                return performDeactivation(replication, resource, callback, tenant);
+            }
+            return prepareResponse(resource, publish(replication, resourceResolver, tenant, List.of(publishRequest)));
+        } finally {
+            coordinator.exclusiveLock().unlock();
+        }
+    }
 
-        // Remove source from the list if it's an assets folder
-        if (resourceManagement.isAssetsFolder(resource)) {
-            toBeReplicated.remove(resource);
+    /** Publishes one or more requests (several when Smart Publish requests were combined into one batch). */
+    private List<Resource> publish(
+            final Replication replication,
+            final ResourceResolver resourceResolver,
+            final String tenant,
+            final List<PublishRequest> requests
+    ) throws IOException, ReplicationException, RepositoryException {
+        List<Resource> toBeReplicated = new LinkedList<>();
+        for (final PublishRequest publishRequest : requests) {
+            final Resource resource = resourceResolver.getResource(publishRequest.path);
+            if (resource == null) {
+                logger.warn("Skipping {}: it no longer exists", publishRequest.path);
+                continue;
+            }
+            final PerUtil.ResourceChecker tenantChecker = new ReplicationUtil.TenantOwnedResourceChecker(resource);
+            listMissingResources(resource, tenantChecker, publishRequest.deep, toBeReplicated);
+            for (final Resource r : Arrays.stream(publishRequest.resources)
+                    .map(resourceResolver::getResource)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList())) {
+                listMissingResources(r, tenantChecker, publishRequest.deep, toBeReplicated);
+            }
+
+            // Remove source from the list if it's an assets folder
+            if (resourceManagement.isAssetsFolder(resource)) {
+                toBeReplicated.remove(resource);
+            }
         }
 
         toBeReplicated = replication.prepare(toBeReplicated);
@@ -227,7 +275,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         callWebhook(prePublishWebhook, prePublishPaths, "pre-publish", true);
 
         // per:Page OR per:Object -> republish all pages (except published above) with label "Draft" or "Published"
-        if (draft && (resourceType.equals(PAGE_PRIMARY_TYPE) || resourceType.equals(OBJECT_PRIMARY_TYPE))) {
+        if (requests.stream().anyMatch(r -> r.sweep)) {
             Workspace workspace = resourceResolver.adaptTo(Session.class).getWorkspace();
             QueryManager queryManager = workspace.getQueryManager();
             VersionManager versionManager = workspace.getVersionManager();
@@ -245,69 +293,71 @@ public final class ReplicationServlet extends ReplicationServletBase {
             NodeIterator nodeIterator = queryResult.getNodes();
             String draftLabel = "Draft";
 
-            while (nodeIterator.hasNext()) {
-                Node node = nodeIterator.nextNode();
-                String nodePath = node.getPath();
+            try {
+                while (nodeIterator.hasNext()) {
+                    Node node = nodeIterator.nextNode();
+                    String nodePath = node.getPath();
 
-                if (toBeReplicatedPaths.contains(nodePath)) {
-                    continue;
-                }
+                    if (toBeReplicatedPaths.contains(nodePath)) {
+                        continue;
+                    }
 
-                // Ignore specific folders
-                if (!nodePath.startsWith(pages + "/css") &&
-                        !nodePath.startsWith(pages + "/js") &&
-                        !nodePath.startsWith(pages + "/skeleton-pages")) {
+                    // Ignore specific folders
+                    if (!nodePath.startsWith(pages + "/css") &&
+                            !nodePath.startsWith(pages + "/js") &&
+                            !nodePath.startsWith(pages + "/skeleton-pages")) {
 
-                    Resource pageContent = resourceResolver.getResource(nodePath);
-                    PerReplicable replicable = pageContent.adaptTo(PerReplicable.class);
+                        Resource pageContent = resourceResolver.getResource(nodePath);
+                        PerReplicable replicable = pageContent.adaptTo(PerReplicable.class);
 
-                    if (replicable.isReplicated()) {
-                        // Create a Draft version to restore the latest changes after publishing
-                        if (replicable.isStale()) {
-                            VersionHistory versionHistory = versionManager.getVersionHistory(nodePath);
+                        if (replicable.isReplicated()) {
+                            // Create a Draft version to restore the latest changes after publishing
+                            if (replicable.isStale()) {
+                                VersionHistory versionHistory = versionManager.getVersionHistory(nodePath);
 
-                            if (versionManager.isCheckedOut(nodePath)){
-                                try {
-                                    Version publishedVersion = versionHistory.getVersionByLabel(PUBLISHED_LABEL);
-                                    Version draftVersion = versionManager.checkin(nodePath);
-                                    versionManager.checkout(nodePath);
-                                    versionHistory.addVersionLabel(draftVersion.getName(), draftLabel, true);
+                                if (versionManager.isCheckedOut(nodePath)){
+                                    try {
+                                        Version publishedVersion = versionHistory.getVersionByLabel(PUBLISHED_LABEL);
+                                        Version draftVersion = versionManager.checkin(nodePath);
+                                        versionManager.checkout(nodePath);
+                                        versionHistory.addVersionLabel(draftVersion.getName(), draftLabel, true);
 
-                                    logger.warn("Draft version created for {} at {}", nodePath, draftVersion.getFrozenNode().getPath());
+                                        logger.warn("Draft version created for {} at {}", nodePath, draftVersion.getFrozenNode().getPath());
 
-                                    // Checkout Published version for publishing
-                                    versionManager.restore(publishedVersion, true);
-                                    versionManager.checkout(nodePath);
+                                        // Checkout Published version for publishing
+                                        versionManager.restore(publishedVersion, true);
+                                        versionManager.checkout(nodePath);
 
-                                    draftReferences.add(resourceResolver.getResource(pageContent.getParent().getPath()));
-                                }
-                                catch (Exception e) {
-                                    logger.error("Unable to create a draft version for path: {} ", nodePath, e);
+                                        draftReferences.add(resourceResolver.getResource(pageContent.getParent().getPath()));
+                                    }
+                                    catch (Exception e) {
+                                        logger.error("Unable to create a draft version for path: {} ", nodePath, e);
+                                    }
                                 }
                             }
-                        }
-                        else {
-                            publishedReferences.add(pageContent.getParent());
+                            else {
+                                publishedReferences.add(pageContent.getParent());
+                            }
                         }
                     }
                 }
-            }
 
-            // Publish page references
-            replication.replicate(draftReferences);
-            replication.replicate(publishedReferences);
-
-            // Restore Draft versions
-            for (Resource pageResource : draftReferences) {
-                String contentPath = pageResource.getChild(JCR_CONTENT).getPath();
-                VersionHistory versionHistory = versionManager.getVersionHistory(contentPath);
-                try {
-                    Version draftVersion = versionHistory.getVersionByLabel(draftLabel);
-                    versionManager.restore(draftVersion, true);
-                    versionManager.checkout(contentPath);
-                }
-                catch (Exception e) {
-                    logger.error("Unable to restore a draft version for path: {} ", contentPath, e);
+                // Publish page references
+                replication.replicate(draftReferences);
+                replication.replicate(publishedReferences);
+            } finally {
+                // Restore Draft versions
+                for (Resource pageResource : draftReferences) {
+                    String contentPath = pageResource.getChild(JCR_CONTENT).getPath();
+                    VersionHistory versionHistory = versionManager.getVersionHistory(contentPath);
+                    try {
+                        Version draftVersion = versionHistory.getVersionByLabel(draftLabel);
+                        versionManager.restore(draftVersion, true);
+                        versionManager.checkout(contentPath);
+                    }
+                    catch (Exception e) {
+                        logger.error("Unable to restore a draft version for path: {} ", contentPath, e);
+                    }
                 }
             }
 
@@ -319,12 +369,98 @@ public final class ReplicationServlet extends ReplicationServletBase {
         List<Resource> replicateResponse = replication.replicate(toBeReplicated);
 
         // Trigger the Post-publish Webhook
-        if (callback) {
+        if (requests.stream().anyMatch(r -> r.callback)) {
             String postPublishWebhook = postPublishWebhookMap.get(tenant);
             callWebhook(postPublishWebhook, allReplicatedPaths.toArray(new String[0]), "post-publish", true);
         }
 
-        return prepareResponse(resource, replicateResponse);
+        return replicateResponse;
+    }
+
+    private Response queueSmartPublish(
+            final Replication replication,
+            final Resource resource,
+            final ResourceResolver resourceResolver,
+            final String tenant,
+            final PublishRequest publishRequest
+    ) throws IOException, ReplicationException {
+        try {
+            // The batch outlives this request, so it runs with its own copy of the user's session
+            publishRequest.forBatch(tenant, replication, resourceResolver.clone(null));
+        } catch (final LoginException e) {
+            throw new ReplicationException("Unable to open a session for the background publish: " + e.getMessage(), e);
+        }
+        final SmartPublishCoordinator.Ticket ticket;
+        try {
+            ticket = coordinator.submit(Objects.toString(tenant, ""), resourceResolver.getUserID(), resource.getPath(),
+                    publishRequest, this::runSmartPublish);
+        } catch (final RejectedExecutionException e) {
+            publishRequest.close();
+            return new ErrorResponse()
+                    .setHttpErrorCode(SC_SERVICE_UNAVAILABLE)
+                    .setErrorMessage("The publishing service is not running");
+        }
+        return new JsonResponse()
+                .writeAttribute("sourcePath", resource.getPath())
+                .writeAttribute("jobId", ticket.getId())
+                .writeAttribute("state", ticket.getState().name().toLowerCase(Locale.ROOT))
+                .writeAttribute("batchSize", ticket.getBatchSize());
+    }
+
+    /** Runs combined Smart Publish requests with the session of the latest one. */
+    private void runSmartPublish(final List<Object> payloads) throws Exception {
+        final List<PublishRequest> requests = payloads.stream().map(PublishRequest.class::cast).collect(Collectors.toList());
+        final PublishRequest latest = requests.get(requests.size() - 1);
+        final long start = System.currentTimeMillis();
+        try {
+            final List<Resource> replicated = publish(latest.replication, latest.resolver, latest.tenant, requests);
+            logger.info("Smart Publish for tenant {} ({} request(s)) replicated {} resources in {} ms",
+                    latest.tenant, requests.size(), replicated.size(), System.currentTimeMillis() - start);
+        } finally {
+            requests.forEach(PublishRequest::close);
+        }
+    }
+
+    private boolean lockExclusive() {
+        try {
+            return coordinator.exclusiveLock().tryLock(EXCLUSIVE_LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** One publish request. A queued Smart Publish request also carries what its background batch needs. */
+    private static final class PublishRequest implements AutoCloseable {
+        final String path;
+        final boolean deep;
+        final boolean callback;
+        final boolean sweep;
+        final String[] resources;
+        String tenant;
+        Replication replication;
+        ResourceResolver resolver;
+
+        PublishRequest(String path, boolean deep, boolean callback, boolean sweep, String[] resources) {
+            this.path = path;
+            this.deep = deep;
+            this.callback = callback;
+            this.sweep = sweep;
+            this.resources = resources;
+        }
+
+        void forBatch(String tenant, Replication replication, ResourceResolver resolver) {
+            this.tenant = tenant;
+            this.replication = replication;
+            this.resolver = resolver;
+        }
+
+        @Override
+        public void close() {
+            if (resolver != null && resolver.isLive()) {
+                resolver.close();
+            }
+        }
     }
 
     @NotNull
@@ -386,6 +522,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
                 HttpRequest webhookRequest = HttpRequest.newBuilder()
                         .uri(URI.create(webhook))
                         .header("Content-Type", "application/json")
+                        .timeout(WEBHOOK_TIMEOUT)
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                         .build();
 
@@ -428,7 +565,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
 
     private void setup(ReplicationServlet.Configuration configuration) {
         prePublishWebhookMap = new HashMap<>();
-        String[] prePublishWebhooks = configuration.pre_publish_webhook_map();
+        String[] prePublishWebhooks = Optional.ofNullable(configuration.pre_publish_webhook_map()).orElse(new String[0]);
         for (String webhook : prePublishWebhooks) {
             String[] tokens = webhook.split("=", 2);
             if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {
@@ -437,7 +574,7 @@ public final class ReplicationServlet extends ReplicationServletBase {
         }
 
         postPublishWebhookMap = new HashMap<>();
-        String[] postPublishWebhooks = configuration.post_publish_webhook_map();
+        String[] postPublishWebhooks = Optional.ofNullable(configuration.post_publish_webhook_map()).orElse(new String[0]);
         for (String webhook : postPublishWebhooks) {
             String[] tokens = webhook.split("=", 2);
             if (tokens.length == 2 && isNotEmpty(tokens[0]) && isNotEmpty(tokens[1])) {

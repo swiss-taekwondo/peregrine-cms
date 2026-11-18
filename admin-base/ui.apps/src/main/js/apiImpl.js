@@ -483,6 +483,36 @@ function fetchRef(service, path, sameTenant = false) {
   return fetch(`/admin/${service}.json${path}?${new URLSearchParams({ sameTenant })}`)
 }
 
+// Smart Publish is queued on the server and combined with other publishes of the site: follow the job until it ends.
+// Requests published together share a batch; the user gets one notification per batch listing all of its paths.
+const notifiedPublishBatches = new Set()
+function pollPublishJob(path, sourcePath, jobId, startedAt = Date.now()) {
+  setTimeout(() => fetch(`/admin/publishStatus.json?id=${encodeURIComponent(jobId)}`)
+      .then(job => {
+        if (job.state === 'succeeded' || job.state === 'failed') {
+          if (notifiedPublishBatches.has(job.batchId)) return
+          notifiedPublishBatches.add(job.batchId)
+          const paths = job.paths && job.paths.length ? job.paths : [sourcePath]
+          const list = paths.length > 10 ? `${paths.slice(0, 10).join(', ')} and ${paths.length - 10} more` : paths.join(', ')
+          if (job.state === 'succeeded') {
+            new Set(paths.map(p => p.substring(0, p.lastIndexOf('/')))).forEach(parent => $perAdminApp.getApi().populateNodesForBrowser(parent))
+            $perAdminApp.notifyUser('Success', paths.length > 1 ? `Published ${paths.length} items together: ${list}.` : `${list} was successfully published.`)
+            return
+          }
+          // Show the webhook's own error when the failure came from a webhook ("HTTP <status> - <body>")
+          const match = (job.message || '').match(/HTTP \d+ - (.*)/)
+          let detail = match ? match[1] : job.message
+          try { const parsed = JSON.parse(detail); detail = parsed.error || parsed.message || detail } catch (e) {}
+          $perAdminApp.notifyUser('Error', `Publishing ${list} failed: ${detail}`)
+        } else if (Date.now() - startedAt < 30 * 60 * 1000) {
+          pollPublishJob(path, sourcePath, jobId, startedAt)
+        } else {
+          $perAdminApp.notifyUser('Error', `Publishing ${sourcePath} is still ${job.state} after 30 minutes.`)
+        }
+      })
+      .catch(() => $perAdminApp.notifyUser('Error', `Lost track of publishing ${sourcePath}. Check its publish status.`)), 2000)
+}
+
 class PerAdminImpl {
 
   constructor(cb) {
@@ -1819,6 +1849,10 @@ class PerAdminImpl {
       resources.forEach((ref) => formData.append('resources', ref))
       updateWithForm('/admin/repl.json' + path, formData)
           .then(respData => {
+            if (respData && respData.jobId) {
+              pollPublishJob(path, respData.sourcePath, respData.jobId)
+              return
+            }
             count = 0
             noticeFunction = setInterval(function () {
               if (!document.hasFocus()) {
