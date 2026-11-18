@@ -24,7 +24,7 @@
  */
 
 import {LoggerFactory} from './logger'
-import {objectToFormData, stripNulls, pagePathToDataPath, set} from './utils'
+import {objectToFormData, stripNulls, pagePathToDataPath, set, encodeAssetPath} from './utils'
 import {Field, Toast} from './constants'
 import Notifier from './utils/notifier'
 import {dataFields} from './utils/dialogFields'
@@ -553,9 +553,12 @@ class PerAdminImpl {
         includeParents)
   }
 
-  populateNodesForBrowser(path, target = 'nodes', includeParents = false) {
-    return fetch('/admin/nodes.json' + path + '?includeParents=' + includeParents)
-        .then((data) => populateView('/admin', target, data))
+  populateNodesForBrowser(path, target = 'nodes', includeParents = false, shouldApply = () => true) {
+    return fetch('/admin/nodes.json' + encodeAssetPath(path) + '?includeParents=' + includeParents)
+        .then((data) => {
+          if (!shouldApply()) return
+          return populateView('/admin', target, data)
+        })
   }
 
   populateComponentDefinitionFor(component) {

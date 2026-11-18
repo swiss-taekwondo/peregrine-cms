@@ -62,9 +62,15 @@ function compileComponent(file){
   // compile the Vue component and give us a .js and .css
   rollup.rollup({
     input: `${basePath}${file}`,
+    external: ['isotope-layout'],
     plugins: [
       vue({
         compileTemplate: true,
+        beforeAssemble(descriptor) {
+          // Do not include the original Vue files in CSS source maps.
+          descriptor.styles.forEach(style => { delete style.map })
+          return descriptor
+        },
         css: `${distBasePath}/css/${nameCamelCase}.css`
       }),
       buble(),
@@ -78,7 +84,8 @@ function compileComponent(file){
       file:`${distBasePath}/js/${nameCamelCase}.js`,
       globals: {
         tools: 'tools',
-          log: 'log'
+          log: 'log',
+          'isotope-layout': '(typeof Isotope === "undefined" ? undefined : Isotope)'
       }
 
     }).then( function() {
@@ -180,7 +187,24 @@ function readDirs(basePath, path, extFilter, mTimeMin = 0) {
 }
 
 // find all the vue files in this project
-var vueFiles = readDirs(basePath, basePath, '.vue', timestamp)
+// Helper Vue files are bundled through imports, not compiled as entries.
+// Shared Vue dependencies require rebuilding their importing entries.
+var changedVueFiles = readDirs(basePath, basePath, '.vue', timestamp)
+var allVueFiles = changedVueFiles.length ? readDirs(basePath, basePath, '.vue', 0) : []
+var changedPaths = new Set(changedVueFiles.map(file => path.resolve(basePath + file)))
+var sharedDependencyChanged = allVueFiles.some(file => {
+    const filename = path.resolve(basePath + file)
+    const source = fs.readFileSync(filename, 'utf-8')
+    const imports = /from\s+['"]([^'"]+\.vue)['"]/g
+    let match
+    while ((match = imports.exec(source))) {
+        if (changedPaths.has(path.resolve(path.dirname(filename), match[1]))) return true
+    }
+    return false
+})
+var helperChanged = changedVueFiles.some(file => path.basename(file) !== 'template.vue')
+var vueFiles = (helperChanged || sharedDependencyChanged ? allVueFiles : changedVueFiles)
+    .filter(file => path.basename(file) === 'template.vue')
 var compiling = []
 // for each of the files compile it
 for (let i = 0; i < vueFiles.length; i++) {

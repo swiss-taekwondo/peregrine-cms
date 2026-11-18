@@ -537,3 +537,18 @@ export function isMac() {
 export function isImagePath(path = "") {
   return (/\.(jpg|jpeg|png|gif|svg|webp|avif)$/i).test(String(path || ""));
 }
+
+// Encode raw repository paths
+export function encodeAssetPath(path = '') {
+  return String(path || '').split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
+export function normalizeBrowserPath(path) {
+  return String(path || '').split('#')[0].replace(/\.html$/, '');
+}
+
+// Use the original asset source; thumbnail renditions are not generated on author.
+export function assetPreviewPath(item) {
+  return item && item.path ? encodeAssetPath(item.path) : '';
+}
+

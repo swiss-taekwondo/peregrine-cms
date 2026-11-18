@@ -67,8 +67,8 @@ class PerApi {
         return impl.populateSkeletonPages(path, target, includeParents)
     }
 
-    populateNodesForBrowser(path, target, includeParents = false) {
-        return impl.populateNodesForBrowser(path, target, includeParents)
+    populateNodesForBrowser(path, target, includeParents = false, shouldApply) {
+        return impl.populateNodesForBrowser(path, target, includeParents, shouldApply)
     }
 
     populateComponentDefinitionFor(component) {
