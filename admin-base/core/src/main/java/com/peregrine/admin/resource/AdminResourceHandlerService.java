@@ -806,7 +806,9 @@ public class AdminResourceHandlerService
                     // No Target Child Name means we move it the front for before and end for after
                     resourceRelocation.reorder(toResource, fromResource.getName(), null, orderBefore);
                 }
-                baseResourceHandler.updateModification(answer);
+                if (!answer.isResourceType(NT_FILE)) {
+                    baseResourceHandler.updateModification(answer);
+                }
             } else {
                 // Both BEFORE and AFTER can be handled in one as the only difference is if added before or after
                 // and if they are the same parent we means we only ORDER otherwise we MOVE first
@@ -818,7 +820,9 @@ public class AdminResourceHandlerService
                     answer = resourceRelocation.moveToNewParent(fromResource, toResource.getParent(), false);
                 }
                 resourceRelocation.reorder(toResource.getParent(), fromResource.getName(), toResource.getName(), orderBefore);
-                baseResourceHandler.updateModification(answer);
+                if (!answer.isResourceType(NT_FILE)) {
+                    baseResourceHandler.updateModification(answer);
+                }
             }
 
             return answer;
