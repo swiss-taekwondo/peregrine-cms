@@ -65,7 +65,7 @@
                         </div>
                     </div>
                     <div class="switch">
-                    <label v-if="model.showFilter === 'true'" class="filter-toggle">
+                    <label v-if="showFilterEnabled" class="filter-toggle">
                         <input type="checkbox" v-model="filter">
                         <span class="lever"></span>
                         <span>filter secondary items</span>
@@ -326,6 +326,10 @@ export default {
         },
 
         computed: {
+            showFilterEnabled() {
+                const value = this.model && this.model.showFilter
+                return value === true || value === 'true'
+            },
             showNavigateToParent() {
                 return this.path.split('/').length > 4
             },
@@ -687,13 +691,18 @@ export default {
             }
           },
 
-            checkIfAllowed: function(node) {
-                if(this.model.showFilter && this.model.showFilter === 'true' && this.filter) {
-                    if(node.excludeFromSitemap && node.excludeFromSitemap === 'true') return false
-                    return ['per:Page', 'per:Asset', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0
-                }
-                return ['per:Asset', 'nt:file', 'sling:Folder', 'sling:OrderedFolder', 'per:Page', 'sling:OrderedFolder', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0
-            },
+          checkIfAllowed: function(node) {
+            const allowed = ['per:Asset', 'nt:file', 'sling:Folder', 'sling:OrderedFolder', 'per:Page', 'per:Object', 'per:ObjectDefinition']
+            if (!allowed.includes(node.resourceType)) return false
+            if (!this.showFilterEnabled || !this.filter) return true
+
+            // filter is on: hide anything flagged as secondary
+            if (node.secondaryItem === 'true' || node.excludeFromSitemap === 'true') return false
+            if (node.resourceType === 'nt:file') return false
+            // assets and objects are organised in folders, so keep folders visible there
+            if (this.isFolder(node)) return this.isAssets(this.path) || this.isObjects(this.path)
+            return true
+          },
 
             showInfo: function(me, {path, resourceType}) {
                 const tenant = $perAdminApp.getView().state.tenant;
