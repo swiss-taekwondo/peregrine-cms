@@ -84,6 +84,7 @@ import com.peregrine.adaption.PerAsset;
 import com.peregrine.admin.models.Recyclable;
 import com.peregrine.commons.ResourceUtils;
 import com.peregrine.commons.util.PerUtil;
+import com.peregrine.replication.ReplicationUtil;
 import com.peregrine.rendition.BaseResourceHandler;
 import com.peregrine.replication.ImageMetadataSelector;
 import java.io.IOException;
@@ -788,6 +789,9 @@ public class AdminResourceHandlerService
         }
         if (toResource == null) {
             throw new ManagementException(MOVE_TO_RESOURCE_MISSING);
+        }
+        if (ReplicationUtil.isSelfOrAnyDescendantReplicated(fromResource)) {
+            throw new ManagementException("Failed to move a replicated node or a node with replicated descendants.");
         }
         try {
             Resource answer = fromResource;
