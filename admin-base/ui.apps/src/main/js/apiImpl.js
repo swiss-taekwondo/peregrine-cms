@@ -483,6 +483,45 @@ function fetchRef(service, path, sameTenant = false) {
   return fetch(`/admin/${service}.json${path}?${new URLSearchParams({ sameTenant })}`)
 }
 
+// Smart Publish is queued on the server and combined with other publishes of the site: follow the job until it ends.
+// Requests published together share a batch; the user gets one notification per batch listing all of its paths.
+const notifiedPublishBatches = new Set()
+// After a publish, reload only the explorer folder the user is looking at now: reloading any other folder replaces the
+// explorer's node tree and breaks the explorer when the user navigated away while the publish was running
+function refreshCurrentExplorer() {
+  const match = decodeURIComponent(document.location.pathname).match(/\.html\/path:(.+)$/)
+  const tools = ($perAdminApp.getView().state || {}).tools || {}
+  if (match && Object.values(tools).includes(match[1])) {
+    $perAdminApp.getApi().populateNodesForBrowser(match[1])
+  }
+}
+function pollPublishJob(path, sourcePath, jobId, startedAt = Date.now()) {
+  setTimeout(() => fetch(`/admin/publishStatus.json?id=${encodeURIComponent(jobId)}`)
+      .then(job => {
+        if (job.state === 'succeeded' || job.state === 'failed') {
+          if (notifiedPublishBatches.has(job.batchId)) return
+          notifiedPublishBatches.add(job.batchId)
+          const paths = job.paths && job.paths.length ? job.paths : [sourcePath]
+          const list = paths.length > 10 ? `${paths.slice(0, 10).join(', ')} and ${paths.length - 10} more` : paths.join(', ')
+          if (job.state === 'succeeded') {
+            refreshCurrentExplorer()
+            $perAdminApp.notifyUser('Success', paths.length > 1 ? `Published ${paths.length} items together: ${list}.` : `${list} was successfully published.`)
+            return
+          }
+          // Show the webhook's own error when the failure came from a webhook ("HTTP <status> - <body>")
+          const match = (job.message || '').match(/HTTP \d+ - (.*)/)
+          let detail = match ? match[1] : job.message
+          try { const parsed = JSON.parse(detail); detail = parsed.error || parsed.message || detail } catch (e) {}
+          $perAdminApp.notifyUser('Error', `Publishing ${list} failed: ${detail}`)
+        } else if (Date.now() - startedAt < 30 * 60 * 1000) {
+          pollPublishJob(path, sourcePath, jobId, startedAt)
+        } else {
+          $perAdminApp.notifyUser('Error', `Publishing ${sourcePath} is still ${job.state} after 30 minutes.`)
+        }
+      })
+      .catch(() => $perAdminApp.notifyUser('Error', `Lost track of publishing ${sourcePath}. Check its publish status.`)), 2000)
+}
+
 class PerAdminImpl {
 
   constructor(cb) {
@@ -1822,6 +1861,10 @@ class PerAdminImpl {
       resources.forEach((ref) => formData.append('resources', ref))
       updateWithForm('/admin/repl.json' + path, formData)
           .then(respData => {
+            if (respData && respData.jobId) {
+              pollPublishJob(path, respData.sourcePath, respData.jobId)
+              return
+            }
             count = 0
             noticeFunction = setInterval(function () {
               if (!document.hasFocus()) {
@@ -1860,9 +1903,7 @@ class PerAdminImpl {
                       reject()
                     } else if (stopPolling(data)) {
                       clearInterval(noticeFunction)
-                      const parentPath = path.substring(0,
-                          path.lastIndexOf('/'))
-                      $perAdminApp.getApi().populateNodesForBrowser(parentPath)
+                      refreshCurrentExplorer()
                       $perAdminApp.notifyUser('Success',
                           `${respData.sourcePath} was successfully ${deactivate
                               ? 'un' : ''}published.`)

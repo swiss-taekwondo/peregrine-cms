@@ -1,7 +1,9 @@
 package com.peregrine.admin.servlets;
 
+import com.peregrine.admin.resource.SmartPublishCoordinator;
 import com.peregrine.replication.Replication;
 import com.sun.net.httpserver.HttpServer;
+import junitx.util.PrivateAccessor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,11 +17,25 @@ import static org.mockito.Mockito.when;
 
 public final class ReplicationServletTest extends ReplicationServletTestBase {
 
+    private static final String DRAFT = "draft";
+
+    private final SmartPublishCoordinator coordinator = new SmartPublishCoordinator();
     private HttpServer mockServer;
     private int dynamicPort;
 
     public ReplicationServletTest() throws NoSuchFieldException, Replication.ReplicationException {
         super(new ReplicationServlet());
+        setField("coordinator", coordinator);
+    }
+
+    @Before
+    public void startCoordinator() throws Throwable {
+        PrivateAccessor.invoke(coordinator, "activate", new Class[0], new Object[0]);
+    }
+
+    @After
+    public void stopCoordinator() throws Throwable {
+        PrivateAccessor.invoke(coordinator, "deactivate", new Class[0], new Object[0]);
     }
 
     @Before
@@ -55,7 +71,13 @@ public final class ReplicationServletTest extends ReplicationServletTestBase {
 
     @Test
     public void performActivation() throws IOException {
+        request.putParameter(DRAFT, false);
         performReplicationResponseContains(jcrContent);
+    }
+
+    @Test
+    public void smartPublishIsQueuedByDefault() throws IOException {
+        performReplicationResponseContains("jobId", page.getPath());
     }
 
     @Test
@@ -76,7 +98,8 @@ public final class ReplicationServletTest extends ReplicationServletTestBase {
         // Manually trigger the OSGi lifecycle to parse the config and populate the maps
         replServlet.activate(config);
 
-        // Execute the standard replication. The internal HttpClient will hit mock port and succeed.
+        // Execute the standard (synchronous) replication. The internal HttpClient will hit mock port and succeed.
+        request.putParameter(DRAFT, false);
         performReplicationResponseContains(jcrContent);
     }
 

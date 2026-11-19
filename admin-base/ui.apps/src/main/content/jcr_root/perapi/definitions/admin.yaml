@@ -994,13 +994,15 @@ paths:
         - name: draft
           type: boolean
           in: formData
-          description: flag indicating if page references should be published and drafted
+          description: Smart Publish (on unless set to false). Queues the request (combined with other requests of the site) and returns a jobId for /publishStatus.json
           required: false
+          default: true
         - name: callback
           type: boolean
           in: formData
-          description: flag indicating if webhook should be called after replication
+          description: flag indicating if webhook should be called after replication (on unless set to false)
           required: false
+          default: true
       responses:
         200:
           description: returns the root node name / path and the list of the nodes referenced
@@ -1020,8 +1022,66 @@ paths:
                       type: string
                     path:
                       type: string
+              jobId:
+                type: string
+                description: Smart Publish only (with state and batchSize)
         400:
           description: If the path did not resolve to a resource
+          schema:
+            $ref: "#/definitions/Error"
+        503:
+          description: A Smart Publish batch is still running; try again later
+          schema:
+            $ref: "#/definitions/Error"
+  '/publishStatus.json':
+    get:
+      description: State of a queued Smart Publish request (queued, running, succeeded or failed)
+      parameters:
+        - name: id
+          type: string
+          in: query
+          description: jobId returned by /repl.json
+          required: true
+      responses:
+        200:
+          description: returns state, message, sourcePath, batchSize, batchId and paths (all paths of the batch, once finished)
+          schema:
+            type: object
+        404:
+          description: Unknown or expired job
+          schema:
+            $ref: "#/definitions/Error"
+  '/generateAltText.json':
+    get:
+      description: Returns altTextConfigured
+      responses:
+        200:
+          description: whether alt text generation is configured
+          schema:
+            type: object
+    post:
+      description: Suggests alt text for an image asset with Gemini (nothing is saved)
+      parameters:
+        - name: path
+          type: string
+          in: formData
+          description: path of the image asset
+          required: true
+      responses:
+        200:
+          description: returns altText and details about the analyzed image
+          schema:
+            type: object
+        400:
+          description: Invalid path, unsupported or too large image
+          schema:
+            $ref: "#/definitions/Error"
+        502:
+          description: Gemini failed or returned an unusable result
+          schema:
+            $ref: "#/definitions/Error"
+        503:
+          description: Not configured or too many requests
           schema:
             $ref: "#/definitions/Error"
   '/ref.json{path}':
