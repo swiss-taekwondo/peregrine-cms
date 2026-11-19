@@ -82,7 +82,7 @@
             <div class="asset-browser-controls">
               <ul class="cards-toolbar sort-nav">
               <li><span class="cards-toolbar-title">Sort</span></li>
-              <li><input :name="`${instanceId}-sort`" type="radio" class="with-gap" :id="`${instanceId}-sort-natural`" :checked="sortBy === ''" @change="onSort('')"/><label :for="`${instanceId}-sort-natural`">Natural Order</label></li>
+              <li><input :name="`${instanceId}-sort`" type="radio" class="with-gap" :id="`${instanceId}-sort-natural`" :checked="sortBy === ''" @change="onSort('')"/><label :for="`${instanceId}-sort-natural`">natural order</label></li>
               <li><input :name="`${instanceId}-sort`" type="radio" class="with-gap" :id="`${instanceId}-sort-name`" :checked="sortBy === 'name'" @change="onSort('name')"/><label :for="`${instanceId}-sort-name`">name</label></li>
               <li><input :name="`${instanceId}-sort`" type="radio" class="with-gap" :id="`${instanceId}-sort-type`" :checked="sortBy === 'resourceType'" @change="onSort('resourceType')"/><label :for="`${instanceId}-sort-type`">type</label></li>
               <li><input :name="`${instanceId}-sort`" type="radio" class="with-gap" :id="`${instanceId}-sort-date`" :checked="sortBy === 'created'" @change="onSort('created')"/><label :for="`${instanceId}-sort-date`">date</label></li>
