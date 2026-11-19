@@ -35,7 +35,7 @@ export default function(me, target) {
             let path = me.getNodeFromView('/state/tools/pages')
             me.loadContent('/content/admin/pages/pages.html/path'+SUFFIX_PARAM_SEPARATOR+ path)
             resolve()
-        })
+        }).catch(reject)
     })
 
 }
