@@ -486,6 +486,15 @@ function fetchRef(service, path, sameTenant = false) {
 // Smart Publish is queued on the server and combined with other publishes of the site: follow the job until it ends.
 // Requests published together share a batch; the user gets one notification per batch listing all of its paths.
 const notifiedPublishBatches = new Set()
+// After a publish, reload only the explorer folder the user is looking at now: reloading any other folder replaces the
+// explorer's node tree and breaks the explorer when the user navigated away while the publish was running
+function refreshCurrentExplorer() {
+  const match = decodeURIComponent(document.location.pathname).match(/\.html\/path:(.+)$/)
+  const tools = ($perAdminApp.getView().state || {}).tools || {}
+  if (match && Object.values(tools).includes(match[1])) {
+    $perAdminApp.getApi().populateNodesForBrowser(match[1])
+  }
+}
 function pollPublishJob(path, sourcePath, jobId, startedAt = Date.now()) {
   setTimeout(() => fetch(`/admin/publishStatus.json?id=${encodeURIComponent(jobId)}`)
       .then(job => {
@@ -495,7 +504,7 @@ function pollPublishJob(path, sourcePath, jobId, startedAt = Date.now()) {
           const paths = job.paths && job.paths.length ? job.paths : [sourcePath]
           const list = paths.length > 10 ? `${paths.slice(0, 10).join(', ')} and ${paths.length - 10} more` : paths.join(', ')
           if (job.state === 'succeeded') {
-            new Set(paths.map(p => p.substring(0, p.lastIndexOf('/')))).forEach(parent => $perAdminApp.getApi().populateNodesForBrowser(parent))
+            refreshCurrentExplorer()
             $perAdminApp.notifyUser('Success', paths.length > 1 ? `Published ${paths.length} items together: ${list}.` : `${list} was successfully published.`)
             return
           }
@@ -1891,9 +1900,7 @@ class PerAdminImpl {
                       reject()
                     } else if (stopPolling(data)) {
                       clearInterval(noticeFunction)
-                      const parentPath = path.substring(0,
-                          path.lastIndexOf('/'))
-                      $perAdminApp.getApi().populateNodesForBrowser(parentPath)
+                      refreshCurrentExplorer()
                       $perAdminApp.notifyUser('Success',
                           `${respData.sourcePath} was successfully ${deactivate
                               ? 'un' : ''}published.`)
