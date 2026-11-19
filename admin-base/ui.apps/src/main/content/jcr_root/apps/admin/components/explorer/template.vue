@@ -691,18 +691,18 @@ export default {
             }
           },
 
-            checkIfAllowed: function(node) {
-                if(this.showFilterEnabled && this.filter) {
-                    if (node.excludeFromSitemap === true || node.excludeFromSitemap === 'true' || node.secondaryItem === true || node.secondaryItem === 'true') return false
-                    const filterFoldersByPublication = ['/state/tools/assets', '/state/tools/objects'].indexOf(this.model.dataFrom) >= 0
-                    const isFolder = ['sling:Folder', 'sling:OrderedFolder'].indexOf(node.resourceType) >= 0
-                    if (filterFoldersByPublication && isFolder) {
-                        return true
-                    }
-                    return ['per:Page', 'per:Asset', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0
-                }
-                return ['per:Asset', 'nt:file', 'sling:Folder', 'sling:OrderedFolder', 'per:Page', 'sling:OrderedFolder', 'per:Object', 'per:ObjectDefinition'].indexOf(node.resourceType) >= 0
-            },
+          checkIfAllowed: function(node) {
+            const allowed = ['per:Asset', 'nt:file', 'sling:Folder', 'sling:OrderedFolder', 'per:Page', 'per:Object', 'per:ObjectDefinition']
+            if (!allowed.includes(node.resourceType)) return false
+            if (!this.showFilterEnabled || !this.filter) return true
+
+            // filter is on: hide anything flagged as secondary
+            if (node.secondaryItem === 'true' || node.excludeFromSitemap === 'true') return false
+            if (node.resourceType === 'nt:file') return false
+            // assets and objects are organised in folders, so keep folders visible there
+            if (this.isFolder(node)) return this.isAssets(this.path) || this.isObjects(this.path)
+            return true
+          },
 
             showInfo: function(me, {path, resourceType}) {
                 const tenant = $perAdminApp.getView().state.tenant;

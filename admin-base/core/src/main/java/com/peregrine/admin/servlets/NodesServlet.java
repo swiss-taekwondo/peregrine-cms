@@ -93,6 +93,7 @@ public class NodesServlet extends AbstractBaseServlet {
     public static final String LAST_TRANSLATED = "lastTranslated";
     public static final String LAST_TRANSLATED_BY = "lastTranslatedBy";
     public static final String RESOURCE_TYPE = "resourceType";
+    public static final String SECONDARY_ITEM = "secondaryItem";
     public static final String JCR_PREFIX = "jcr:";
     public static final String PER_PREFIX = "per:";
 
@@ -185,8 +186,6 @@ public class NodesServlet extends AbstractBaseServlet {
                     json.writeAttribute(PATH,child.getPath());
                     json.writeAttribute(HAS_CHILDREN, hasNonJcrContentChild(child));
                     writeProperties(child, json);
-                    writeIfFound(json, "excludeFromSitemap", child.getValueMap());
-                    writeIfFound(json, "secondaryItem", child.getValueMap());
                     if(isPrimaryType(child, ASSET_PRIMARY_TYPE)) {
                         ValueMap props = child.getChild(JCR_CONTENT).getValueMap();
                         String mimeType = props.get(JCR_MIME_TYPE, String.class);
@@ -293,6 +292,7 @@ public class NodesServlet extends AbstractBaseServlet {
         writeIfFound(json, JCR_LAST_MODIFIED_BY, properties);
         writeIfFound(json, JCR_LAST_MODIFIED_BY, properties);
         writeIfFound(json, ALLOWED_OBJECTS, properties);
+        writeIfFound(json, SECONDARY_ITEM, properties);
 
         // For the Replication data we need to obtain the content properties. If not found
         // then we try with the resource's properties for non jcr:content nodes
