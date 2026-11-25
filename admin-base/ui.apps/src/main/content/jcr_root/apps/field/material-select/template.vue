@@ -31,7 +31,7 @@
       :track-by="trackBy"
       :label="label"
       :deselectLabel="deselectLabel"
-      :options="schema.values"
+      :options="options"
       :searchable="false"
       :taggable="false"
       :clear-on-select="true"
@@ -51,6 +51,23 @@
       props: ['model'], 
       mixins: [ VueFormGenerator.abstractField ],
       computed: {
+        options () {
+          // DownloadList uses valuesFromModel for the Section dropdown inside each manual download.
+          // The available sections belong to the ancestor component model.
+          const source = this.schema.valuesFromModel
+          if (!source) return this.schema.values || []
+          let owner = this
+          while (owner) {
+            const model = owner.model
+            if (model && Array.isArray(model[source.collection])) {
+              const values = model[source.collection].filter(item => !item._opDelete)
+                .map(item => (item[source.property] || '').trim()).filter(Boolean)
+              return Array.from(new Set(values), value => ({ name: value, value }))
+            }
+            owner = owner.$parent
+          }
+          return []
+        },
         placeholder () {
           if(this.schema.selectOptions && this.schema.selectOptions.placeholder){
             return this.schema.selectOptions.placeholder
@@ -83,8 +100,8 @@
             // will catch falsy, null or undefined
             if(this.value && this.value != null){
               // if model is a string, convert to object with name and value
-              if(typeof this.value === 'string'){ 
-                return this.schema.values.filter(item => item.value === this.value)[0]     
+              if(typeof this.value === 'string'){
+                return this.options.filter(item => item.value === this.value)[0]
               } else {
                 return this.value
               }

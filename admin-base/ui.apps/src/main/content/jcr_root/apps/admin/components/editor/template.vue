@@ -147,7 +147,28 @@ export default {
     }, 100)
   },
   methods: {
-    onOk(e) {
+    async onOk(e) {
+      // DownloadList loads sections asynchronously when the asset folder changes.
+      // Wait on the live model before cloning, and abandon the save if the editor closes.
+      const saveRequest = this._pendingSaveRequest = {}
+      const editor = this.view.state.editor
+      const model = this.dataModel
+      const editorPath = editor && editor.path
+      const pagePath = this.view.pageView.path
+      const saveIsActive = () => !this._isDestroyed && !this._isBeingDestroyed
+        && this._pendingSaveRequest === saveRequest
+        && this.view.state.editor === editor && editor.path === editorPath
+        && this.view.pageView.path === pagePath && this.dataModel === model
+      await this.$nextTick()
+      if (!saveIsActive()) return
+      while (model._assetSectionsPending) {
+        await model._assetSectionsPending
+        if (!saveIsActive()) return
+      }
+      if (model._assetSectionsError) {
+        $perAdminApp.notifyUser('error', 'Sections could not be loaded. Select the asset folder again before saving.')
+        return
+      }
       if (this.$refs.vfg && this.$refs.vfg.validate) {
         const isValid = this.$refs.vfg.validate()
         if (!isValid) {
@@ -156,7 +177,7 @@ export default {
           return
         }
       }
-      let data = JSON.parse(JSON.stringify(this.dataModel))
+      let data = JSON.parse(JSON.stringify(model))
       let _deleted = $perAdminApp.getNodeFromViewWithDefault('/state/tools/_deleted', {})
 
       // Merge _deleted child items back into the object that we need to save recursively.
@@ -214,6 +235,7 @@ export default {
     },
 
     onCancel(e) {
+      this._pendingSaveRequest = null
       var view = $perAdminApp.getView()
       $perAdminApp.action(this, 'onEditorExitFullscreen')
       $perAdminApp.action(this, 'unselect')
@@ -493,13 +515,3 @@ export default {
   }
 }
 </script>
-
-
-<style>
-/* Folder-derived sections can be reordered and configured, but not added manually. */
-.downloadlist-folder-sections > .field-wrap > .wrapper > .wrap > .collapsible > .btn-add-item,
-.downloadlist-folder-sections .btn-add-item {
-  display: none;
-}
-
-</style>

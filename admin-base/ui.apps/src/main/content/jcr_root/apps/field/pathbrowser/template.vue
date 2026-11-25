@@ -114,14 +114,27 @@ export default {
       },
       methods: {
            isImagePath,
+           updateLinkFromUser(newValue) {
+             // DownloadList opts in through clearFieldsOnChange: editing a language group's main link converts it to a single-file download.
+             // Only explicit edits clear variants. Model refreshes and reordering must not.
+             if (newValue === this.value) return
+             if (Array.isArray(this.schema.clearFieldsOnChange)) {
+               const fields = this.schema.clearFieldsOnChange
+               fields.forEach(field => this.$set(this.model, field, ''))
+               this.$set(this.model, '_opDeleteProps', Array.from(new Set([
+                 ...(this.model._opDeleteProps || []), ...fields
+               ])))
+             }
+             this.value = newValue
+           },
            onInputInput(event) {
-            this.value = event.target.value
+            this.updateLinkFromUser(event.target.value)
            },
             onCancel(){
                 this.isOpen = false
             },
             async onSelect() {
-                this.value = this.selectedPath
+                this.updateLinkFromUser(this.selectedPath)
                 this.$emit('select', this.selectedPath)
                 this.isOpen = false
             },
@@ -174,7 +187,7 @@ export default {
       })
             },
             async remove() {
-              this.value = "";
+              this.updateLinkFromUser("");
             },
     toggleNewWindow() {
       this.newWindow = !this.newWindow;

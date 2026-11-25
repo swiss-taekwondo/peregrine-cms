@@ -65,7 +65,7 @@
           </div>
         </transition>
       </li>
-      <button v-if="schema.allowAdd !== false" type="button" class="btn-flat btn-add-item" @click="onAddItem">
+      <button v-if="schema.allowAdd !== false || (schema.assetSections && !model.assets)" type="button" class="btn-flat btn-add-item" @click="onAddItem">
         <i class="material-icons">add</i>
       </button>
     </ul>
@@ -95,9 +95,109 @@ export default {
   beforeMount() {
     if (!this.value) this.value = []
   },
+  beforeDestroy() {
+    this._assetSectionsRequest = null
+    if (this._finishAssetSectionsRefresh) this._finishAssetSectionsRefresh()
+  },
   data() {
     return {
       activeItem: null
+    }
+  },
+  watch: {
+    // DownloadList opts in through assetSections: refresh sections and preview downloads
+    // from the asset folder, while keeping the existing entries until loading succeeds.
+    'model.assets': async function (path, oldPath) {
+      if (!this.schema.assetSections || path === oldPath) return
+      if (this._finishAssetSectionsRefresh) this._finishAssetSectionsRefresh()
+      const request = this._assetSectionsRequest = {}
+      delete this.model._assetSectionsError
+      // DownloadList keeps the loaded downloads and sections as editable manual entries when the asset folder is cleared.
+      // Invalidate the previous request so a late response cannot replace those entries after the switch to manual mode.
+      if (!path || !path.trim()) {
+        delete this.model._assetSectionsPending
+        return
+      }
+      let finishRefresh
+      const pending = new Promise(resolve => { finishRefresh = resolve })
+      this._finishAssetSectionsRefresh = () => {
+        finishRefresh()
+        if (this.model._assetSectionsPending === pending) delete this.model._assetSectionsPending
+      }
+      Object.defineProperty(this.model, '_assetSectionsPending', { value: pending, writable: true, configurable: true })
+      try {
+        const downloads = []
+        const timestamp = value => {
+          if (value == null || value === '') return ''
+          const date = new Date(value)
+          return Number.isFinite(date.getTime()) ? date.toISOString() : ''
+        }
+        const load = async (folderPath, section) => {
+          if (this._assetSectionsRequest !== request) return new Set()
+          const response = await axios.get('/perapi/admin/nodes.json' + folderPath.split('/').map(encodeURIComponent).join('/'))
+          if (this._assetSectionsRequest !== request) return new Set()
+          const tree = response.data
+          const folder = tree.path === folderPath ? tree : $perAdminApp.findNodeFromPath(tree, folderPath)
+          if (!folder) throw new Error("Asset folder could not be loaded")
+          const names = new Set()
+          for (const child of (folder && folder.children || [])) {
+            if (child.resourceType === 'per:Asset') {
+              names.add(section || this.model.title || 'Downloads')
+              downloads.push({ name: child.name, title: child.title || child.name, link: child.path, section,
+                defaultgroup: String(!section), text: '',
+                date: timestamp(child.created), modified: timestamp(child.lastModified) })
+            }
+            else if (['sling:Folder', 'sling:OrderedFolder', 'nt:folder'].includes(child.resourceType)) {
+              const language = ['de', 'en', 'fr', 'it'].includes(child.name.toLowerCase())
+              const nested = await load(child.path, language ? section : (section ? section + ' / ' : '') + child.name)
+              nested.forEach(name => names.add(name))
+            }
+          }
+          return names
+        }
+        const names = await load(path, '')
+        if (this._assetSectionsRequest !== request) return
+        // The update API merges children, explicitly delete persisted entries being replaced.
+        const persisted = (this.value || []).filter(item => item.path)
+        if (persisted.length) {
+          if (!this.model._deletedCollections) Vue.set(this.model, '_deletedCollections', {})
+          const deleted = this.model._deletedCollections[this.schema.model] || []
+          const paths = new Set(deleted.map(item => item.path))
+          persisted.forEach(item => {
+            if (!paths.has(item.path)) deleted.push({ ...item, _opDelete: true })
+          })
+          Vue.set(this.model._deletedCollections, this.schema.model, deleted)
+        }
+        const grouped = new Map()
+        downloads.forEach(item => {
+          const match = item.link.match(/^(.*)\/(de|en|fr|it)\/([^/]+)$/i)
+          const filename = item.link.slice(item.link.lastIndexOf('/') + 1)
+          const suffix = filename.match(/_(de|en|fr|it)(?=\.[^.]+$)/i)
+          const language = match ? match[2].toLowerCase() : suffix && suffix[1].toLowerCase()
+          const base = filename.replace(/_(de|en|fr|it)(?=\.[^.]+$)/i, '')
+          const key = language ? (match ? match[1] : item.link.slice(0, item.link.lastIndexOf('/'))) + '/' + base : item.link
+          const mapKey = (language ? 'languages:' : 'asset:') + key
+          if (!grouped.has(mapKey)) grouped.set(mapKey, { ...item, groupkey: key })
+          const group = grouped.get(mapKey)
+          if (item.date && (!group.date || Date.parse(item.date) < Date.parse(group.date))) group.date = item.date
+          if (item.modified && (!group.modified || Date.parse(item.modified) > Date.parse(group.modified))) group.modified = item.modified
+          if (language) {
+            group['language_' + language] = item.link
+            group['title_' + language] = item.title === filename ? base : item.title
+          }
+        })
+        Vue.set(this.model, 'downloads', Array.from(grouped.values()))
+        this.activeItem = null
+        this.value = Array.from(names, (section, index) => ({name: 'folder_' + Date.now() + '_' + index, section, sort: 'natural', 'sling:resourceType': this.schema.resourceType}))
+      } catch (error) {
+        if (this._assetSectionsRequest !== request) return
+        Object.defineProperty(this.model, '_assetSectionsError', { value: true, configurable: true })
+        $perAdminApp.toast('Unable to load asset sections. Existing sections have been kept.', 'error')
+        console.error('Unable to load asset sections', error)
+      } finally {
+        finishRefresh()
+        if (this.model._assetSectionsPending === pending) delete this.model._assetSectionsPending
+      }
     }
   },
   computed: {

@@ -34,7 +34,21 @@ export default function(me, target) {
     let view = me.getView()
 
     return new Promise( (resolve, reject) => {
-        me.getApi().savePageEdit(view.pageView.path, target.data).then( () => {
+        Promise.resolve().then(async () => {
+            // DownloadList also saves through the navigation confirmation flow, which
+            // passes the live model and must wait for its pending asset-folder refresh.
+            // Allow the form watcher to start, then await the latest folder request.
+            await me.getApp().$nextTick()
+            while (target.data._assetSectionsPending) await target.data._assetSectionsPending
+            if (target.data._assetSectionsError) throw new Error('Sections could not be loaded. Select the asset folder again before saving.')
+            return me.getApi().savePageEdit(view.pageView.path, target.data)
+        }).then(() => {
+            if (target.data.component === 'stkdtheme-components-downloadlist') {
+                // DownloadList's files are computed by Java; fetch them after saving
+                // so the preview reflects the saved folder without a browser reload.
+                return me.getApi().populatePageView(view.pageView.path)
+            }
+        }).then( () => {
             delete view.state.editor;
             set(view, '/state/editorVisible', false)
             $perAdminApp.clearBeforeStateActions();
