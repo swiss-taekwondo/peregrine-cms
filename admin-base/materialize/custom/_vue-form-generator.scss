@@ -985,8 +985,10 @@
 }
 
 .text-editor[readonly="readonly"],
-input:read-only:not([type="range"]):not([type="color"]),
-input:disabled:not([type="range"]):not([type="color"]) {
+input:is(:read-only, :disabled)
+    :not([type="range"])
+    :not([type="color"])
+    :not([type="radio"][id^="pathbrowser-"][id$="-root-selection"]) {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
 }

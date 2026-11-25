@@ -493,3 +493,13 @@ export default {
   }
 }
 </script>
+
+
+<style>
+/* Folder-derived sections can be reordered and configured, but not added manually. */
+.downloadlist-folder-sections > .field-wrap > .wrapper > .wrap > .collapsible > .btn-add-item,
+.downloadlist-folder-sections .btn-add-item {
+  display: none;
+}
+
+</style>

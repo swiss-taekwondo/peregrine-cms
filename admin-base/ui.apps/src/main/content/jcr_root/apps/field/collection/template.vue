@@ -27,6 +27,7 @@
     <label>{{ schema.title }} </label>
     <ul v-if="!schema.preview"
         class="collapsible"
+        :style="schema.allowAdd === false ? { marginBottom: '0' } : {}"
         :class="schema.multifield ? 'multifield' : 'singlefield'"
         ref="collapsible">
       <li v-for="(item, index) in value"
@@ -64,7 +65,7 @@
           </div>
         </transition>
       </li>
-      <button type="button" class="btn-flat btn-add-item" @click="onAddItem">
+      <button v-if="schema.allowAdd !== false" type="button" class="btn-flat btn-add-item" @click="onAddItem">
         <i class="material-icons">add</i>
       </button>
     </ul>
@@ -280,6 +281,19 @@ export default {
 </script>
 
 <style scoped>
+/* Open selects must be above following collection rows and add buttons. */
+.wrap:has(.multiselect--active),
+.wrap .collapsible .collection-item:has(.multiselect--active) {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+.wrap .collapsible:has(.multiselect--active),
+.wrap .collapsible-body:has(.multiselect--active) {
+  overflow: visible !important;
+}
+
 .wrap .collapsible .collection-item.dragging {
   transition: opacity .25s linear;
   opacity: .3;
